@@ -16,6 +16,7 @@ from sim2real_engine.core.contracts import (
     DomainRandomizationConfig,
 )
 from sim2real_engine.core.kinematics import DampedLeastSquaresIK
+from sim2real_engine.randomization.samplers import DomainRandomizer
 from sim2real_engine.simulators.base import PrivilegedPickPlaceExpert, RolloutSummary
 from sim2real_engine.simulators.mujoco_adapter import MuJoCoKinematicAdapter
 
@@ -100,6 +101,24 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     rollout_parser.add_argument("--json", action="store_true", help="Emit JSON output.")
 
+    sample_dr_parser = subparsers.add_parser(
+        "sample-dr",
+        help="Sample deterministic domain randomization perturbations across episodes.",
+    )
+    sample_dr_parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Deterministic base RNG seed.",
+    )
+    sample_dr_parser.add_argument(
+        "--episodes",
+        type=int,
+        default=3,
+        help="Number of episodes to sample.",
+    )
+    sample_dr_parser.add_argument("--json", action="store_true", help="Emit JSON output.")
+
     return parser
 
 
@@ -143,6 +162,32 @@ def _run_rollout(backend_name: str, episodes: int, base_seed: int, emit_json: bo
             f"{summary.success_count}/{summary.num_episodes} succeeded "
             f"(mean_steps={summary.mean_steps}, mean_error={summary.mean_final_ee_error_m} m)"
         )
+    return 0
+
+
+def _run_sample_dr(seed: int, episodes: int, emit_json: bool) -> int:
+    if episodes < 1:
+        print("Number of episodes must be >= 1.", file=sys.stderr)
+        return 1
+
+    config = DomainRandomizationConfig(seed=seed)
+    randomizer = DomainRandomizer(config=config)
+    perturbations = randomizer.sample_batch(episodes)
+
+    if emit_json:
+        payload = [p.model_dump() for p in perturbations]
+        print(json.dumps(payload, indent=2))
+    else:
+        print(f"Sampled {len(perturbations)} perturbations (base_seed={seed}):")
+        for p in perturbations:
+            pos_norm = float(np.linalg.norm(p.camera_pose_offset.position))
+            print(
+                f"- Ep {p.episode_id}: mass={p.mass_scale:.3f}, "
+                f"friction={p.friction_scale:.3f}, "
+                f"damping={p.damping_scale:.3f}, "
+                f"lighting={p.lighting_intensity:.3f}, "
+                f"cam_offset_norm={pos_norm:.4f}m"
+            )
     return 0
 
 
@@ -210,6 +255,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             backend_name=str(args.backend),
             episodes=int(args.episodes),
             base_seed=int(args.seed),
+            emit_json=bool(args.json),
+        )
+
+    if args.command == "sample-dr":
+        return _run_sample_dr(
+            seed=int(args.seed),
+            episodes=int(args.episodes),
             emit_json=bool(args.json),
         )
 
