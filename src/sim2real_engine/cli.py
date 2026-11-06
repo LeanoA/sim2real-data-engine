@@ -7,6 +7,7 @@ import json
 import sys
 from collections.abc import Sequence
 
+import numpy as np
 from pydantic import ValidationError
 
 from sim2real_engine import __version__
@@ -14,6 +15,9 @@ from sim2real_engine.core.contracts import (
     DEFAULT_BACKENDS,
     DomainRandomizationConfig,
 )
+from sim2real_engine.core.kinematics import DampedLeastSquaresIK
+from sim2real_engine.simulators.base import PrivilegedPickPlaceExpert, RolloutSummary
+from sim2real_engine.simulators.mujoco_adapter import MuJoCoKinematicAdapter
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -72,7 +76,74 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     validate_parser.add_argument("--json", action="store_true", help="Emit JSON output.")
 
+    rollout_parser = subparsers.add_parser(
+        "rollout",
+        help="Execute closed-loop privileged IK expert rollouts on a simulator backend.",
+    )
+    rollout_parser.add_argument(
+        "--backend",
+        choices=list(DEFAULT_BACKENDS.keys()),
+        default="mujoco",
+        help="Target physics simulator backend.",
+    )
+    rollout_parser.add_argument(
+        "--episodes",
+        type=int,
+        default=5,
+        help="Number of rollout episodes to execute.",
+    )
+    rollout_parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Base deterministic seed.",
+    )
+    rollout_parser.add_argument("--json", action="store_true", help="Emit JSON output.")
+
     return parser
+
+
+def _run_rollout(backend_name: str, episodes: int, base_seed: int, emit_json: bool) -> int:
+    if episodes < 1:
+        print("Number of episodes must be >= 1.", file=sys.stderr)
+        return 1
+
+    adapter = MuJoCoKinematicAdapter()
+    ik_solver = DampedLeastSquaresIK(dof=adapter.dof)
+    expert = PrivilegedPickPlaceExpert(ik_solver=ik_solver)
+
+    successes = 0
+    step_counts: list[int] = []
+    final_errors: list[float] = []
+
+    for idx in range(episodes):
+        ep_seed = base_seed + idx
+        records = expert.run_episode(backend=adapter, seed=ep_seed, max_steps=120)
+        if records and records[-1].is_terminal:
+            successes += 1
+        step_counts.append(len(records))
+        final_wp = expert.current_waypoint()
+        ee_end = np.asarray(records[-1].end_effector_pose.position, dtype=np.float64)
+        wp_end = np.asarray(final_wp.position, dtype=np.float64)
+        final_errors.append(float(np.linalg.norm(ee_end - wp_end)))
+
+    summary = RolloutSummary(
+        backend=backend_name,
+        num_episodes=episodes,
+        success_count=successes,
+        success_rate=round(successes / episodes, 4),
+        mean_steps=round(float(np.mean(step_counts)), 2),
+        mean_final_ee_error_m=round(float(np.mean(final_errors)), 6),
+    )
+    if emit_json:
+        print(json.dumps(summary.model_dump(), indent=2))
+    else:
+        print(
+            f"Rollout complete ({summary.backend}): "
+            f"{summary.success_count}/{summary.num_episodes} succeeded "
+            f"(mean_steps={summary.mean_steps}, mean_error={summary.mean_final_ee_error_m} m)"
+        )
+    return 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -133,6 +204,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         else:
             print(f"Configuration valid (seed={config.seed}).")
         return 0
+
+    if args.command == "rollout":
+        return _run_rollout(
+            backend_name=str(args.backend),
+            episodes=int(args.episodes),
+            base_seed=int(args.seed),
+            emit_json=bool(args.json),
+        )
 
     return 1
 
