@@ -62,11 +62,18 @@ def _rotation_matrix_to_quaternion_wxyz(
 class MuJoCoKinematicAdapter:
     """Deterministic 6-DOF articulated arm simulator for local ARM64/CPU verification."""
 
-    def __init__(self, control_dt: float = 0.02, kp: float = 45.0, kd: float = 4.0) -> None:
+    def __init__(
+        self,
+        control_dt: float = 0.02,
+        kp: float = 45.0,
+        kd: float = 4.0,
+        tracking_alpha: float = 0.85,
+    ) -> None:
         self._dof = 6
         self._control_dt = control_dt
         self._kp = kp
         self._kd = kd
+        self._tracking_alpha = tracking_alpha
         self._home_q = np.array([0.0, 0.55, -1.10, 0.0, 0.55, 0.0], dtype=np.float64)
         self._q = self._home_q.copy()
         self._dq = np.zeros(self._dof, dtype=np.float64)
@@ -176,7 +183,7 @@ class MuJoCoKinematicAdapter:
         q_des = np.asarray(joint_targets_rad, dtype=np.float64)
         q_err = q_des - self._q
         self._torques = self._kp * q_err - self._kd * self._dq
-        q_next = self._q + 0.85 * q_err
+        q_next = self._q + self._tracking_alpha * q_err
         self._dq = (q_next - self._q) / self._control_dt
         self._q = q_next
         self._step_index += 1

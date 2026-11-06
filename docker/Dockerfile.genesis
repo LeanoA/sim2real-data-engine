@@ -1,0 +1,29 @@
+# Headless Genesis Cloud GPU Container
+# Target Cloud Hardware: AWS g5.xlarge (1x NVIDIA A10G) / GCP g2-standard-4 (1x NVIDIA L4)
+FROM nvidia/cuda:12.4.1-devel-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    UV_LINK_MODE=copy
+
+WORKDIR /workspace
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    git \
+    build-essential \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv for fast deterministic package management
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+COPY pyproject.toml uv.lock README.md ./
+RUN uv sync --frozen --no-install-project
+
+COPY src/ src/
+RUN uv sync --frozen
+
+ENTRYPOINT ["uv", "run", "sim2real"]
+CMD ["info"]

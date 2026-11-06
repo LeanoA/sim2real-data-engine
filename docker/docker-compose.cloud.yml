@@ -1,0 +1,32 @@
+services:
+  genesis-worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.genesis
+    image: sim2real/genesis:latest
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - ../datasets:/workspace/datasets
+    command: ["export-dataset", "--backend", "genesis", "--episodes", "50", "--output-dir", "/workspace/datasets/genesis_run", "--json"]
+
+  isaac-worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.isaaclab
+    image: sim2real/isaac-lab:latest
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - ../datasets:/workspace/datasets
+    command: ["sim2sim-eval", "--ref", "mujoco", "--target", "isaac_lab", "--episodes", "20", "--json"]

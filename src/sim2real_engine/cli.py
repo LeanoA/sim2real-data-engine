@@ -7,13 +7,16 @@ import json
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 from pydantic import ValidationError
 
 from sim2real_engine import __version__
+from sim2real_engine.benchmarks.sim2sim_eval import evaluate_sim2sim_gap
 from sim2real_engine.core.contracts import (
     DEFAULT_BACKENDS,
+    BackendName,
     DomainRandomizationConfig,
     JointState,
 )
@@ -184,6 +187,36 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     benchmark_parser.add_argument("--json", action="store_true", help="Emit JSON output.")
 
+    sim2sim_parser = subparsers.add_parser(
+        "sim2sim-eval",
+        help="Evaluate physics divergence and Sim-to-Sim gap between simulator backends.",
+    )
+    sim2sim_parser.add_argument(
+        "--ref",
+        choices=list(DEFAULT_BACKENDS.keys()),
+        default="mujoco",
+        help="Baseline reference simulator backend.",
+    )
+    sim2sim_parser.add_argument(
+        "--target",
+        choices=list(DEFAULT_BACKENDS.keys()),
+        default="isaac_lab",
+        help="Target simulator backend to evaluate against reference.",
+    )
+    sim2sim_parser.add_argument(
+        "--episodes",
+        type=int,
+        default=5,
+        help="Number of comparative evaluation episodes.",
+    )
+    sim2sim_parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Base deterministic RNG seed.",
+    )
+    sim2sim_parser.add_argument("--json", action="store_true", help="Emit JSON output.")
+
     return parser
 
 
@@ -352,6 +385,40 @@ def _run_benchmark_bridge(
     return 0
 
 
+def _run_sim2sim_eval(
+    ref_name: str,
+    target_name: str,
+    episodes: int,
+    base_seed: int,
+    emit_json: bool,
+) -> int:
+    if episodes < 1:
+        print("Number of episodes must be >= 1.", file=sys.stderr)
+        return 1
+
+    metrics = evaluate_sim2sim_gap(
+        reference=cast(BackendName, ref_name),
+        target=cast(BackendName, target_name),
+        num_episodes=episodes,
+        seed=base_seed,
+    )
+
+    if emit_json:
+        print(json.dumps(metrics.model_dump(), indent=2))
+    else:
+        print(
+            f"Sim-to-Sim Evaluation ({metrics.reference_backend} vs {metrics.target_backend}, "
+            f"{metrics.num_episodes} episodes):"
+        )
+        print(f"- Mean Trajectory RMSE: {metrics.mean_trajectory_rmse:.6f} rad")
+        print(f"- Mean Final EE Divergence: {metrics.mean_ee_divergence_m:.6f} m")
+        pct_ref = metrics.success_rate_reference * 100
+        pct_tgt = metrics.success_rate_target * 100
+        print(f"- Success Rate ({metrics.reference_backend}): {pct_ref:.1f}%")
+        print(f"- Success Rate ({metrics.target_backend}): {pct_tgt:.1f}%")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Execute the `sim2real` CLI entrypoint."""
     parser = _build_parser()
@@ -441,6 +508,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             horizon=int(args.chunk_horizon),
             decay_rate=float(args.decay_rate),
             simulated_latency_ms=float(args.simulated_latency_ms),
+            emit_json=bool(args.json),
+        )
+
+    if args.command == "sim2sim-eval":
+        return _run_sim2sim_eval(
+            ref_name=str(args.ref),
+            target_name=str(args.target),
+            episodes=int(args.episodes),
+            base_seed=int(args.seed),
             emit_json=bool(args.json),
         )
 

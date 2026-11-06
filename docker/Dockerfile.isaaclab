@@ -1,0 +1,21 @@
+# Headless NVIDIA Isaac Lab RTX Container
+# Target Cloud Hardware: AWS g5.2xlarge / GCP g2-standard-8 with NVIDIA RTX drivers
+FROM nvcr.io/nvidia/isaac-sim:4.2.0
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    ACCEPT_EULA=Y
+
+WORKDIR /workspace
+
+# Install uv inside Omniverse container Python environment
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+COPY pyproject.toml uv.lock README.md ./
+RUN uv sync --frozen --no-install-project
+
+COPY src/ src/
+RUN uv sync --frozen
+
+ENTRYPOINT ["uv", "run", "sim2real"]
+CMD ["info"]
