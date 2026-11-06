@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import webbrowser
 from collections.abc import Sequence
 from pathlib import Path
 from typing import cast
@@ -27,6 +28,7 @@ from sim2real_engine.server.bridge import PolicyInferenceBridge
 from sim2real_engine.server.chunk_buffer import TemporalEnsembleBuffer
 from sim2real_engine.simulators.base import PrivilegedPickPlaceExpert, RolloutSummary
 from sim2real_engine.simulators.mujoco_adapter import MuJoCoKinematicAdapter
+from sim2real_engine.visualization.dashboard import generate_html_dashboard
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -216,6 +218,29 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Base deterministic RNG seed.",
     )
     sim2sim_parser.add_argument("--json", action="store_true", help="Emit JSON output.")
+
+    vis_parser = subparsers.add_parser(
+        "visualize",
+        help="Generate interactive 3D kinematics and Sim-to-Sim HTML visualization dashboard.",
+    )
+    vis_parser.add_argument(
+        "--output",
+        type=str,
+        default="sim2real_visualizer.html",
+        help="Path for generated HTML dashboard file.",
+    )
+    vis_parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Deterministic rollout RNG seed.",
+    )
+    vis_parser.add_argument(
+        "--open",
+        action="store_true",
+        help="Open dashboard in default web browser upon creation.",
+    )
+    vis_parser.add_argument("--json", action="store_true", help="Emit JSON output.")
 
     return parser
 
@@ -419,6 +444,26 @@ def _run_sim2sim_eval(
     return 0
 
 
+def _run_visualize(output_path: str, seed: int, open_browser: bool, emit_json: bool) -> int:
+    file_path = generate_html_dashboard(seed=seed, output_path=output_path)
+    if open_browser:
+        webbrowser.open(file_path.as_uri())
+
+    if emit_json:
+        payload = {
+            "status": "success",
+            "file": str(file_path),
+            "seed": seed,
+            "opened": open_browser,
+        }
+        print(json.dumps(payload, indent=2))
+    else:
+        print(f"Interactive visualizer generated: {file_path}")
+        if open_browser:
+            print("Opened in default web browser.")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Execute the `sim2real` CLI entrypoint."""
     parser = _build_parser()
@@ -517,6 +562,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             target_name=str(args.target),
             episodes=int(args.episodes),
             base_seed=int(args.seed),
+            emit_json=bool(args.json),
+        )
+
+    if args.command == "visualize":
+        return _run_visualize(
+            output_path=str(args.output),
+            seed=int(args.seed),
+            open_browser=bool(args.open),
             emit_json=bool(args.json),
         )
 
