@@ -15,10 +15,13 @@ from sim2real_engine import __version__
 from sim2real_engine.core.contracts import (
     DEFAULT_BACKENDS,
     DomainRandomizationConfig,
+    JointState,
 )
 from sim2real_engine.core.kinematics import DampedLeastSquaresIK
 from sim2real_engine.dataset.exporter import LeRobotEpisodeExporter
 from sim2real_engine.randomization.samplers import DomainRandomizer
+from sim2real_engine.server.bridge import PolicyInferenceBridge
+from sim2real_engine.server.chunk_buffer import TemporalEnsembleBuffer
 from sim2real_engine.simulators.base import PrivilegedPickPlaceExpert, RolloutSummary
 from sim2real_engine.simulators.mujoco_adapter import MuJoCoKinematicAdapter
 
@@ -151,6 +154,36 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     export_parser.add_argument("--json", action="store_true", help="Emit JSON output.")
 
+    benchmark_parser = subparsers.add_parser(
+        "benchmark-bridge",
+        help="Benchmark decoupled policy inference bridge with receding-horizon action chunking.",
+    )
+    benchmark_parser.add_argument(
+        "--steps",
+        type=int,
+        default=200,
+        help="Number of control loop steps to benchmark.",
+    )
+    benchmark_parser.add_argument(
+        "--chunk-horizon",
+        type=int,
+        default=16,
+        help="Action chunk prediction horizon H.",
+    )
+    benchmark_parser.add_argument(
+        "--decay-rate",
+        type=float,
+        default=0.05,
+        help="Temporal ensemble exponential decay rate m.",
+    )
+    benchmark_parser.add_argument(
+        "--simulated-latency-ms",
+        type=float,
+        default=8.0,
+        help="Simulated neural network inference forward pass latency in ms.",
+    )
+    benchmark_parser.add_argument("--json", action="store_true", help="Emit JSON output.")
+
     return parser
 
 
@@ -269,6 +302,56 @@ def _run_export_dataset(
     return 0 if integrity_ok else 1
 
 
+def _run_benchmark_bridge(
+    steps: int,
+    horizon: int,
+    decay_rate: float,
+    simulated_latency_ms: float,
+    emit_json: bool,
+) -> int:
+    if steps < 1 or horizon < 1:
+        print("Steps and horizon must be >= 1.", file=sys.stderr)
+        return 1
+
+    dof = 6
+    buffer = TemporalEnsembleBuffer(action_dim=dof, horizon=horizon, decay_rate=decay_rate)
+    bridge = PolicyInferenceBridge(buffer=buffer, simulated_latency_ms=simulated_latency_ms)
+
+    curr_q = (0.0,) * dof
+    dummy_vel = (0.0,) * dof
+    dummy_tau = (0.0,) * dof
+
+    for step_idx in range(steps):
+        obs = JointState(
+            positions_rad=curr_q,
+            velocities_rad_s=dummy_vel,
+            torques_nm=dummy_tau,
+        )
+        action = bridge.infer_step(observation=obs, step=step_idx)
+        curr_q = tuple(float(x) for x in action)
+
+    metrics = bridge.get_latency_metrics()
+
+    if emit_json:
+        payload = {
+            "status": "success",
+            "steps": steps,
+            "chunk_horizon": horizon,
+            "decay_rate": decay_rate,
+            "metrics": metrics.model_dump(),
+        }
+        print(json.dumps(payload, indent=2))
+    else:
+        print(
+            f"Policy Bridge Benchmark ({steps} steps, horizon={horizon}, decay={decay_rate}):"
+        )
+        print(
+            f"- Latency: Mean={metrics.mean_ms:.2f}ms | P50={metrics.p50_ms:.2f}ms | "
+            f"P95={metrics.p95_ms:.2f}ms | P99={metrics.p99_ms:.2f}ms | Max={metrics.max_ms:.2f}ms"
+        )
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Execute the `sim2real` CLI entrypoint."""
     parser = _build_parser()
@@ -349,6 +432,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             episodes=int(args.episodes),
             output_dir=str(args.output_dir),
             base_seed=int(args.seed),
+            emit_json=bool(args.json),
+        )
+
+    if args.command == "benchmark-bridge":
+        return _run_benchmark_bridge(
+            steps=int(args.steps),
+            horizon=int(args.chunk_horizon),
+            decay_rate=float(args.decay_rate),
+            simulated_latency_ms=float(args.simulated_latency_ms),
             emit_json=bool(args.json),
         )
 
