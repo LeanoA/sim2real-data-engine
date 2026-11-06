@@ -8,6 +8,7 @@ license = { text = "MIT" }
 authors = [{ name = "Alexander" }]
 dependencies = [
     "numpy>=2.1",
+    "pyarrow>=26.0.1",
     "pydantic>=2.9",
 ]
 
@@ -47,3 +48,10 @@ warn_return_any = true
 warn_unused_configs = true
 mypy_path = "src"
 packages = ["sim2real_engine"]
+
+[[tool.mypy.overrides]]
+module = [
+    "pyarrow",
+    "pyarrow.*",
+]
+ignore_missing_imports = true

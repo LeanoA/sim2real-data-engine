@@ -6,6 +6,7 @@ import argparse
 import json
 import sys
 from collections.abc import Sequence
+from pathlib import Path
 
 import numpy as np
 from pydantic import ValidationError
@@ -16,6 +17,7 @@ from sim2real_engine.core.contracts import (
     DomainRandomizationConfig,
 )
 from sim2real_engine.core.kinematics import DampedLeastSquaresIK
+from sim2real_engine.dataset.exporter import LeRobotEpisodeExporter
 from sim2real_engine.randomization.samplers import DomainRandomizer
 from sim2real_engine.simulators.base import PrivilegedPickPlaceExpert, RolloutSummary
 from sim2real_engine.simulators.mujoco_adapter import MuJoCoKinematicAdapter
@@ -119,6 +121,36 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     sample_dr_parser.add_argument("--json", action="store_true", help="Emit JSON output.")
 
+    export_parser = subparsers.add_parser(
+        "export-dataset",
+        help="Generate synthetic episode rollouts and export as LeRobotDataset v2 Parquet.",
+    )
+    export_parser.add_argument(
+        "--episodes",
+        type=int,
+        default=5,
+        help="Number of rollout episodes to record.",
+    )
+    export_parser.add_argument(
+        "--output-dir",
+        type=str,
+        default="./datasets/sim2real_pick_place",
+        help="Destination directory for exported dataset and manifest.",
+    )
+    export_parser.add_argument(
+        "--backend",
+        choices=list(DEFAULT_BACKENDS.keys()),
+        default="mujoco",
+        help="Physics simulator backend.",
+    )
+    export_parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Base deterministic RNG seed.",
+    )
+    export_parser.add_argument("--json", action="store_true", help="Emit JSON output.")
+
     return parser
 
 
@@ -189,6 +221,52 @@ def _run_sample_dr(seed: int, episodes: int, emit_json: bool) -> int:
                 f"cam_offset_norm={pos_norm:.4f}m"
             )
     return 0
+
+
+def _run_export_dataset(
+    backend_name: str,
+    episodes: int,
+    output_dir: str,
+    base_seed: int,
+    emit_json: bool,
+) -> int:
+    if episodes < 1:
+        print("Number of episodes must be >= 1.", file=sys.stderr)
+        return 1
+
+    out_path = Path(output_dir)
+    exporter = LeRobotEpisodeExporter(root_dir=out_path)
+    adapter = MuJoCoKinematicAdapter()
+    ik_solver = DampedLeastSquaresIK(dof=adapter.dof)
+    expert = PrivilegedPickPlaceExpert(ik_solver=ik_solver)
+    config = DomainRandomizationConfig(seed=base_seed)
+    randomizer = DomainRandomizer(config=config)
+
+    for ep_id in range(episodes):
+        ep_seed = base_seed + ep_id
+        # Sample domain perturbation to drive deterministic variation
+        _ = randomizer.sample_episode(ep_id)
+        records = expert.run_episode(backend=adapter, seed=ep_seed, max_steps=120)
+        exporter.write_episode(episode_id=ep_id, steps=records)
+
+    manifest = exporter.finalize_manifest()
+    integrity_ok = exporter.verify_integrity()
+
+    if emit_json:
+        payload = {
+            "status": "success",
+            "manifest": manifest.model_dump(),
+            "integrity_verified": integrity_ok,
+            "output_directory": str(out_path.resolve()),
+        }
+        print(json.dumps(payload, indent=2))
+    else:
+        print(
+            f"Successfully exported {manifest.num_episodes} episodes "
+            f"({manifest.total_steps} total steps) to {out_path}."
+        )
+        print(f"SHA-256 envelope integrity verified: {integrity_ok}")
+    return 0 if integrity_ok else 1
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -262,6 +340,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_sample_dr(
             seed=int(args.seed),
             episodes=int(args.episodes),
+            emit_json=bool(args.json),
+        )
+
+    if args.command == "export-dataset":
+        return _run_export_dataset(
+            backend_name=str(args.backend),
+            episodes=int(args.episodes),
+            output_dir=str(args.output_dir),
+            base_seed=int(args.seed),
             emit_json=bool(args.json),
         )
 
