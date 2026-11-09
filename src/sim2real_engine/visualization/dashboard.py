@@ -29,46 +29,87 @@ def generate_html_dashboard(
     target_file = Path(output_path).resolve()
     target_file.parent.mkdir(parents=True, exist_ok=True)
 
-    # 1. Prepare 3D Arm skeleton traces for Plotly
-    arm_traces: list[dict[str, object]] = []
-    colors = {
-        "Initial Home": "#718096",
-        "Grasp Approach": "#3182ce",
-        "Final Place": "#38a169",
-    }
-    widths = {"Initial Home": 4, "Grasp Approach": 5, "Final Place": 6}
-
-    for name, pose in traj_data.key_arm_poses.items():
+    # 1. Prepare animated sequence data for time scrubber
+    all_arm_coords: list[dict[str, list[float]]] = []
+    for pose in traj_data.arm_trajectory:
         xs, ys, zs = pose.to_coordinates_tuple()
-        arm_traces.append(
-            {
-                "type": "scatter3d",
-                "mode": "lines+markers",
-                "name": f"Arm: {name}",
-                "x": xs,
-                "y": ys,
-                "z": zs,
-                "line": {"color": colors.get(name, "#e2e8f0"), "width": widths.get(name, 5)},
-                "marker": {"size": 6, "color": colors.get(name, "#e2e8f0")},
-            }
-        )
+        all_arm_coords.append({"xs": xs, "ys": ys, "zs": zs})
 
-    # 2. End-effector trajectory trace
+    obj_xs = [p[0] for p in traj_data.object_trajectory]
+    obj_ys = [p[1] for p in traj_data.object_trajectory]
+    obj_zs = [p[2] for p in traj_data.object_trajectory]
+
     ee_xs = [p[0] for p in traj_data.ee_trajectory]
     ee_ys = [p[1] for p in traj_data.ee_trajectory]
     ee_zs = [p[2] for p in traj_data.ee_trajectory]
 
-    ee_trace = {
+    total_steps = len(traj_data.timesteps_s)
+
+    # Compute phase labels for each step
+    phases: list[str] = []
+    for idx in range(total_steps):
+        t_sec = traj_data.timesteps_s[idx]
+        ee_pos = traj_data.ee_trajectory[idx]
+        obj_pos = traj_data.object_trajectory[idx]
+        dist = ((ee_pos[0] - obj_pos[0]) ** 2 + (ee_pos[1] - obj_pos[1]) ** 2) ** 0.5
+        if idx == total_steps - 1:
+            phases.append("Place Complete — Payload Released")
+        elif dist <= 0.02 and t_sec > 0.15:
+            phases.append("Grasping & Lifting Object")
+        elif t_sec < 0.12:
+            phases.append("Approach to Hover Waypoint")
+        else:
+            phases.append("Descending to Contact Pose")
+
+    # Initial arm pose (t=0)
+    init_arm = all_arm_coords[0]
+
+    # Trace 0: Moving robot arm
+    arm_trace = {
+        "type": "scatter3d",
+        "mode": "lines+markers",
+        "name": "Articulated Robot Arm",
+        "x": init_arm["xs"],
+        "y": init_arm["ys"],
+        "z": init_arm["zs"],
+        "line": {"color": "#00f0ff", "width": 8},
+        "marker": {"size": 8, "color": "#ffffff"},
+    }
+
+    # Trace 1: Moving payload object
+    obj_trace = {
+        "type": "scatter3d",
+        "mode": "markers",
+        "name": "Payload Object",
+        "x": [obj_xs[0]],
+        "y": [obj_ys[0]],
+        "z": [obj_zs[0]],
+        "marker": {"size": 10, "color": "#f6ad55", "symbol": "diamond"},
+    }
+
+    # Trace 2: Dynamic path trail up to current step
+    trail_trace = {
         "type": "scatter3d",
         "mode": "lines",
-        "name": "EE Pick-and-Place Path",
+        "name": "Traveled Trail",
+        "x": [ee_xs[0]],
+        "y": [ee_ys[0]],
+        "z": [ee_zs[0]],
+        "line": {"color": "#38a169", "width": 5},
+    }
+
+    # Trace 3: Ghost planned full trajectory
+    ghost_trace = {
+        "type": "scatter3d",
+        "mode": "lines",
+        "name": "Full Planned Trajectory",
         "x": ee_xs,
         "y": ee_ys,
         "z": ee_zs,
-        "line": {"color": "#00f0ff", "width": 6},
+        "line": {"color": "rgba(255, 255, 255, 0.25)", "width": 2, "dash": "dot"},
     }
 
-    # 3. Waypoints and target object markers
+    # Trace 4: Waypoints
     wp_names = [w[0] for w in traj_data.waypoints]
     wp_xs = [w[1][0] for w in traj_data.waypoints]
     wp_ys = [w[1][1] for w in traj_data.waypoints]
@@ -77,13 +118,13 @@ def generate_html_dashboard(
     wp_trace = {
         "type": "scatter3d",
         "mode": "markers+text",
-        "name": "Key Waypoints",
+        "name": "Target Waypoints",
         "x": wp_xs,
         "y": wp_ys,
         "z": wp_zs,
         "text": wp_names,
         "textposition": "top center",
-        "marker": {"size": 8, "color": "#f6ad55", "symbol": "diamond"},
+        "marker": {"size": 7, "color": "#f6ad55", "symbol": "circle-open"},
     }
 
     # 4. Sim-to-Sim multi-engine 3D traces
@@ -165,17 +206,33 @@ def generate_html_dashboard(
     div_val = f"{isaac_metrics.mean_ee_divergence_m * 1000.0:.2f}"
     succ_val = f"{isaac_metrics.success_rate_target * 100.0:.0f}%"
 
-    arm_json = json.dumps(arm_traces + [ee_trace, wp_trace])
+    initial_arm_data = [arm_trace, obj_trace, trail_trace, ghost_trace, wp_trace]
+    arm_json = json.dumps(initial_arm_data)
     sim_json = json.dumps(sim_traces + [wp_trace])
     cart_json = json.dumps(cartesian_traces)
     joint_json = json.dumps(joint_traces)
+
+    anim_bundle_json = json.dumps(
+        {
+            "armPoses": all_arm_coords,
+            "objX": obj_xs,
+            "objY": obj_ys,
+            "objZ": obj_zs,
+            "eeX": ee_xs,
+            "eeY": ee_ys,
+            "eeZ": ee_zs,
+            "timesteps": traj_data.timesteps_s,
+            "phases": phases,
+            "jointsDeg": traj_data.joint_trajectory_deg,
+        }
+    )
 
     html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sim2Real Data Engine — 3D Diagnostics & Sim-to-Sim Benchmark</title>
+  <title>Sim2Real Data Engine — 3D Motion Player & Sim-to-Sim Diagnostics</title>
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <style>
     :root {{
@@ -273,8 +330,72 @@ def generate_html_dashboard(
     }}
     .chart-title {{ font-size: 16px; font-weight: 600; color: #fff; }}
     .chart-desc {{ font-size: 12px; color: var(--text-dim); }}
-    .plot-container {{ width: 100%; height: 480px; }}
-    .plot-container-sm {{ width: 100%; height: 280px; }}
+    .plot-container {{ width: 100%; height: 440px; }}
+    .plot-container-sm {{ width: 100%; height: 260px; }}
+
+    /* Player controls */
+    .player-controls {{
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background: rgba(10, 15, 29, 0.7);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }}
+    .btn-row {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }}
+    .btn {{
+      background: #1f293d;
+      color: #fff;
+      border: 1px solid var(--border);
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }}
+    .btn:hover {{ background: #2d3b55; border-color: var(--accent-cyan); }}
+    .btn-primary {{
+      background: var(--accent-cyan);
+      color: #0a0f1d;
+      border-color: var(--accent-cyan);
+    }}
+    .btn-primary:hover {{ background: #5df4ff; }}
+    .slider-row {{
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+    }}
+    .slider-row input[type="range"] {{
+      flex: 1;
+      accent-color: var(--accent-cyan);
+      cursor: pointer;
+    }}
+    .hud-panel {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 8px;
+      font-size: 11px;
+      color: var(--text-dim);
+      background: rgba(0, 0, 0, 0.3);
+      padding: 8px 10px;
+      border-radius: 6px;
+      border-left: 3px solid var(--accent-cyan);
+    }}
+    .hud-label {{ color: var(--text-dim); font-size: 10px; text-transform: uppercase; }}
+    .hud-val {{ color: #fff; font-weight: 600; font-family: monospace; font-size: 11px; }}
+
     footer {{
       margin-top: 32px;
       padding-top: 16px;
@@ -289,8 +410,8 @@ def generate_html_dashboard(
 <body>
   <header>
     <div>
-      <h1>Sim2Real Data Engine <span class="badge">v0.1.0 Interactive Visualizer</span></h1>
-      <div class="subtitle">Multi-Engine Physics & Privileged SE(3) Trajectory Diagnostics</div>
+      <h1>Sim2Real Data Engine <span class="badge">3D Motion Player</span></h1>
+      <div class="subtitle">Articulated 6-DOF Robot Motion & Sim-to-Sim Diagnostics</div>
     </div>
     <div style="text-align: right;">
       <div style="font-size: 12px; color: var(--text-dim);">
@@ -332,14 +453,57 @@ def generate_html_dashboard(
   </div>
 
   <div class="grid-2col">
-    <!-- View 1: 3D Manipulator Trajectory -->
+    <!-- View 1: 3D Manipulator Trajectory & Motion Player -->
     <div class="chart-box">
       <div class="chart-header">
         <div>
-          <div class="chart-title">1. 3D Kinematics Trajectory & Manipulator Posture</div>
-          <div class="chart-desc">6-DOF manipulator kinematic chain & end-effector path</div>
+          <div class="chart-title">1. Articulated Robot Motion Player (3D Animation)</div>
+          <div class="chart-desc">
+            Scrub the timeline or press Play to watch the 6-DOF arm perform pick-and-place
+          </div>
         </div>
       </div>
+
+      <div class="player-controls">
+        <div class="btn-row">
+          <button id="btn-play" class="btn btn-primary">▶ Play</button>
+          <button id="btn-reset" class="btn">⏮ Reset</button>
+          <button id="btn-prev" class="btn">◀ Step</button>
+          <button id="btn-next" class="btn">Step ▶</button>
+          <div style="margin-left: auto; display: flex; align-items: center; gap: 6px;">
+            <label style="font-size: 12px; color: var(--text-dim);">Speed:</label>
+            <select id="select-speed" class="btn" style="padding: 4px 8px;">
+              <option value="0.5">0.5x</option>
+              <option value="1.0" selected>1.0x</option>
+              <option value="2.0">2.0x</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="slider-row">
+          <input type="range" id="time-slider" min="0" max="{total_steps - 1}" value="0">
+        </div>
+
+        <div class="hud-panel">
+          <div>
+            <div class="hud-label">Timeline</div>
+            <div id="hud-time" class="hud-val">Step 0 / {total_steps} (0.00s)</div>
+          </div>
+          <div>
+            <div class="hud-label">Current Phase</div>
+            <div id="hud-phase" class="hud-val" style="color: var(--accent-cyan);">Approach</div>
+          </div>
+          <div>
+            <div class="hud-label">End-Effector (X, Y, Z)</div>
+            <div id="hud-ee" class="hud-val">(0.00, 0.00, 0.00)</div>
+          </div>
+          <div>
+            <div class="hud-label">Joints 1..6 (deg)</div>
+            <div id="hud-joints" class="hud-val">[0, 0, 0, 0, 0, 0]</div>
+          </div>
+        </div>
+      </div>
+
       <div id="plot-3d-arm" class="plot-container"></div>
     </div>
 
@@ -351,7 +515,7 @@ def generate_html_dashboard(
           <div class="chart-desc">MuJoCo (Local ARM64) vs Genesis vs Isaac Lab (Cloud GPU)</div>
         </div>
       </div>
-      <div id="plot-3d-sim2sim" class="plot-container"></div>
+      <div id="plot-3d-sim2sim" class="plot-container" style="height: 575px;"></div>
     </div>
   </div>
 
@@ -385,6 +549,9 @@ def generate_html_dashboard(
   </footer>
 
   <script>
+    const bundle = {anim_bundle_json};
+    const totalSteps = bundle.timesteps.length;
+
     const darkLayout3D = {{
       paper_bgcolor: 'transparent',
       plot_bgcolor: 'transparent',
@@ -441,6 +608,116 @@ def generate_html_dashboard(
       yaxis: {{ title: 'Joint RMSE (rad)', gridcolor: '#232d4b', color: '#94a3b8' }}
     }};
     Plotly.newPlot('plot-drift-joints', jointData, jointLayout, {{ responsive: true }});
+
+    // 5. Interactive Animation Logic
+    let currentStep = 0;
+    let isPlaying = false;
+    let animTimer = null;
+    let playbackSpeed = 1.0;
+
+    const slider = document.getElementById('time-slider');
+    const btnPlay = document.getElementById('btn-play');
+    const btnReset = document.getElementById('btn-reset');
+    const btnPrev = document.getElementById('btn-prev');
+    const btnNext = document.getElementById('btn-next');
+    const selectSpeed = document.getElementById('select-speed');
+
+    const hudTime = document.getElementById('hud-time');
+    const hudPhase = document.getElementById('hud-phase');
+    const hudEe = document.getElementById('hud-ee');
+    const hudJoints = document.getElementById('hud-joints');
+
+    function updateHud(idx) {{
+      const t = bundle.timesteps[idx];
+      hudTime.textContent = `Step ${{idx + 1}} / ${{totalSteps}} (${{t.toFixed(2)}}s)`;
+      hudPhase.textContent = bundle.phases[idx] || "Active";
+      const eeX = bundle.eeX[idx].toFixed(2);
+      const eeY = bundle.eeY[idx].toFixed(2);
+      const eeZ = bundle.eeZ[idx].toFixed(2);
+      hudEe.textContent = `(${{eeX}}, ${{eeY}}, ${{eeZ}})`;
+      const jDeg = bundle.jointsDeg[idx];
+      hudJoints.textContent = `[${{jDeg.join('°, ')}}°]`;
+    }}
+
+    function renderStep(idx) {{
+      currentStep = Math.max(0, Math.min(idx, totalSteps - 1));
+      slider.value = currentStep;
+      updateHud(currentStep);
+
+      const pose = bundle.armPoses[currentStep];
+      const ox = bundle.objX[currentStep];
+      const oy = bundle.objY[currentStep];
+      const oz = bundle.objZ[currentStep];
+
+      const trailX = bundle.eeX.slice(0, currentStep + 1);
+      const trailY = bundle.eeY.slice(0, currentStep + 1);
+      const trailZ = bundle.eeZ.slice(0, currentStep + 1);
+
+      Plotly.restyle('plot-3d-arm', {{
+        x: [pose.xs, [ox], trailX],
+        y: [pose.ys, [oy], trailY],
+        z: [pose.zs, [oz], trailZ]
+      }}, [0, 1, 2]);
+    }}
+
+    function play() {{
+      if (currentStep >= totalSteps - 1) {{
+        currentStep = 0;
+      }}
+      isPlaying = true;
+      btnPlay.textContent = '⏸ Pause';
+      btnPlay.classList.remove('btn-primary');
+      clearInterval(animTimer);
+      const intervalMs = Math.round(40 / playbackSpeed);
+      animTimer = setInterval(() => {{
+        if (currentStep >= totalSteps - 1) {{
+          pause();
+        }} else {{
+          renderStep(currentStep + 1);
+        }}
+      }}, intervalMs);
+    }}
+
+    function pause() {{
+      isPlaying = false;
+      btnPlay.textContent = '▶ Play';
+      btnPlay.classList.add('btn-primary');
+      clearInterval(animTimer);
+    }}
+
+    btnPlay.addEventListener('click', () => {{
+      if (isPlaying) pause(); else play();
+    }});
+
+    btnReset.addEventListener('click', () => {{
+      pause();
+      renderStep(0);
+    }});
+
+    btnPrev.addEventListener('click', () => {{
+      pause();
+      renderStep(currentStep - 1);
+    }});
+
+    btnNext.addEventListener('click', () => {{
+      pause();
+      renderStep(currentStep + 1);
+    }});
+
+    slider.addEventListener('input', (e) => {{
+      pause();
+      renderStep(parseInt(e.target.value, 10));
+    }});
+
+    selectSpeed.addEventListener('change', (e) => {{
+      playbackSpeed = parseFloat(e.target.value);
+      if (isPlaying) {{
+        play();
+      }}
+    }});
+
+    // Initialize HUD
+    updateHud(0);
   </script>
 </body>
 </html>

@@ -89,6 +89,9 @@ class EpisodeVisualizationData(BaseModel):
     ee_trajectory: list[tuple[float, float, float]]
     object_initial_pose: tuple[float, float, float]
     object_final_pose: tuple[float, float, float]
+    object_trajectory: list[tuple[float, float, float]]
+    arm_trajectory: list[ArmLinkPoints]
+    joint_trajectory_deg: list[list[float]]
     waypoints: list[tuple[str, tuple[float, float, float]]]
     key_arm_poses: dict[str, ArmLinkPoints]
 
@@ -106,6 +109,13 @@ def collect_trajectory_data(seed: int = 42, max_steps: int = 120) -> EpisodeVisu
 
     timesteps = [r.timestamp_s for r in records]
     ee_traj = [r.end_effector_pose.position for r in records]
+    obj_traj = [r.privileged_object_pose.position for r in records]
+    arm_traj = [compute_arm_links(r.joint_state.positions_rad) for r in records]
+    joints_deg = [
+        [round(float(np.degrees(val)), 1) for val in r.joint_state.positions_rad]
+        for r in records
+    ]
+
     obj_init = records[0].privileged_object_pose.position
     obj_final = records[-1].privileged_object_pose.position
 
@@ -140,6 +150,9 @@ def collect_trajectory_data(seed: int = 42, max_steps: int = 120) -> EpisodeVisu
         ee_trajectory=ee_traj,
         object_initial_pose=obj_init,
         object_final_pose=obj_final,
+        object_trajectory=obj_traj,
+        arm_trajectory=arm_traj,
+        joint_trajectory_deg=joints_deg,
         waypoints=waypoints,
         key_arm_poses=key_poses,
     )

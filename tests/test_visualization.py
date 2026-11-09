@@ -47,6 +47,10 @@ def test_collect_trajectory_data_deterministic() -> None:
     assert traj_data.episode_id == 42
     assert len(traj_data.timesteps_s) > 0
     assert len(traj_data.ee_trajectory) == len(traj_data.timesteps_s)
+    assert len(traj_data.arm_trajectory) == len(traj_data.timesteps_s)
+    assert len(traj_data.object_trajectory) == len(traj_data.timesteps_s)
+    assert len(traj_data.joint_trajectory_deg) == len(traj_data.timesteps_s)
+    assert len(traj_data.joint_trajectory_deg[0]) == 6
     assert "Initial Home" in traj_data.key_arm_poses
     assert "Final Place" in traj_data.key_arm_poses
     assert len(traj_data.waypoints) == 3
