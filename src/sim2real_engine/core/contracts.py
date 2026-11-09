@@ -9,7 +9,7 @@ import numpy as np
 from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-BackendName = Literal["mujoco", "genesis", "isaac_lab"]
+BackendName = Literal["mujoco", "mujoco_native", "genesis", "isaac_lab"]
 
 
 class SE3Pose(BaseModel):
@@ -204,6 +204,17 @@ DEFAULT_BACKENDS: dict[BackendName, SimulatorBackendSpec] = {
         description=(
             "Native Apple Silicon ARM64 & x86 CPU physics engine for deterministic "
             "kinematics, privileged IK validation, and zero-cost CI testing."
+        ),
+    ),
+    "mujoco_native": SimulatorBackendSpec(
+        name="mujoco_native",
+        execution_tier="local_cpu_arm64",
+        nominal_physics_hz=500,
+        supports_ray_traced_rgbd=False,
+        requires_nvidia_gpu=False,
+        description=(
+            "Official DeepMind MuJoCo 4.x native C++ physics backend with MJCF "
+            "rigid-body contact solver, Coulomb friction, and spatial Jacobian."
         ),
     ),
     "genesis": SimulatorBackendSpec(

@@ -70,7 +70,7 @@ class PrivilegedPickPlaceExpert:
         ik_solver: DampedLeastSquaresIK,
         hover_offset_m: float = 0.10,
         lift_offset_m: float = 0.12,
-        waypoint_tol_m: float = 0.012,
+        waypoint_tol_m: float = 0.035,
         max_step_rad: float = 0.12,
     ) -> None:
         self.ik_solver = ik_solver

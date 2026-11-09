@@ -9,11 +9,13 @@ from sim2real_engine.simulators.base import (
 )
 from sim2real_engine.simulators.cloud_adapters import GenesisAdapter, IsaacLabAdapter
 from sim2real_engine.simulators.mujoco_adapter import MuJoCoKinematicAdapter
+from sim2real_engine.simulators.mujoco_native import MuJoCoPhysicsAdapter
 
 __all__ = [
     "GenesisAdapter",
     "IsaacLabAdapter",
     "MuJoCoKinematicAdapter",
+    "MuJoCoPhysicsAdapter",
     "PrivilegedPickPlaceExpert",
     "RolloutSummary",
     "SimulatorBackend",

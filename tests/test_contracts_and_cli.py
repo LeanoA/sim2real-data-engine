@@ -91,7 +91,7 @@ def test_cli_backends_and_validate_config_json(capsys: pytest.CaptureFixture[str
     assert exit_code == 0
     backends_out = json.loads(capsys.readouterr().out)
     names = [item["name"] for item in backends_out["backends"]]
-    assert names == ["mujoco", "genesis", "isaac_lab"]
+    assert names == ["mujoco", "mujoco_native", "genesis", "isaac_lab"]
     assert DEFAULT_BACKENDS["mujoco"].requires_nvidia_gpu is False
     assert DEFAULT_BACKENDS["isaac_lab"].requires_nvidia_gpu is True
 

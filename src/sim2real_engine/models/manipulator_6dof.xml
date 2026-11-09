@@ -1,0 +1,96 @@
+<mujoco model="manipulator_6dof">
+  <compiler angle="radian" coordinate="local" inertiafromgeom="true"/>
+  <option timestep="0.002" gravity="0 0 -9.81" iterations="50" solver="Newton" cone="elliptic"/>
+
+  <default>
+    <joint damping="0.8" armature="0.02" limited="true"/>
+    <!-- Default arm geoms do not collide with each other -->
+    <geom contype="0" conaffinity="0" friction="0.8 0.02 0.001"/>
+    <position kp="150.0" kv="12.0" ctrllimited="true"/>
+  </default>
+
+  <asset>
+    <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1="0.1 0.15 0.25" rgb2="0.05 0.08 0.15"/>
+    <material name="grid_mat" texture="grid" texrepeat="2 2" reflectance="0.1"/>
+    <material name="pedestal_mat" rgba="0.2 0.25 0.35 1.0"/>
+    <material name="arm_mat" rgba="0.0 0.8 0.95 1.0"/>
+    <material name="joint_mat" rgba="0.9 0.95 1.0 1.0"/>
+    <material name="payload_mat" rgba="0.95 0.65 0.25 1.0"/>
+    <material name="table_mat" rgba="0.15 0.2 0.3 1.0"/>
+  </asset>
+
+  <worldbody>
+    <light directional="true" pos="0.5 -0.5 2.0" dir="-0.3 0.3 -1.0" diffuse="0.8 0.8 0.8"/>
+    <geom name="floor" type="plane" pos="0 0 0" size="1.5 1.5 0.05" material="grid_mat" contype="1" conaffinity="1"/>
+
+    <!-- 6-DOF Manipulator Base Pedestal -->
+    <body name="base_link" pos="0 0 0">
+      <geom name="pedestal_geom" type="cylinder" fromto="0 0 0 0 0 0.22" size="0.06" material="pedestal_mat"/>
+
+      <!-- Joint 1: Base Yaw (Z-axis) -->
+      <body name="link_1" pos="0 0 0.22">
+        <joint name="joint_1" type="hinge" axis="0 0 1" range="-3.1415 3.1415"/>
+        <geom name="j1_geom" type="sphere" size="0.055" material="joint_mat"/>
+
+        <!-- Joint 2: Shoulder Pitch (Y-axis), Link length l1 = 0.28m -->
+        <body name="link_2" pos="0 0 0">
+          <joint name="joint_2" type="hinge" axis="0 1 0" range="-2.094 2.094"/>
+          <geom name="l1_cylinder" type="capsule" fromto="0 0 0 0.28 0 0" size="0.04" material="arm_mat"/>
+
+          <!-- Joint 3: Elbow Pitch (Y-axis), Link length l2 = 0.26m -->
+          <body name="link_3" pos="0.28 0 0">
+            <joint name="joint_3" type="hinge" axis="0 1 0" range="-2.618 2.618"/>
+            <geom name="j3_geom" type="sphere" size="0.045" material="joint_mat"/>
+            <geom name="l2_cylinder" type="capsule" fromto="0 0 0 0.26 0 0" size="0.035" material="arm_mat"/>
+
+            <!-- Joint 4: Wrist Roll (X-axis) -->
+            <body name="link_4" pos="0.26 0 0">
+              <joint name="joint_4" type="hinge" axis="1 0 0" range="-3.1415 3.1415"/>
+              <geom name="j4_geom" type="sphere" size="0.035" material="joint_mat"/>
+
+              <!-- Joint 5: Wrist Pitch (Y-axis) -->
+              <body name="link_5" pos="0 0 0">
+                <joint name="joint_5" type="hinge" axis="0 1 0" range="-2.094 2.094"/>
+                <geom name="j5_geom" type="sphere" size="0.03" material="joint_mat"/>
+
+                <!-- Joint 6: Wrist Yaw (Z-axis), End-Effector offset l3 = 0.10m -->
+                <body name="link_6" pos="0 0 0">
+                  <joint name="joint_6" type="hinge" axis="0 0 1" range="-3.1415 3.1415"/>
+                  <geom name="ee_stem" type="capsule" fromto="0 0 0 0.10 0 0" size="0.025" material="joint_mat"/>
+
+                  <!-- End-Effector Tool Center Point (TCP) -->
+                  <body name="end_effector" pos="0.10 0 0">
+                    <geom name="ee_center" type="sphere" size="0.02" material="arm_mat"/>
+                    <!-- Gripper fingers with active collision and high friction -->
+                    <geom name="finger_left" type="box" pos="0.02 0.025 0" size="0.02 0.006 0.02" material="pedestal_mat" contype="1" conaffinity="1" friction="1.2 0.05 0.001"/>
+                    <geom name="finger_right" type="box" pos="0.02 -0.025 0" size="0.02 0.006 0.02" material="pedestal_mat" contype="1" conaffinity="1" friction="1.2 0.05 0.001"/>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+
+    <!-- Workstation Table Surface placed safely below arm workspace -->
+    <body name="work_table" pos="0.45 0.0 0.025">
+      <geom name="table_top" type="box" size="0.22 0.30 0.025" material="table_mat" contype="1" conaffinity="1"/>
+    </body>
+
+    <!-- Free-floating Pickable Payload Object resting on table surface at z=0.07 -->
+    <body name="payload_object" pos="0.38 0.05 0.07">
+      <freejoint name="payload_freejoint"/>
+      <geom name="payload_geom" type="box" size="0.02 0.02 0.02" mass="0.08" material="payload_mat" contype="1" conaffinity="1" friction="1.0 0.02 0.001"/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <position name="act_j1" joint="joint_1" ctrlrange="-3.1415 3.1415"/>
+    <position name="act_j2" joint="joint_2" ctrlrange="-2.094 2.094"/>
+    <position name="act_j3" joint="joint_3" ctrlrange="-2.618 2.618"/>
+    <position name="act_j4" joint="joint_4" ctrlrange="-3.1415 3.1415"/>
+    <position name="act_j5" joint="joint_5" ctrlrange="-2.094 2.094"/>
+    <position name="act_j6" joint="joint_6" ctrlrange="-3.1415 3.1415"/>
+  </actuator>
+</mujoco>

@@ -14,7 +14,10 @@ import numpy as np
 from pydantic import ValidationError
 
 from sim2real_engine import __version__
-from sim2real_engine.benchmarks.sim2sim_eval import evaluate_sim2sim_gap
+from sim2real_engine.benchmarks.sim2sim_eval import (
+    create_simulator_backend,
+    evaluate_sim2sim_gap,
+)
 from sim2real_engine.core.contracts import (
     DEFAULT_BACKENDS,
     BackendName,
@@ -27,7 +30,6 @@ from sim2real_engine.randomization.samplers import DomainRandomizer
 from sim2real_engine.server.bridge import PolicyInferenceBridge
 from sim2real_engine.server.chunk_buffer import TemporalEnsembleBuffer
 from sim2real_engine.simulators.base import PrivilegedPickPlaceExpert, RolloutSummary
-from sim2real_engine.simulators.mujoco_adapter import MuJoCoKinematicAdapter
 from sim2real_engine.visualization.dashboard import generate_html_dashboard
 
 
@@ -250,7 +252,7 @@ def _run_rollout(backend_name: str, episodes: int, base_seed: int, emit_json: bo
         print("Number of episodes must be >= 1.", file=sys.stderr)
         return 1
 
-    adapter = MuJoCoKinematicAdapter()
+    adapter = create_simulator_backend(cast(BackendName, backend_name))
     ik_solver = DampedLeastSquaresIK(dof=adapter.dof)
     expert = PrivilegedPickPlaceExpert(ik_solver=ik_solver)
 
@@ -327,7 +329,7 @@ def _run_export_dataset(
 
     out_path = Path(output_dir)
     exporter = LeRobotEpisodeExporter(root_dir=out_path)
-    adapter = MuJoCoKinematicAdapter()
+    adapter = create_simulator_backend(cast(BackendName, backend_name))
     ik_solver = DampedLeastSquaresIK(dof=adapter.dof)
     expert = PrivilegedPickPlaceExpert(ik_solver=ik_solver)
     config = DomainRandomizationConfig(seed=base_seed)

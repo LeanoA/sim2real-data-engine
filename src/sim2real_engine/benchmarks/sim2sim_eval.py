@@ -12,6 +12,7 @@ from sim2real_engine.core.kinematics import DampedLeastSquaresIK
 from sim2real_engine.simulators.base import PrivilegedPickPlaceExpert, SimulatorBackend
 from sim2real_engine.simulators.cloud_adapters import GenesisAdapter, IsaacLabAdapter
 from sim2real_engine.simulators.mujoco_adapter import MuJoCoKinematicAdapter
+from sim2real_engine.simulators.mujoco_native import MuJoCoPhysicsAdapter
 
 
 class Sim2SimMetrics(BaseModel):
@@ -50,6 +51,8 @@ def create_simulator_backend(name: BackendName) -> SimulatorBackend:
     """Instantiate a simulator adapter conforming to SimulatorBackend."""
     if name == "mujoco":
         return MuJoCoKinematicAdapter()
+    if name == "mujoco_native":
+        return MuJoCoPhysicsAdapter()
     if name == "genesis":
         return GenesisAdapter()
     if name == "isaac_lab":
