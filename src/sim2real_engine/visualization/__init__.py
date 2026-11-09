@@ -11,6 +11,7 @@ from sim2real_engine.visualization.data import (
     collect_trajectory_data,
     compute_arm_links,
 )
+from sim2real_engine.visualization.mujoco_gui import run_interactive_mujoco_viewer
 
 __all__ = [
     "ArmLinkPoints",
@@ -20,4 +21,5 @@ __all__ = [
     "collect_trajectory_data",
     "compute_arm_links",
     "generate_html_dashboard",
+    "run_interactive_mujoco_viewer",
 ]

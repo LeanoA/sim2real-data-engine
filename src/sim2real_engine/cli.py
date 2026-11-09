@@ -244,6 +244,23 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     vis_parser.add_argument("--json", action="store_true", help="Emit JSON output.")
 
+    view_phys_parser = subparsers.add_parser(
+        "view-physics",
+        help="Launch official native MuJoCo 4.x 3D desktop viewer with real-time control.",
+    )
+    view_phys_parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Deterministic rollout RNG seed.",
+    )
+    view_phys_parser.add_argument(
+        "--episodes",
+        type=int,
+        default=3,
+        help="Number of pick-and-place cycles to execute before closing.",
+    )
+
     return parser
 
 
@@ -466,6 +483,13 @@ def _run_visualize(output_path: str, seed: int, open_browser: bool, emit_json: b
     return 0
 
 
+def _run_view_physics(seed: int, episodes: int) -> int:
+    from sim2real_engine.visualization.mujoco_gui import run_interactive_mujoco_viewer
+
+    run_interactive_mujoco_viewer(seed=seed, episodes=episodes)
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Execute the `sim2real` CLI entrypoint."""
     parser = _build_parser()
@@ -573,6 +597,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             seed=int(args.seed),
             open_browser=bool(args.open),
             emit_json=bool(args.json),
+        )
+
+    if args.command == "view-physics":
+        return _run_view_physics(
+            seed=int(args.seed),
+            episodes=int(args.episodes),
         )
 
     return 1

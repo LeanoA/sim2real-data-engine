@@ -94,3 +94,21 @@ def test_cli_visualize_json(tmp_path: Path, capsys: pytest.CaptureFixture[str]) 
     assert payload["status"] == "success"
     assert payload["seed"] == 42
     assert Path(payload["file"]).is_file()
+
+
+def test_cli_view_physics_dispatches(monkeypatch: pytest.MonkeyPatch) -> None:
+    called_with: dict[str, int] = {}
+
+    def mock_viewer(seed: int = 42, episodes: int = 3) -> None:
+        called_with["seed"] = seed
+        called_with["episodes"] = episodes
+
+    monkeypatch.setattr(
+        "sim2real_engine.visualization.mujoco_gui.run_interactive_mujoco_viewer",
+        mock_viewer,
+    )
+
+    code = main(["view-physics", "--seed", "123", "--episodes", "5"])
+    assert code == 0
+    assert called_with == {"seed": 123, "episodes": 5}
+

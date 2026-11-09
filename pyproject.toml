@@ -53,6 +53,7 @@ packages = ["sim2real_engine"]
 [[tool.mypy.overrides]]
 module = [
     "mujoco",
+    "mujoco.viewer",
     "pyarrow",
     "pyarrow.*",
 ]
