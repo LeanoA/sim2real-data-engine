@@ -29,4 +29,4 @@ services:
               capabilities: [gpu]
     volumes:
       - ../datasets:/workspace/datasets
-    command: ["sim2sim-eval", "--ref", "mujoco", "--target", "isaac_lab", "--episodes", "20", "--json"]
+    command: ["sim2sim-eval", "--ref", "mujoco_native", "--target", "isaac_lab", "--episodes", "20", "--json"]
