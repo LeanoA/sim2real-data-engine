@@ -1,0 +1,10 @@
+{
+  "project_id": "<AWS_ACCOUNT_ID>",
+  "profile": "default",
+  "selected_region": "us-east-2",
+  "assumed_role_arn": "arn:aws:sts::<AWS_ACCOUNT_ID>:assumed-role/AccountFullAccessRole/<SESSION_ID>",
+  "plan": "FREE",
+  "workload": "inference_service",
+  "service_target": "AWS ECS Fargate / App Runner in us-east-2",
+  "notes": "Targeted strictly for robot policy inference serving once local pipeline milestones are completed."
+}
