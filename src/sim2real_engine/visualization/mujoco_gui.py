@@ -21,8 +21,8 @@ def run_interactive_mujoco_viewer(seed: int = 42, episodes: int = 3) -> None:
     Renders physical contact manifolds, Coulomb friction, gravity dynamics, and 6-DOF
     manipulator motion in real time inside a high-performance OpenGL/GLFW desktop window.
     """
-    # macOS AppKit/Cocoa main-thread requirement: re-exec under mjpython if available
-    if sys.platform == "darwin" and "mjpython" not in Path(sys.executable).name:
+    # macOS AppKit/Cocoa main-thread requirement: re-exec under mjpython if not already inside it
+    if sys.platform == "darwin" and "MJPYTHON_BIN" not in os.environ:
         mjpython_path = Path(sys.executable).parent / "mjpython"
         if mjpython_path.is_file():
             os.execv(str(mjpython_path), [str(mjpython_path), *sys.argv])
