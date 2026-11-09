@@ -37,11 +37,27 @@ def run_interactive_mujoco_viewer(seed: int = 42, episodes: int = 3) -> None:
     print(f"Launching MuJoCo {mujoco.__version__} Native 3D Viewer...")
     print("Press Spacebar to pause/unpause, double-click to select geoms, drag to perturb.")
 
-    with mujoco.viewer.launch_passive(adapter.model, adapter.data) as viewer:
+    is_paused = False
+
+    def on_key(keycode: int) -> None:
+        nonlocal is_paused
+        if keycode == 32:  # GLFW_KEY_SPACE
+            is_paused = not is_paused
+            status = "PAUSED" if is_paused else "RESUMED"
+            print(f"[Viewer] Simulation {status}")
+
+    with mujoco.viewer.launch_passive(
+        adapter.model, adapter.data, key_callback=on_key
+    ) as viewer:
         ep_count = 0
         current_seed = seed
 
         while viewer.is_running() and ep_count < episodes:
+            if is_paused:
+                viewer.sync()
+                time.sleep(0.02)
+                continue
+
             step_start = time.time()
 
             q_cur = np.asarray(joint_state.positions_rad, dtype=np.float64)
