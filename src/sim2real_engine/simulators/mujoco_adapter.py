@@ -153,6 +153,10 @@ class MuJoCoKinematicAdapter:
         """Return current privileged object SE(3) pose in world coordinates."""
         return self._object_pose
 
+    def set_gripper(self, grasped: bool) -> None:
+        """Control kinematic grasp state."""
+        self._object_grasped = grasped
+
     def get_jacobian(self) -> NDArray[np.float64]:
         """Compute 6x6 spatial geometric Jacobian at the current joint configuration."""
         eps = 1e-6

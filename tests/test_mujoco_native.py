@@ -101,3 +101,26 @@ def test_cli_rollout_with_native_mujoco(capsys: pytest.CaptureFixture[str]) -> N
     assert code == 0
     captured = capsys.readouterr()
     assert "Rollout complete (mujoco_native)" in captured.out
+
+
+def test_mujoco_native_pick_and_place_full_rollout() -> None:
+    adapter = MuJoCoPhysicsAdapter()
+    ik_solver = DampedLeastSquaresIK(dof=adapter.dof)
+    expert = PrivilegedPickPlaceExpert(ik_solver=ik_solver)
+
+    records = expert.run_episode(backend=adapter, seed=42, max_steps=120)
+    assert len(records) > 10
+    assert records[-1].is_terminal is True
+    assert expert.stage == "COMPLETED"
+
+    obj_init_z = records[0].privileged_object_pose.position[2]
+    obj_final_y = records[-1].privileged_object_pose.position[1]
+    obj_final_z = records[-1].privileged_object_pose.position[2]
+    max_z = max(r.privileged_object_pose.position[2] for r in records)
+
+    # Payload must lift significantly during transit
+    assert max_z > obj_init_z + 0.08, f"Object did not lift: max_z={max_z}"
+    # Payload must arrive at dropoff zone near y = -0.10m
+    assert pytest.approx(obj_final_y, abs=0.03) == -0.10
+    # Payload must rest stably on the table surface (z ~ 0.07m)
+    assert pytest.approx(obj_final_z, abs=0.02) == 0.07

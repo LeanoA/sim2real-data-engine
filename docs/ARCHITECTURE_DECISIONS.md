@@ -98,3 +98,29 @@ Enforce a two-tier compute topology:
 ### Consequences
 - **Positive**: Zero-cost daily development and CI; >90% reduction in cloud GPU expenditure; complete reproducibility across developer laptops and cloud clusters.
 - **Negative**: Cloud-specific rendering features (RTX ray-tracing) are mocked or bypassed during local CPU unit tests.
+
+---
+
+## ADR-07: MuJoCo Dynamic Equality Weld Constraint and End-to-End Pick-and-Place FSM
+
+### Context & Problem
+In the native DeepMind MuJoCo 4.x physics simulation (`MuJoCoPhysicsAdapter`), the manipulator fingers (`finger_left`, `finger_right`) in `manipulator_6dof.xml` are rigid bodies attached to `end_effector` without prismatic slide joints or dedicated gripper actuators. Without normal clamping force ($F_N$), Coulomb friction cannot support the payload against gravity, leaving the object stationary on the workstation table ($z \approx 0.07\text{ m}$) during `LIFT`. Furthermore, the privileged trajectory expert (`PrivilegedPickPlaceExpert`) previously truncated execution after `LIFT`, lacking `TRANSPORT`, `PLACE`, and dropoff coordination.
+
+Modeling an active articulated parallel-jaw gripper in this stage would expand the action dimension from 6 to 7/8 DOF (or require a separate gripper action channel), breaking strict 6-DOF contract alignment (`JointState`, `EpisodeStepRecord`, `DampedLeastSquaresIK`) and introducing contact chattering/slip non-determinism during dataset generation.
+
+### Decision
+1. **Dynamic Equality Weld Constraint**: Define a site-based weld equality constraint in `manipulator_6dof.xml` between tool center point site `ee_tcp` and object center site `payload_site`:
+   ```xml
+   <equality>
+     <weld name="payload_weld" site1="ee_tcp" site2="payload_site" active="false"/>
+   </equality>
+   ```
+   The constraint is dynamically toggled at runtime via `data.eq_active[weld_id]` in `MuJoCoPhysicsAdapter.set_gripper(grasped: bool)`.
+2. **Hexagonal Backend Port Extension**: Add `set_gripper(grasped: bool) -> None` to `SimulatorBackend`, implemented across both kinematic and native physics adapters.
+3. **End-to-End Pick-and-Place FSM**: Extend `PrivilegedPickPlaceExpert` to a complete lifecycle:
+   $$\text{APPROACH} \to \text{DESCEND} \to \text{GRASP} \to \text{LIFT} \to \text{TRANSPORT} \to \text{PLACE} \to \text{COMPLETED}$$
+   The expert dwells for 3 control ticks at `GRASP`, activates the weld constraint, lifts $12\text{ cm}$, transports horizontally to the delivery zone on the table ($y \approx -0.10\text{ m}$), descends to the tabletop, and releases the constraint at `COMPLETED`.
+
+### Consequences
+- **Positive**: 100% stable, deterministic multi-body dynamics in native MuJoCo where payload mass ($0.08\text{ kg}$) and inertia dynamically load the arm without kinematic teleportation hacks or contact chatter; preserves the pure 6-DOF action contract and $6 \times 6$ analytical Jacobian formulation across all benchmark adapters; enables full pick-and-place dataset collection.
+- **Negative**: Represents an idealized rigid grasp without modeling fingertip slip, grasp compliance, or micro-reorientation during transport.

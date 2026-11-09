@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict
 from sim2real_engine.core.contracts import EpisodeStepRecord, JointState, SE3Pose
 from sim2real_engine.core.kinematics import DampedLeastSquaresIK
 
-ExpertStage = Literal["APPROACH", "DESCEND", "GRASP", "LIFT", "COMPLETED"]
+ExpertStage = Literal["APPROACH", "DESCEND", "GRASP", "LIFT", "TRANSPORT", "PLACE", "COMPLETED"]
 
 
 class RolloutSummary(BaseModel):
@@ -61,6 +61,10 @@ class SimulatorBackend(Protocol):
         """Return current privileged object SE(3) pose in world coordinates."""
         ...
 
+    def set_gripper(self, grasped: bool) -> None:
+        """Control gripper grasp or weld constraint attachment state."""
+        ...
+
 
 class PrivilegedPickPlaceExpert:
     """Closed-loop state machine expert using Damped Least-Squares IK for pick-and-place."""
@@ -72,36 +76,61 @@ class PrivilegedPickPlaceExpert:
         lift_offset_m: float = 0.12,
         waypoint_tol_m: float = 0.035,
         max_step_rad: float = 0.12,
+        place_target_pose: SE3Pose | None = None,
     ) -> None:
         self.ik_solver = ik_solver
         self.hover_offset_m = hover_offset_m
         self.lift_offset_m = lift_offset_m
         self.waypoint_tol_m = waypoint_tol_m
         self.max_step_rad = max_step_rad
+        self.place_target_pose = place_target_pose
         self._stage: ExpertStage = "APPROACH"
         self._grasp_dwell_ticks: int = 0
         self._initial_obj_pose: SE3Pose = SE3Pose()
+        self._active_place_target: SE3Pose = SE3Pose()
 
     @property
     def stage(self) -> ExpertStage:
         """Current finite-state machine stage."""
         return self._stage
 
-    def reset(self, initial_object_pose: SE3Pose) -> None:
+    def reset(
+        self,
+        initial_object_pose: SE3Pose,
+        place_target_pose: SE3Pose | None = None,
+    ) -> None:
         """Reset expert state machine for a new episode."""
         self._stage = "APPROACH"
         self._grasp_dwell_ticks = 0
         self._initial_obj_pose = initial_object_pose
+        target = place_target_pose or self.place_target_pose
+        if target is not None:
+            self._active_place_target = target
+        else:
+            # Default delivery zone on workstation table surface (y = -0.10)
+            quat = initial_object_pose.quaternion_wxyz
+            self._active_place_target = SE3Pose(
+                position=(0.38, -0.10, initial_object_pose.position[2]),
+                quaternion_wxyz=quat,
+            )
 
     def current_waypoint(self) -> SE3Pose:
         """Return the active SE(3) waypoint for the current state machine stage."""
         ox, oy, oz = self._initial_obj_pose.position
         quat = self._initial_obj_pose.quaternion_wxyz
+        px, py, pz = self._active_place_target.position
+        p_quat = self._active_place_target.quaternion_wxyz
+
         if self._stage == "APPROACH":
             return SE3Pose(position=(ox, oy, oz + self.hover_offset_m), quaternion_wxyz=quat)
         if self._stage in ("DESCEND", "GRASP"):
             return SE3Pose(position=(ox, oy, oz), quaternion_wxyz=quat)
-        return SE3Pose(position=(ox, oy, oz + self.lift_offset_m), quaternion_wxyz=quat)
+        if self._stage == "LIFT":
+            return SE3Pose(position=(ox, oy, oz + self.lift_offset_m), quaternion_wxyz=quat)
+        if self._stage == "TRANSPORT":
+            return SE3Pose(position=(px, py, pz + self.lift_offset_m), quaternion_wxyz=p_quat)
+        # PLACE or COMPLETED
+        return SE3Pose(position=(px, py, pz), quaternion_wxyz=p_quat)
 
     def compute_action(
         self,
@@ -132,6 +161,12 @@ class PrivilegedPickPlaceExpert:
                 self._stage = "LIFT"
                 waypoint = self.current_waypoint()
         elif self._stage == "LIFT" and pos_dist <= self.waypoint_tol_m:
+            self._stage = "TRANSPORT"
+            waypoint = self.current_waypoint()
+        elif self._stage == "TRANSPORT" and pos_dist <= self.waypoint_tol_m:
+            self._stage = "PLACE"
+            waypoint = self.current_waypoint()
+        elif self._stage == "PLACE" and pos_dist <= self.waypoint_tol_m:
             self._stage = "COMPLETED"
 
         delta_q = self.ik_solver.step(
@@ -166,8 +201,21 @@ class PrivilegedPickPlaceExpert:
                 ee_pose=ee_pose,
                 jacobian=jacobian,
             )
+
+            # Actuate gripper/weld constraint based on expert progression
+            if hasattr(backend, "set_gripper"):
+                if self._stage in ("LIFT", "TRANSPORT", "PLACE", "COMPLETED"):
+                    backend.set_gripper(True)
+                elif self._stage in ("APPROACH", "DESCEND"):
+                    backend.set_gripper(False)
+                elif self._stage == "GRASP":
+                    backend.set_gripper(self._grasp_dwell_ticks >= 3)
+
             step_record = backend.step(action_targets)
             if self._stage == "COMPLETED":
+                # Detach object at the dropoff target upon completion
+                if hasattr(backend, "set_gripper"):
+                    backend.set_gripper(False)
                 step_record = step_record.model_copy(update={"is_terminal": True})
                 records.append(step_record)
                 break

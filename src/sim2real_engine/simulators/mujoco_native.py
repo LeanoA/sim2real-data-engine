@@ -29,6 +29,11 @@ class MuJoCoPhysicsAdapter:
         self._ee_body_id = self.model.body("end_effector").id
         self._home_key_id = self.model.key("home").id
         self._home_q = np.array([0.0, -0.55, 1.10, 0.0, -0.55, 0.0], dtype=np.float64)
+        try:
+            self._weld_id = self.model.equality("payload_weld").id
+        except KeyError:
+            self._weld_id = -1
+        self._object_grasped = False
         self._episode_id = 0
         self._step_index = 0
 
@@ -49,6 +54,9 @@ class MuJoCoPhysicsAdapter:
 
         self._episode_id = seed
         self._step_index = 0
+        self._object_grasped = False
+        if self._weld_id >= 0:
+            self.data.eq_active[self._weld_id] = 0
 
         # Perturb object on table surface (tabletop is at z = 0.05, box half-size is 0.02)
         obj_x = 0.38 + float(rng.uniform(-0.04, 0.04))
@@ -90,6 +98,12 @@ class MuJoCoPhysicsAdapter:
             position=(float(pos[0]), float(pos[1]), float(pos[2])),
             quaternion_wxyz=(float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3])),
         )
+
+    def set_gripper(self, grasped: bool) -> None:
+        """Activate or deactivate payload weld equality constraint."""
+        self._object_grasped = grasped
+        if self._weld_id >= 0:
+            self.data.eq_active[self._weld_id] = 1 if grasped else 0
 
     def get_jacobian(self) -> NDArray[np.float64]:
         """Compute exact 6x6 spatial geometric Jacobian at the end-effector via MuJoCo C API."""
