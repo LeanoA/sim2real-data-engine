@@ -128,15 +128,17 @@ class MuJoCoKinematicAdapter:
         self._step_index = 0
         self._object_grasped = False
 
-        ee_home = self._forward_kinematics(self._q)
-        hx, hy, hz = ee_home.position
-        dx = float(rng.uniform(-0.06, 0.06))
-        dy = float(rng.uniform(-0.08, 0.08))
-        dz = float(rng.uniform(-0.10, -0.05))
+        # Perturb object on workstation table surface identical to MuJoCo native physics
+        # (tabletop is at z = 0.05, box half-size is 0.02 -> nominal z = 0.07)
+        obj_x = 0.38 + float(rng.uniform(-0.04, 0.04))
+        obj_y = 0.05 + float(rng.uniform(-0.05, 0.05))
+        obj_z = 0.07
         self._object_pose = SE3Pose(
-            position=(hx + dx, hy + dy, hz + dz),
-            quaternion_wxyz=ee_home.quaternion_wxyz,
+            position=(obj_x, obj_y, obj_z),
+            quaternion_wxyz=(1.0, 0.0, 0.0, 0.0),
         )
+
+        ee_home = self._forward_kinematics(self._q)
 
         joint_state = JointState(
             positions_rad=tuple(float(v) for v in self._q),
