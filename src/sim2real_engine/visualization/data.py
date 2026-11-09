@@ -8,7 +8,11 @@ import numpy as np
 from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, Field
 
-from sim2real_engine.benchmarks.sim2sim_eval import Sim2SimMetrics, evaluate_sim2sim_gap
+from sim2real_engine.benchmarks.sim2sim_eval import (
+    Sim2SimMetrics,
+    create_simulator_backend,
+    evaluate_sim2sim_gap,
+)
 from sim2real_engine.core.contracts import BackendName
 from sim2real_engine.core.kinematics import DampedLeastSquaresIK
 from sim2real_engine.simulators.base import PrivilegedPickPlaceExpert
@@ -96,9 +100,13 @@ class EpisodeVisualizationData(BaseModel):
     key_arm_poses: dict[str, ArmLinkPoints]
 
 
-def collect_trajectory_data(seed: int = 42, max_steps: int = 120) -> EpisodeVisualizationData:
+def collect_trajectory_data(
+    seed: int = 42,
+    max_steps: int = 120,
+    backend: BackendName = "mujoco_native",
+) -> EpisodeVisualizationData:
     """Execute a deterministic privileged expert rollout and capture spatial telemetry."""
-    adapter = MuJoCoKinematicAdapter()
+    adapter = create_simulator_backend(backend)
     ik_solver = DampedLeastSquaresIK(dof=adapter.dof)
     expert = PrivilegedPickPlaceExpert(ik_solver=ik_solver)
 
@@ -138,10 +146,11 @@ def collect_trajectory_data(seed: int = 42, max_steps: int = 120) -> EpisodeVisu
     key_poses["Final Place"] = compute_arm_links(records[-1].joint_state.positions_rad)
 
     # Waypoints defined in the privileged expert
+    place_target = (0.38, -0.10, obj_init[2])
     waypoints: list[tuple[str, tuple[float, float, float]]] = [
         ("Home Pose", records[0].end_effector_pose.position),
         ("Object Target", obj_init),
-        ("Place Target", (0.35, -0.15, 0.15)),
+        ("Place Target", place_target),
     ]
 
     return EpisodeVisualizationData(

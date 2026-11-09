@@ -93,8 +93,26 @@ def test_cli_visualize_json(tmp_path: Path, capsys: pytest.CaptureFixture[str]) 
     captured = capsys.readouterr()
     payload = json.loads(captured.out)
     assert payload["status"] == "success"
+    assert payload["backend"] == "mujoco_native"
     assert payload["seed"] == 42
     assert Path(payload["file"]).is_file()
+
+    # Also test explicit kinematic backend
+    out_file_kin = tmp_path / "cli_vis_kin.html"
+    code_kin = main([
+        "visualize",
+        "--backend",
+        "mujoco",
+        "--seed",
+        "42",
+        "--output",
+        str(out_file_kin),
+        "--json",
+    ])
+    assert code_kin == 0
+    payload_kin = json.loads(capsys.readouterr().out)
+    assert payload_kin["backend"] == "mujoco"
+    assert Path(payload_kin["file"]).is_file()
 
 
 def test_cli_view_physics_dispatches(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -226,6 +226,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Generate interactive 3D kinematics and Sim-to-Sim HTML visualization dashboard.",
     )
     vis_parser.add_argument(
+        "--backend",
+        type=str,
+        choices=["mujoco_native", "mujoco"],
+        default="mujoco_native",
+        help="Simulator backend for trajectory animation (default: mujoco_native).",
+    )
+    vis_parser.add_argument(
         "--output",
         type=str,
         default="sim2real_visualizer.html",
@@ -463,8 +470,14 @@ def _run_sim2sim_eval(
     return 0
 
 
-def _run_visualize(output_path: str, seed: int, open_browser: bool, emit_json: bool) -> int:
-    file_path = generate_html_dashboard(seed=seed, output_path=output_path)
+def _run_visualize(
+    output_path: str,
+    seed: int,
+    backend: BackendName,
+    open_browser: bool,
+    emit_json: bool,
+) -> int:
+    file_path = generate_html_dashboard(seed=seed, output_path=output_path, backend=backend)
     if open_browser:
         webbrowser.open(file_path.as_uri())
 
@@ -472,12 +485,13 @@ def _run_visualize(output_path: str, seed: int, open_browser: bool, emit_json: b
         payload = {
             "status": "success",
             "file": str(file_path),
+            "backend": backend,
             "seed": seed,
             "opened": open_browser,
         }
         print(json.dumps(payload, indent=2))
     else:
-        print(f"Interactive visualizer generated: {file_path}")
+        print(f"Interactive visualizer generated ({backend}): {file_path}")
         if open_browser:
             print("Opened in default web browser.")
     return 0
@@ -595,6 +609,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_visualize(
             output_path=str(args.output),
             seed=int(args.seed),
+            backend=cast(BackendName, args.backend),
             open_browser=bool(args.open),
             emit_json=bool(args.json),
         )

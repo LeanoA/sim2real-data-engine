@@ -20,10 +20,11 @@ def generate_html_dashboard(
     sim2sim_data: Sim2SimComparisonData | None = None,
     seed: int = 42,
     output_path: Path | str = "sim2real_visualizer.html",
+    backend: BackendName = "mujoco_native",
 ) -> Path:
     """Generate a responsive, standalone 3D visualization dashboard HTML file."""
     if traj_data is None:
-        traj_data = collect_trajectory_data(seed=seed)
+        traj_data = collect_trajectory_data(seed=seed, backend=backend)
     if sim2sim_data is None:
         sim2sim_data = collect_sim2sim_comparison_data(seed=seed)
 

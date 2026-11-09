@@ -70,7 +70,19 @@ def run_interactive_mujoco_viewer(seed: int = 42, episodes: int = 3) -> None:
                 jacobian=jacobian,
             )
 
+            # Synchronize gripper state with expert progression
+            if hasattr(adapter, "set_gripper"):
+                if expert.stage in ("LIFT", "TRANSPORT", "PLACE", "COMPLETED"):
+                    adapter.set_gripper(True)
+                elif expert.stage in ("APPROACH", "DESCEND"):
+                    adapter.set_gripper(False)
+                elif expert.stage == "GRASP":
+                    adapter.set_gripper(expert._grasp_dwell_ticks >= 3)
+
             step_record = adapter.step(action_targets)
+            if expert.stage == "COMPLETED" and hasattr(adapter, "set_gripper"):
+                adapter.set_gripper(False)
+
             joint_state = step_record.joint_state
             ee_pose = step_record.end_effector_pose
 
