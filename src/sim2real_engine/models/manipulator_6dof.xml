@@ -70,9 +70,9 @@
                   <!-- End-Effector Tool Center Point (TCP) -->
                   <body name="end_effector" pos="0.10 0 0">
                     <geom name="ee_center" type="sphere" size="0.02" material="arm_mat"/>
-                    <!-- Gripper fingers with active collision and high friction -->
-                    <geom name="finger_left" type="box" pos="0.02 0.025 0" size="0.02 0.006 0.02" material="pedestal_mat" contype="1" conaffinity="1" friction="1.2 0.05 0.001"/>
-                    <geom name="finger_right" type="box" pos="0.02 -0.025 0" size="0.02 0.006 0.02" material="pedestal_mat" contype="1" conaffinity="1" friction="1.2 0.05 0.001"/>
+                    <!-- Gripper fingers with active collision and high friction (46mm clearance for 40mm cube) -->
+                    <geom name="finger_left" type="box" pos="0.02 0.029 0" size="0.02 0.006 0.02" material="pedestal_mat" contype="1" conaffinity="1" friction="1.2 0.05 0.001"/>
+                    <geom name="finger_right" type="box" pos="0.02 -0.029 0" size="0.02 0.006 0.02" material="pedestal_mat" contype="1" conaffinity="1" friction="1.2 0.05 0.001"/>
                     <site name="ee_tcp" pos="0.02 0 0" size="0.005" rgba="0.2 0.8 0.2 0.5"/>
                   </body>
                 </body>

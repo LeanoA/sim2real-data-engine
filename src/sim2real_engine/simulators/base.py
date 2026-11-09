@@ -216,8 +216,12 @@ class PrivilegedPickPlaceExpert:
                 # Detach object at the dropoff target upon completion
                 if hasattr(backend, "set_gripper"):
                     backend.set_gripper(False)
+                # Allow physical settling ticks for released payload to stabilize on table surface
+                for _ in range(5):
+                    step_record = backend.step(action_targets)
+                    records.append(step_record)
                 step_record = step_record.model_copy(update={"is_terminal": True})
-                records.append(step_record)
+                records[-1] = step_record
                 break
             records.append(step_record)
             joint_state = step_record.joint_state
