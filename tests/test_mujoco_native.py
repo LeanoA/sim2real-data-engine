@@ -84,6 +84,18 @@ def test_privileged_expert_rollout_with_native_mujoco() -> None:
     assert records[0].step_index == 1
 
 
+def test_mujoco_elbow_up_floor_clearance() -> None:
+    adapter = MuJoCoPhysicsAdapter()
+    ik_solver = DampedLeastSquaresIK(dof=adapter.dof)
+    expert = PrivilegedPickPlaceExpert(ik_solver=ik_solver)
+
+    records = expert.run_episode(backend=adapter, seed=42, max_steps=50)
+    assert len(records) > 0
+    # Link 3 (elbow) must maintain safe industrial clearance (z > 0.30m) at all times
+    elbow_z = float(adapter.data.body("link_3").xpos[2])
+    assert elbow_z > 0.30, f"Elbow dipped too low: {elbow_z}m"
+
+
 def test_cli_rollout_with_native_mujoco(capsys: pytest.CaptureFixture[str]) -> None:
     code = main(["rollout", "--backend", "mujoco_native", "--episodes", "2", "--seed", "42"])
     assert code == 0

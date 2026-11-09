@@ -25,19 +25,10 @@ class MuJoCoPhysicsAdapter:
         self.model, self.data = load_robot_mjcf()
         self.model.opt.timestep = control_dt / physics_substeps
 
-        # Cached entity identifiers
-        self._ee_body_id = mujoco.mj_name2id(
-            self.model, mujoco.mjtObj.mjOBJ_BODY, "end_effector"
-        )
-        self._payload_body_id = mujoco.mj_name2id(
-            self.model, mujoco.mjtObj.mjOBJ_BODY, "payload_object"
-        )
-        self._payload_jnt_id = mujoco.mj_name2id(
-            self.model, mujoco.mjtObj.mjOBJ_JOINT, "payload_freejoint"
-        )
-        self._payload_qpos_adr = self.model.jnt_qposadr[self._payload_jnt_id]
-
-        self._home_q = np.array([0.0, 0.55, -1.10, 0.0, 0.55, 0.0], dtype=np.float64)
+        # Named entity identifiers conforming to modern MuJoCo Python conventions
+        self._ee_body_id = self.model.body("end_effector").id
+        self._home_key_id = self.model.key("home").id
+        self._home_q = np.array([0.0, -0.55, 1.10, 0.0, -0.55, 0.0], dtype=np.float64)
         self._episode_id = 0
         self._step_index = 0
 
@@ -54,24 +45,18 @@ class MuJoCoPhysicsAdapter:
     def reset(self, seed: int = 42) -> tuple[JointState, SE3Pose, SE3Pose]:
         """Reset physics simulation and deterministically perturb the payload position."""
         rng = np.random.Generator(np.random.PCG64(np.random.SeedSequence(seed)))
-        mujoco.mj_resetData(self.model, self.data)
+        mujoco.mj_resetDataKeyframe(self.model, self.data, self._home_key_id)
 
         self._episode_id = seed
         self._step_index = 0
 
-        # Set nominal robot configuration
-        self.data.qpos[:6] = self._home_q
-        self.data.ctrl[:6] = self._home_q
-        self.data.qvel[:] = 0.0
-
-        # Perturb object on table surface (table top is at z = 0.05, box half-size is 0.02)
+        # Perturb object on table surface (tabletop is at z = 0.05, box half-size is 0.02)
         obj_x = 0.38 + float(rng.uniform(-0.04, 0.04))
         obj_y = 0.05 + float(rng.uniform(-0.05, 0.05))
         obj_z = 0.07
 
         qpos_obj = np.array([obj_x, obj_y, obj_z, 1.0, 0.0, 0.0, 0.0], dtype=np.float64)
-        adr = self._payload_qpos_adr
-        self.data.qpos[adr : adr + 7] = qpos_obj
+        self.data.joint("payload_freejoint").qpos[:] = qpos_obj
 
         # Compute forward kinematics & contact state
         mujoco.mj_forward(self.model, self.data)
@@ -88,8 +73,9 @@ class MuJoCoPhysicsAdapter:
 
     def get_current_ee_pose(self) -> SE3Pose:
         """Return current end-effector SE(3) pose from MuJoCo kinematics."""
-        pos = self.data.xpos[self._ee_body_id]
-        quat = self.data.xquat[self._ee_body_id]
+        ee = self.data.body("end_effector")
+        pos = ee.xpos
+        quat = ee.xquat
         return SE3Pose.from_unnormalized(
             position=(float(pos[0]), float(pos[1]), float(pos[2])),
             quaternion_wxyz=(float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3])),
@@ -97,8 +83,9 @@ class MuJoCoPhysicsAdapter:
 
     def get_target_pose(self) -> SE3Pose:
         """Return current privileged payload object SE(3) pose."""
-        pos = self.data.xpos[self._payload_body_id]
-        quat = self.data.xquat[self._payload_body_id]
+        obj = self.data.body("payload_object")
+        pos = obj.xpos
+        quat = obj.xquat
         return SE3Pose.from_unnormalized(
             position=(float(pos[0]), float(pos[1]), float(pos[2])),
             quaternion_wxyz=(float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3])),
@@ -108,7 +95,7 @@ class MuJoCoPhysicsAdapter:
         """Compute exact 6x6 spatial geometric Jacobian at the end-effector via MuJoCo C API."""
         jacp = np.zeros((3, self.model.nv), dtype=np.float64)
         jacr = np.zeros((3, self.model.nv), dtype=np.float64)
-        ee_pos = self.data.xpos[self._ee_body_id]
+        ee_pos = self.data.body("end_effector").xpos
 
         mujoco.mj_jac(self.model, self.data, jacp, jacr, ee_pos, self._ee_body_id)
 

@@ -1,6 +1,6 @@
 <mujoco model="manipulator_6dof">
   <compiler angle="radian" coordinate="local" inertiafromgeom="true"/>
-  <option timestep="0.002" gravity="0 0 -9.81" iterations="50" solver="Newton" cone="elliptic"/>
+  <option timestep="0.002" gravity="0 0 -9.81" iterations="50" solver="Newton" cone="elliptic" integrator="implicitfast"/>
 
   <default>
     <joint damping="0.8" armature="0.02" limited="true"/>
@@ -10,22 +10,31 @@
   </default>
 
   <asset>
-    <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1="0.1 0.15 0.25" rgb2="0.05 0.08 0.15"/>
-    <material name="grid_mat" texture="grid" texrepeat="2 2" reflectance="0.1"/>
-    <material name="pedestal_mat" rgba="0.2 0.25 0.35 1.0"/>
-    <material name="arm_mat" rgba="0.0 0.8 0.95 1.0"/>
-    <material name="joint_mat" rgba="0.9 0.95 1.0 1.0"/>
-    <material name="payload_mat" rgba="0.95 0.65 0.25 1.0"/>
-    <material name="table_mat" rgba="0.15 0.2 0.3 1.0"/>
+    <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1="0.22 0.25 0.30" rgb2="0.16 0.18 0.22"/>
+    <material name="grid_mat" texture="grid" texrepeat="4 4" reflectance="0.08"/>
+    <material name="flange_mat" rgba="0.12 0.14 0.18 1.0" specular="0.6" shininess="0.6"/>
+    <material name="pedestal_mat" rgba="0.24 0.28 0.36 1.0" specular="0.4" shininess="0.4"/>
+    <material name="arm_mat" rgba="0.0 0.78 0.92 1.0" specular="0.5" shininess="0.5"/>
+    <material name="joint_mat" rgba="0.88 0.92 0.96 1.0" specular="0.8" shininess="0.7"/>
+    <material name="payload_mat" rgba="1.0 0.62 0.12 1.0" specular="0.5" shininess="0.5"/>
+    <material name="table_mat" rgba="0.28 0.32 0.38 1.0" specular="0.3" shininess="0.3"/>
+    <material name="table_leg_mat" rgba="0.14 0.16 0.20 1.0"/>
   </asset>
 
   <worldbody>
-    <light directional="true" pos="0.5 -0.5 2.0" dir="-0.3 0.3 -1.0" diffuse="0.8 0.8 0.8"/>
+    <light directional="true" pos="0.8 -0.8 2.5" dir="-0.4 0.4 -1.0" diffuse="0.9 0.9 0.9" specular="0.3 0.3 0.3"/>
+    <light directional="false" pos="-0.4 0.4 1.5" diffuse="0.35 0.35 0.35"/>
+    <camera name="tracking_cam" pos="1.2 -0.9 0.75" xyaxes="0.6 0.8 0 -0.25 0.2 0.95"/>
     <geom name="floor" type="plane" pos="0 0 0" size="1.5 1.5 0.05" material="grid_mat" contype="1" conaffinity="1"/>
 
-    <!-- 6-DOF Manipulator Base Pedestal -->
+    <!-- 6-DOF Manipulator Base Pedestal with Bolted Flange -->
     <body name="base_link" pos="0 0 0">
-      <geom name="pedestal_geom" type="cylinder" fromto="0 0 0 0 0 0.22" size="0.06" material="pedestal_mat"/>
+      <!-- Ground mounting flange (bolted base) -->
+      <geom name="mounting_flange" type="cylinder" fromto="0 0 0 0 0 0.015" size="0.10" material="flange_mat"/>
+      <!-- Pedestal structural riser -->
+      <geom name="pedestal_column" type="cylinder" fromto="0 0 0.015 0 0 0.20" size="0.055" material="pedestal_mat"/>
+      <!-- Shoulder mounting ring / collar -->
+      <geom name="base_collar" type="cylinder" fromto="0 0 0.20 0 0 0.22" size="0.062" material="flange_mat"/>
 
       <!-- Joint 1: Base Yaw (Z-axis) -->
       <body name="link_1" pos="0 0 0.22">
@@ -73,9 +82,15 @@
       </body>
     </body>
 
-    <!-- Workstation Table Surface placed safely below arm workspace -->
-    <body name="work_table" pos="0.45 0.0 0.025">
-      <geom name="table_top" type="box" size="0.22 0.30 0.025" material="table_mat" contype="1" conaffinity="1"/>
+    <!-- Workstation Table with Surface and Support Structure -->
+    <body name="work_table" pos="0.45 0.0 0.0">
+      <!-- Tabletop surface at z = 0.05 -->
+      <geom name="table_top" type="box" pos="0 0 0.045" size="0.22 0.30 0.005" material="table_mat" contype="1" conaffinity="1"/>
+      <!-- Table support legs -->
+      <geom name="table_leg_fl" type="cylinder" fromto="0.18 0.25 0 0.18 0.25 0.04" size="0.012" material="table_leg_mat"/>
+      <geom name="table_leg_fr" type="cylinder" fromto="0.18 -0.25 0 0.18 -0.25 0.04" size="0.012" material="table_leg_mat"/>
+      <geom name="table_leg_bl" type="cylinder" fromto="-0.18 0.25 0 -0.18 0.25 0.04" size="0.012" material="table_leg_mat"/>
+      <geom name="table_leg_br" type="cylinder" fromto="-0.18 -0.25 0 -0.18 -0.25 0.04" size="0.012" material="table_leg_mat"/>
     </body>
 
     <!-- Free-floating Pickable Payload Object resting on table surface at z=0.07 -->
@@ -93,4 +108,8 @@
     <position name="act_j5" joint="joint_5" ctrlrange="-2.094 2.094"/>
     <position name="act_j6" joint="joint_6" ctrlrange="-3.1415 3.1415"/>
   </actuator>
+
+  <keyframe>
+    <key name="home" qpos="0.0 -0.55 1.10 0.0 -0.55 0.0 0.38 0.05 0.07 1 0 0 0" ctrl="0.0 -0.55 1.10 0.0 -0.55 0.0"/>
+  </keyframe>
 </mujoco>

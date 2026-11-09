@@ -18,13 +18,14 @@ from sim2real_engine.visualization.data import (
 
 
 def test_compute_arm_links_structure_and_dimensions() -> None:
-    q_home = [0.0, 0.55, -1.10, 0.0, 0.55, 0.0]
+    q_home = [0.0, -0.55, 1.10, 0.0, -0.55, 0.0]
     links = compute_arm_links(q_home)
 
     assert isinstance(links, ArmLinkPoints)
     assert links.base == (0.0, 0.0, 0.0)
     assert links.shoulder == (0.0, 0.0, 0.22)
     assert len(links.elbow) == 3
+    assert links.elbow[2] > 0.30  # Industrial Elbow-Up configuration ensures floor clearance
     assert len(links.wrist) == 3
     assert len(links.end_effector) == 3
 

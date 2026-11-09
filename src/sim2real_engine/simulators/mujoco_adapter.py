@@ -74,7 +74,7 @@ class MuJoCoKinematicAdapter:
         self._kp = kp
         self._kd = kd
         self._tracking_alpha = tracking_alpha
-        self._home_q = np.array([0.0, 0.55, -1.10, 0.0, 0.55, 0.0], dtype=np.float64)
+        self._home_q = np.array([0.0, -0.55, 1.10, 0.0, -0.55, 0.0], dtype=np.float64)
         self._q = self._home_q.copy()
         self._dq = np.zeros(self._dof, dtype=np.float64)
         self._torques = np.zeros(self._dof, dtype=np.float64)

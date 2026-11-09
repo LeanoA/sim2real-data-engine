@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 from sim2real_engine.core.contracts import BackendName
@@ -127,6 +128,51 @@ def generate_html_dashboard(
         "marker": {"size": 7, "color": "#f6ad55", "symbol": "circle-open"},
     }
 
+    # Trace 5: Workstation table wireframe (surface at z=0.05m and 4 corner legs)
+    tbl_x = [0.23, 0.67, 0.67, 0.23, 0.23, 0.23, 0.23, 0.67, 0.67, 0.67, 0.67, 0.23, 0.23]
+    tbl_y = [
+        -0.30,
+        -0.30,
+        0.30,
+        0.30,
+        -0.30,
+        -0.30,
+        -0.30,
+        -0.30,
+        -0.30,
+        0.30,
+        0.30,
+        0.30,
+        0.30,
+    ]
+    tbl_z = [0.05, 0.05, 0.05, 0.05, 0.05, 0.0, 0.05, 0.05, 0.0, 0.0, 0.05, 0.05, 0.0]
+    table_trace = {
+        "type": "scatter3d",
+        "mode": "lines",
+        "name": "Workstation Table",
+        "x": tbl_x,
+        "y": tbl_y,
+        "z": tbl_z,
+        "line": {"color": "#4a5568", "width": 4},
+        "hoverinfo": "none",
+    }
+
+    # Trace 6: Base mounting flange on floor (r=0.10m ring at z=0)
+    flange_angles = [i * 2.0 * math.pi / 16 for i in range(17)]
+    flange_x = [0.10 * math.cos(a) for a in flange_angles]
+    flange_y = [0.10 * math.sin(a) for a in flange_angles]
+    flange_z = [0.0] * 17
+    flange_trace = {
+        "type": "scatter3d",
+        "mode": "lines",
+        "name": "Mounting Flange",
+        "x": flange_x,
+        "y": flange_y,
+        "z": flange_z,
+        "line": {"color": "#718096", "width": 5},
+        "hoverinfo": "none",
+    }
+
     # 4. Sim-to-Sim multi-engine 3D traces
     sim_traces: list[dict[str, object]] = []
     sim_colors = {"mujoco": "#00f0ff", "genesis": "#ed8936", "isaac_lab": "#9f7aea"}
@@ -206,9 +252,17 @@ def generate_html_dashboard(
     div_val = f"{isaac_metrics.mean_ee_divergence_m * 1000.0:.2f}"
     succ_val = f"{isaac_metrics.success_rate_target * 100.0:.0f}%"
 
-    initial_arm_data = [arm_trace, obj_trace, trail_trace, ghost_trace, wp_trace]
+    initial_arm_data = [
+        arm_trace,
+        obj_trace,
+        trail_trace,
+        ghost_trace,
+        wp_trace,
+        table_trace,
+        flange_trace,
+    ]
     arm_json = json.dumps(initial_arm_data)
-    sim_json = json.dumps(sim_traces + [wp_trace])
+    sim_json = json.dumps(sim_traces + [wp_trace, table_trace, flange_trace])
     cart_json = json.dumps(cartesian_traces)
     joint_json = json.dumps(joint_traces)
 
