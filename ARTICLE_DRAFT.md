@@ -36,24 +36,24 @@ Without continuous cross-engine drift quantification, policies trained on synthe
 ```mermaid
 flowchart TB
     subgraph Simulators["1. Physics Engine Port (Hexagonal Adapters)"]
-        M["DeepMind MuJoCo 4.0 Adapter (Local ARM64 CPU)<br/>• Compiled MJCF 7D Reactive Manipulator<br/>• Dynamic weld constraint & 500 Hz contact solver"]
-        I["NVIDIA Isaac Lab Adapter (Cloud RTX)<br/>• 500 Hz PhysX tensor impedance API"]
-        G["Genesis Adapter (Headless GPU)<br/>• Parallel vectorized multi-physics"]
+        M["DeepMind MuJoCo 4.0 Adapter (Local ARM64 CPU)<br/>• Compiled MJCF 7D Reactive Manipulator<br/>• Proximity-gated weld constraint & 500 Hz contact solver"]
+        I["Isaac Lab Reference Adapter (Contract Emulator / Cloud RTX)<br/>• 500 Hz analytical impedance model (alpha=0.82)"]
+        G["Genesis Reference Adapter (Contract Emulator / Headless GPU)<br/>• 1,000 Hz analytical impedance model (alpha=0.88)"]
     end
 
     subgraph Core["2. Core Kinematics & Domain Randomization"]
         K["Lie Algebra SE(3) Kinematics<br/>• Damped Least-Squares IK + Null-Space Posture<br/>• Geodesic SLERP on S³"]
-        DR["Isolated PCG64 Randomization<br/>• SeedSequence([base_seed, episode_id])<br/>• Mass, friction, and damping scaling"]
+        DR["Isolated PCG64 Randomization<br/>• SeedSequence([base_seed, episode_id])<br/>• Mass (±15%), friction (±30%), damping (±10%)"]
     end
 
     subgraph Export["3. Hugging Face LeRobot v2 Pipeline"]
-        P["Chunked Parquet Tables<br/>(30D Vision-Conditioned State, 7D Action)"]
+        P["Chunked Parquet Tables<br/>(30D Privileged Sensorimotor State, 7D Action)"]
         S["SHA-256 Envelope & Stats<br/>(Per-dimension mean, std, min, max)"]
     end
 
     subgraph PolicyBridge["4. Policy Inference & Execution Bridge"]
-        ACT["Imitation Learning Policy<br/>• Residual BehaviorCloningMLP (H=8, 7D)<br/>• Metal MPS GPU Acceleration (10.2k samples/s)"]
-        BUF["TemporalEnsembleBuffer (Ring Buffer)<br/>• Exponential ensembling exp(-m*k)<br/>• P99 Latency Telemetry < 8.2ms"]
+        ACT["Imitation Learning Policy<br/>• Residual BehaviorCloningMLP (H=8, 7D)<br/>• Metal MPS GPU Acceleration (11.4k samples/s)"]
+        BUF["TemporalEnsembleBuffer (Ring Buffer)<br/>• Exponential ensembling exp(-m*k)<br/>• ~0.11ms MLP + 8.0ms IPC budget (8.11ms P99)"]
     end
 
     subgraph Vis["5. Visual Inspection & Telemetry"]
@@ -109,12 +109,12 @@ Whether episode 42 is sampled sequentially on an Apple Silicon laptop or in para
 
 ---
 
-### Pillar 4: Hugging Face `LeRobot` v2 Parquet Serialization & 30D Perception
+### Pillar 4: Hugging Face `LeRobot` v2 Parquet Serialization & 30D Privileged State
 Instead of unvalidated pickle blobs, episodes are streamed to disk as strictly typed tabular Parquet files conforming to the Hugging Face `LeRobotDataset` v2 specification.
 
-To condition policy learning for closed-loop reactive manipulation, each step stores:
-- **Observation Space (30D):** Joint positions ($\mathbf{q} \in \mathbb{R}^6$), joint velocities ($\dot{\mathbf{q}} \in \mathbb{R}^6$), end-effector $SE(3)$ pose ($\mathbf{p}_{\text{ee}} \in \mathbb{R}^3, \mathbf{q}_{\text{ee}} \in S^3$), perception-derived payload $SE(3)$ pose ($\mathbf{p}_{\text{obj}} \in \mathbb{R}^3, \mathbf{q}_{\text{obj}} \in S^3$), relative object displacement vector ($\Delta \mathbf{p} = \mathbf{p}_{\text{obj}} - \mathbf{p}_{\text{ee}} \in \mathbb{R}^3$), and current physical gripper latch state ($g \in \{0, 1\}$).
-- **Action Space (7D):** Commanded joint position targets ($[q_1..q_6]$) plus explicit binary gripper latch action ($g \in [0, 1]$ commanding weld activation).
+To condition Phase 1 sensorimotor policy learning for closed-loop reactive manipulation (prior to attaching RGB-D vision encoders in Phase 2), each step stores:
+- **Observation Space (30D Privileged State):** Joint positions ($\mathbf{q} \in \mathbb{R}^6$), joint velocities ($\dot{\mathbf{q}} \in \mathbb{R}^6$), end-effector $SE(3)$ pose ($\mathbf{p}_{\text{ee}} \in \mathbb{R}^3, \mathbf{q}_{\text{ee}} \in S^3$), privileged payload $SE(3)$ pose ($\mathbf{p}_{\text{obj}} \in \mathbb{R}^3, \mathbf{q}_{\text{obj}} \in S^3$), relative object displacement vector ($\Delta \mathbf{p} = \mathbf{p}_{\text{obj}} - \mathbf{p}_{\text{ee}} \in \mathbb{R}^3$), and current physical gripper latch state ($g \in \{0, 1\}$).
+- **Action Space (7D):** Commanded joint position targets ($[q_1..q_6]$) plus explicit binary gripper latch action ($g \in [0, 1]$ commanding proximity-gated `<weld>` activation).
 
 Upon collection, `finalize_manifest()` computes per-dimension normalization vectors ($\boldsymbol{\mu}, \boldsymbol{\sigma}, \mathbf{x}_{\min}, \mathbf{x}_{\max}$) for all observation and action dimensions, and seals each episode with a SHA-256 digest in `meta/manifest.json`. If a single byte is corrupted before training, `verify_integrity()` halts execution immediately.
 
@@ -125,7 +125,7 @@ Single-step action prediction with standard MSE loss suffers from quadratic comp
 
 To overcome this, the engine integrates an optimized PyTorch Behavioral Cloning architecture with multi-step action chunking:
 1. **Residual MLP with Pre-LayerNorm:** A deep trunk with residual skip connections and SiLU activations maps the normalized 30D observation vector to a full $(H=8, 7)$ future action trajectory chunk.
-2. **Metal Performance Shaders (MPS):** Training runs natively on Apple Silicon GPUs via PyTorch MPS, sustaining throughputs over **12,000 samples/s** and achieving **99.8% validation loss reduction** (Initial Loss: 3.7118 -> Final Val Loss: 0.0086) with a 5.0x loss weight on the binary gripper dimension to ensure crisp grasp initiation.
+2. **Metal Performance Shaders (MPS):** Training runs natively on Apple Silicon GPUs via PyTorch MPS, sustaining **11,438 samples/s** across 45 epochs and achieving **99.8% validation loss reduction** (Initial Loss: 3.5266 -> Final Val Loss: 0.0087) with a 5.0x loss weight on the binary gripper dimension to ensure crisp grasp initiation.
 3. **Temporal Ensembling Ring Buffer:** Overlapping action chunks from historical prediction steps $t - k$ are fused using exponential decay weights $w_k = \exp(-m \cdot k)$:
    $$\mathbf{u}_t = \frac{\sum_{k=0}^{K-1} \exp(-m \cdot k) \, \hat{\mathbf{a}}_{t | t-k}}{\sum_{k=0}^{K-1} \exp(-m \cdot k)}$$
    This temporal smoothing dampens high-frequency motor chatter and prevents discontinuous torque impulses on real hardware.
@@ -134,35 +134,36 @@ To overcome this, the engine integrates an optimized PyTorch Behavioral Cloning 
 
 ### Pillar 6: Interactive 3D Motion Inspection & Native Desktop Viewer
 Debugging robotic trajectories solely from terminal printouts or static loss curves hides critical spatial flaws. `sim2real-data-engine` provides two visual feedback loops:
-- **Comparative WebGL 3D Dashboard (`sim2real visualize-policy`):** Generates an offline HTML dashboard comparing policy execution (green/pink trajectory with action chunk horizon visualization) against the privileged expert reference (cyan), complete with interactive play/pause controls and real-time HUD telemetry.
+- **Comparative WebGL 3D Dashboard (`sim2real visualize`):** Generates an offline HTML dashboard comparing policy execution (green/pink trajectory with action chunk horizon visualization) against the privileged expert reference (cyan), complete with interactive play/pause controls and real-time HUD telemetry.
 - **Native MuJoCo 4.0 Desktop 3D Viewer (`sim2real view-physics --model-path`):** Executes the trained 7D policy inside a native OpenGL desktop window at 500 Hz. Developers can interactively double-click links and drag geoms with the mouse to perturb the arm or payload during transit, visually verifying policy stiffness and reactive recovery under real external forces.
 
 ---
 
 ## 4. Empirical Benchmarks: Sim-to-Sim Gap, Latency & OOD Robustness
 
-### 4.1 Cross-Engine Physics Gap (MuJoCo 4.0 vs. NVIDIA Isaac Lab)
-Executing `sim2real sim2sim-eval` across our verification suites quantifies numerical physics drift:
+### 4.1 Cross-Backend Tracking Drift (MuJoCo 4.0 Native vs. Analytical Impedance Reference Adapter)
+Executing `sim2real sim2sim-eval` compares full native contact physics against our local analytical impedance reference adapter (`IsaacLabAdapter`, an offline contract emulator with stiff joint compliance $k_p = 48.0\text{ N}\cdot\text{m/rad}, \alpha = 0.82$ used for zero-GPU CI verification before cloud RTX container deployment):
 
-| Metric | Reference (MuJoCo 4.0) | Target (NVIDIA Isaac Lab) | Divergence / Telemetry |
+| Metric | Reference (`mujoco_native` 4.0) | Target (`IsaacLabAdapter` Emulator) | Divergence / Telemetry |
 | :--- | :---: | :---: | :---: |
-| **Physics Integration Frequency** | 500 Hz (substepped) | 500 Hz | Nominal physics stepping |
-| **Pick-and-Place Task Success Rate** | 100.0% | 100.0% | 0.0% Gap |
-| **Mean Trajectory Drift ($\text{RMSE}_{\text{traj}}$)** | Baseline | 0.0355 rad | ~2.0° cumulative joint variance |
+| **Physics Integration Frequency** | 500 Hz (10 substeps) | 500 Hz (analytical impedance) | Nominal stepping alignment |
+| **Pick-and-Place Task Success Rate** | 100.0% | 100.0% | 0.0% Contract Gap |
+| **Mean Trajectory Drift ($\text{RMSE}_{\text{traj}}$)** | Baseline | 0.0355 rad | ~2.0° cumulative tracking lag |
 | **Mean Final End-Effector Divergence** | Baseline | 0.00052 m | **< 0.6 mm Cartesian drift** |
 
 ### 4.2 Closed-Loop 7D Policy Inference Telemetry
-Evaluating the trained 7D Behavioral Cloning policy across closed-loop MuJoCo rollouts demonstrates strict real-time determinism:
+Evaluating the trained 30D-to-7D Behavioral Cloning policy across closed-loop MuJoCo rollouts demonstrates sub-millisecond forward-pass execution (**~0.11 ms** on CPU) and deterministic compliance even when `PolicyInferenceBridge` injects its default **8.0 ms synthetic IPC / remote-transport latency budget**:
 
 | Metric | Value | Budget / Target | Status |
 | :--- | :---: | :---: | :---: |
-| **Inference Latency (P50)** | **8.09 ms** | 20.0 ms (50 Hz control loop) | Passed |
-| **Inference Latency (P99)** | **8.11 ms** | 20.0 ms (50 Hz control loop) | **Zero Deadline Misses** |
+| **Raw CPU MLP Forward Pass** | **~0.11 ms** | < 1.0 ms local compute | Sub-millisecond |
+| **Bridge Latency w/ 8.0 ms IPC Budget (P50)** | **8.09 ms** | 20.0 ms (50 Hz control loop) | Passed |
+| **Bridge Latency w/ 8.0 ms IPC Budget (P99)** | **8.11 ms** | 20.0 ms (50 Hz control loop) | **Zero Deadline Misses** |
 | **Mean EE Displacement** | 261.2 mm | Full workspace reach | Reached |
 | **MPS Training Throughput** | 11,438 samples/s | > 5,000 samples/s | 2x Headroom |
 
 ### 4.3 Out-of-Distribution (OOD) Domain Randomization & Ensembling Ablation
-To verify policy resilience against physical hardware parameter shifts, we benchmarked rollouts under randomized payload mass ($m \in [0.5, 2.0] \times m_{\text{nom}}$), Coulomb surface friction ($\mu \in [0.4, 2.5] \times \mu_{\text{nom}}$), and joint damping:
+To verify policy resilience against physical hardware parameter shifts, we benchmarked rollouts under randomized payload mass ($\pm 15\%, m \in [0.85, 1.15] \times m_{\text{nom}}$), Coulomb surface friction ($\pm 30\%, \mu \in [0.70, 1.30] \times \mu_{\text{nom}}$), and joint damping ($\pm 10\%, b \in [0.90, 1.10] \times b_{\text{nom}}$):
 
 | Dynamics Regime | Temporal Ensembling | Task Success Rate | Mean Payload Transport | Control Chatter (Action Jerk) |
 | :--- | :---: | :---: | :---: | :---: |
@@ -181,8 +182,8 @@ To verify policy resilience against physical hardware parameter shifts, we bench
 In robust robotics systems engineering, attempting to simultaneously solve high-frequency non-linear contact mechanics, multi-rate sensor synchronization, and receding-horizon policy inference creates compounding debugging surface area. 
 
 We deliberately adopted an **iterative, staged architecture**:
-1. **Phase 1 (Validated & Benchmark-Proven): Closed-Loop Pipeline Verification.** We validated the macro data engine, Lie group inverse kinematics, chunked LeRobot Parquet serialization, and real-time temporal ensembling using a deterministic equality constraint (`<weld>`). This isolated sensorimotor learning dynamics from contact chatter, achieving a **55.0% full task success rate** and proving a **79.6% control chatter reduction**.
-2. **Phase 2 (Immediate Roadmap): Dynamic Relative-Pose Anchoring & Articulated Gripper.** Having validated the end-to-end visuomotor loop, the upcoming iteration introduces dynamic relative-pose (`relpose`) attachment to eliminate discrete snap, followed by an actuated parallel-jaw gripper with prismatic slide joints, position control, and Coulomb friction cones to model fine-grained physical grasp compression.
+1. **Phase 1 (Validated & Benchmark-Proven): Closed-Loop Sensorimotor Pipeline Verification.** We validated the macro data engine, Lie group inverse kinematics, chunked LeRobot Parquet serialization, and real-time temporal ensembling using a proximity-gated ($\le 40\text{ mm}$) dynamic equality constraint (`<weld>`) and 30D privileged state conditioning. This isolated sensorimotor learning dynamics from contact chatter, achieving a **55.0% full task success rate** and proving a **79.6% control chatter reduction**.
+2. **Phase 2 (Immediate Roadmap): RGB-D Vision Conditioning, Dynamic Relative-Pose Anchoring & Articulated Gripper.** Having validated the end-to-end sensorimotor control loop, the upcoming iteration replaces privileged object pose tokens with RGB-D vision encoder features, introduces dynamic relative-pose (`relpose`) attachment to eliminate discrete snap, and adds an actuated parallel-jaw gripper with prismatic slide joints and Coulomb friction cones to model fine-grained physical grasp compression.
 
 ### 5.2 The Deceptive Open-Loop Trap: Why Batch Size 64 Beats Batch Size 128 in Closed-Loop Robotics
 
@@ -193,7 +194,7 @@ When scaling training on our 50,213 demonstration transitions, we evaluated two 
 | Hyperparameter / Metric | Batch Size = 128 | Batch Size = 64 (Canonical) | Engineering Takeaway |
 | :--- | :---: | :---: | :---: |
 | **Total Epochs** | 50 epochs | 45 epochs | Comparable training budget |
-| **Wall-Clock Training Time** | **109.56 s** (20.6k samples/s) | 188.63 s (10.8k samples/s) | BS 128 has 1.9x higher GPU throughput |
+| **Wall-Clock Training Time** | **109.56 s** (20.6k samples/s) | 197.60 s (11,438 samples/s) | BS 128 has 1.8x higher GPU throughput |
 | **Initial Loss $\to$ Final Val Loss** | 3.6057 $\to$ **0.0098** (-99.7%) | 3.5266 $\to$ **0.0087** (-99.8%) | Open-loop loss delta is only **0.0011** |
 | **Closed-Loop Task Success Rate** | **5.0% - 10.0% (Severe Collapse)** | **55.0% (Robust Task Completion)** | **11x higher real-world task success** |
 | **Mean Payload Transport Distance** | 24.2 mm (fails grasp) | **125.1 mm** (transported to target) | BS 64 reliably triggers grasp latch |
@@ -227,14 +228,14 @@ Robotic manipulation is transitioning from proof-of-concept research to determin
 The complete codebase, documentation, ADRs, and verification test suites are open-source:
 
 ```bash
-# 1. Clone and verify test suite (86 tests passing, mypy --strict clean)
+# 1. Clone and verify test suite (87 tests passing, mypy --strict clean)
 git clone https://github.com/LeanoA/sim2real-data-engine.git
 cd sim2real-data-engine
 uv sync
 uv run pytest -v
 
-# 2. Train 7D reactive policy on Apple Silicon Metal GPU (under 5 seconds)
-uv run sim2real train-policy --dataset-dir datasets/sim2real_pick_place --epochs 35 --output-model checkpoints/bc_pick_place.pt
+# 2. Train 30D-to-7D reactive policy on Apple Silicon Metal GPU (45 epochs)
+uv run sim2real train-policy --dataset-dir datasets/sim2real_pick_place --epochs 45 --output-model checkpoints/bc_pick_place.pt
 
 # 3. Launch native desktop MuJoCo 4.0 3D viewer with live mouse perturbations
 uv run sim2real view-physics --model-path checkpoints/bc_pick_place.pt
@@ -243,5 +244,5 @@ uv run sim2real view-physics --model-path checkpoints/bc_pick_place.pt
 uv run sim2real eval-policy --model-path checkpoints/bc_pick_place.pt --dr --compare-ensembling --episodes 5
 
 # 5. Generate interactive WebGL 3D policy vs expert comparison dashboard
-uv run sim2real visualize-policy --model-path checkpoints/bc_pick_place.pt --output dashboard.html
+uv run sim2real visualize --model-path checkpoints/bc_pick_place.pt --output dashboard.html
 ```

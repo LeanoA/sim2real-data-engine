@@ -1,8 +1,9 @@
-"""Cloud GPU simulation adapters for Genesis and NVIDIA Isaac Lab.
+"""Local analytical impedance reference adapters for Genesis and NVIDIA Isaac Lab.
 
-Implements the hexagonal SimulatorBackend port for high-throughput vectorized multi-physics
-(Genesis) and photorealistic ray-traced RTX environments (NVIDIA Isaac Lab).
-Provides deterministic local execution on macOS ARM64 / Linux CPU for zero-cost testing.
+Implements the hexagonal SimulatorBackend port with deterministic analytical tracking models
+(alpha=0.88 for Genesis, alpha=0.82 for Isaac Lab) to verify cross-backend contracts and
+quantify baseline tracking drift on macOS ARM64 / Linux CPU when cloud GPU containers are
+not attached.
 """
 
 from __future__ import annotations
@@ -11,10 +12,11 @@ from sim2real_engine.simulators.mujoco_adapter import MuJoCoKinematicAdapter
 
 
 class GenesisAdapter(MuJoCoKinematicAdapter):
-    """Adapter for Genesis high-throughput parallel GPU multi-physics engine.
+    """Local analytical impedance reference adapter for the Genesis backend port.
 
-    Emulates Genesis contact mechanics with slightly relaxed joint compliance
-    (kp=44.0 N*m/rad, kd=3.9 N*m*s/rad, alpha=0.88) and 1,000 Hz nominal physics integration.
+    Emulates target solver tracking dynamics with relaxed joint compliance
+    (kp=44.0 N*m/rad, kd=3.9 N*m*s/rad, alpha=0.88) and 1,000 Hz nominal stepping
+    for offline contract and CI drift verification without requiring a GPU container.
     """
 
     def __init__(self, control_dt: float = 0.02) -> None:
@@ -27,10 +29,11 @@ class GenesisAdapter(MuJoCoKinematicAdapter):
 
 
 class IsaacLabAdapter(MuJoCoKinematicAdapter):
-    """Adapter for NVIDIA Omniverse / Isaac Lab PhysX tensor backend.
+    """Local analytical impedance reference adapter for the NVIDIA Isaac Lab backend port.
 
-    Emulates Isaac Lab PhysX 5.x dynamics at 500 Hz nominal physics stepping
-    with stiff joint impedance (kp=48.0 N*m/rad, kd=4.2 N*m*s/rad, alpha=0.82).
+    Emulates target solver tracking dynamics at 500 Hz nominal stepping with stiff
+    joint impedance (kp=48.0 N*m/rad, kd=4.2 N*m*s/rad, alpha=0.82) for offline
+    contract and CI drift verification when headless RTX containers are not attached.
     """
 
     def __init__(self, control_dt: float = 0.02) -> None:

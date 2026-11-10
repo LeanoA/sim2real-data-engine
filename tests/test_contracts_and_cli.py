@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from sim2real_engine.cli import main
+from sim2real_engine.cli import _build_parser, main
 from sim2real_engine.core.contracts import (
     DEFAULT_BACKENDS,
     DomainRandomizationConfig,
@@ -151,3 +151,19 @@ def test_cli_backends_and_validate_config_json(capsys: pytest.CaptureFixture[str
     assert invalid_exit == 1
     invalid_out = json.loads(capsys.readouterr().out)
     assert invalid_out["valid"] is False
+
+
+def test_cli_train_policy_defaults_to_30d_ee_pose() -> None:
+    parser = _build_parser()
+    default_args = parser.parse_args(["train-policy", "--dataset-dir", "./datasets/demo"])
+    assert default_args.include_ee_pose is True
+
+    explicit_true_args = parser.parse_args(
+        ["train-policy", "--dataset-dir", "./datasets/demo", "--include-ee-pose"]
+    )
+    assert explicit_true_args.include_ee_pose is True
+
+    opt_out_args = parser.parse_args(
+        ["train-policy", "--dataset-dir", "./datasets/demo", "--no-ee-pose"]
+    )
+    assert opt_out_args.include_ee_pose is False

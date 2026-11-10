@@ -8,10 +8,14 @@ __pycache__/
 *.local.*
 data/raw/
 datasets/
-checkpoints/
+checkpoints/*
 *.pt
+!checkpoints/
+!checkpoints/bc_pick_place.pt
 outputs/
 dist/
 build/
 *.egg-info/
 *.html
+AGENTS.md
+CLAUDE.md
