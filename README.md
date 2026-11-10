@@ -3,9 +3,64 @@
 [![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/downloads/)
 [![Typed: mypy strict](https://img.shields.io/badge/typing-mypy%20strict-1f6feb.svg)](https://mypy-lang.org/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-261230.svg)](https://docs.astral.sh/ruff/)
+[![Tests: 70 passing](https://img.shields.io/badge/tests-70%20passing-success.svg)](tests/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 **Modular Synthetic Data Generation, Multi-Engine Physics Benchmarking & Visuomotor Distillation Framework for Embodied AI.**
+
+---
+
+## 🚀 30-Second Quickstart: Run the Simulations
+
+Clone and install dependencies with [`uv`](https://docs.astral.sh/uv/) (under 10 seconds):
+
+```bash
+git clone https://github.com/LeanoA/sim2real-data-engine.git
+cd sim2real-data-engine
+uv sync
+```
+
+### Option A: Native MuJoCo 4.0 Desktop 3D Viewer
+
+Launch the trained 7-DOF reactive policy inside a real-time 500 Hz OpenGL physics window:
+
+```bash
+# Run closed-loop policy rollouts (loops across randomized cube positions)
+uv run sim2real view-physics --model-path checkpoints/bc_pick_place.pt --episodes 10
+```
+
+> **Interactive Controls:**
+> - **Spacebar:** Pause / unpause simulation stepping.
+> - **Right-click drag / Double-click:** Apply real-time force perturbations to robot links or the payload.
+> - **Esc:** Exit viewer.
+>
+> *(Want to see the privileged IK expert instead? Simply omit `--model-path`: `uv run sim2real view-physics --episodes 5`)*
+
+---
+
+### Option B: Interactive 3D WebGL Dashboard (Browser)
+
+Generate an offline 3D kinematics dashboard that runs in any modern browser without native GUI dependencies:
+
+```bash
+# Generate and immediately open the 3D comparative dashboard
+uv run sim2real visualize --model-path checkpoints/bc_pick_place.pt --output dashboard.html --open
+```
+
+> **Dashboard Features:**
+> - **3D Trajectory Comparison:** Directly overlays the policy-executed trajectory (green arm, pink path) against the privileged expert reference (cyan path).
+> - **Playback Timeline:** Interactive scrub slider, play/pause controls, and frame stepping.
+> - **Real-Time Telemetry HUD:** Displays instantaneous end-effector $SE(3)$ coordinates, payload position, and net displacement.
+
+---
+
+### Option C: Out-of-Distribution (OOD) Domain Randomization Benchmark
+
+Quantify policy robustness against physical mass, friction, and damping perturbations with and without temporal ensembling:
+
+```bash
+uv run sim2real eval-policy --model-path checkpoints/bc_pick_place.pt --dr --compare-ensembling --episodes 20
+```
 
 ---
 
@@ -13,10 +68,10 @@
 
 Modern visuomotor robot policies (Action Chunking Transformers, Diffusion Policies, Flow-Matching VLAs) are bottlenecked not by neural architecture capacity, but by the **quantity, physical diversity, and telemetry fidelity of demonstration trajectories**.
 
-`sim2real-data-engine` bridges classical robotics and foundation policy learning by decoupling **privileged SE(3) trajectory experts** and **domain randomization schedules** from the underlying physics engine:
+`sim2real-data-engine` bridges classical robotics and foundation policy learning by decoupling **privileged $SE(3)$ trajectory experts** and **domain randomization schedules** from the underlying physics engine:
 
 - **Problem:** Scripted experts and dataset collectors are typically tightly coupled to a single simulator API, making it difficult to validate contact physics across engines or develop locally without expensive workstation GPUs.
-- **Solution:** A strictly typed contract and adapter architecture that lets you develop, test, and verify kinematics, domain randomization, and `LeRobotDataset` serialization **locally on Apple Silicon (`MuJoCo` at 1,000+ Hz)**, then burst identical workload manifests to **cloud GPUs (`Genesis` and `NVIDIA Isaac Lab`)** for massive parallel rollout generation and photorealistic RTX rendering.
+- **Solution:** A strictly typed hexagonal architecture that lets you develop, test, and verify kinematics, domain randomization, and `LeRobotDataset` serialization **locally on Apple Silicon (`MuJoCo` at 500+ Hz)**, then burst identical workload manifests to **cloud GPUs (`Genesis` and `NVIDIA Isaac Lab`)** for massive parallel rollout generation and photorealistic RTX rendering.
 
 ---
 
@@ -32,19 +87,20 @@ flowchart TD
     end
 
     subgraph Backends["2. Pluggable Physics Engine Layer (simulators/)"]
-        MUJ_NAT["MuJoCo Native 4.0 Backend (C API / Mac ARM64)<br/>500 Hz deterministic contact solver & dynamic weld constraint"]
+        MUJ_NAT["MuJoCo Native 4.0 Backend (C API / Mac ARM64)<br/>500 Hz deterministic contact solver & proximity-gated weld"]
         MUJ_KIN["MuJoCo Kinematic Backend (1,000 Hz CPU)<br/>Rapid CI kinematic verification"]
         GEN["Genesis Backend (Cloud GPU Batch)<br/>High-throughput parallel contact rollouts"]
         ISA["NVIDIA Isaac Lab Backend (Docker Headless RTX)<br/>Ray-traced RGB-D & Omniverse Replicator"]
         FSM --> MUJ_NAT & MUJ_KIN & GEN & ISA
     end
 
-    subgraph Pipeline["3. Dataset & Visuomotor Distillation (dataset/, server/)"]
-        LER["LeRobotDataset v2 Exporter<br/>Parquet state/action chunks + SHA-256 seal"]
-        SRV["Decoupled Policy Inference Bridge<br/>Receding-horizon action chunking + temporal ensembling"]
-        S2S["Sim-to-Sim Evaluator (benchmarks/)<br/>Cross-engine tracking error & OOD robustness"]
-        VIS["Interactive 3D Web Visualizer (visualization/)<br/>HUD telemetry, 3D trajectory arcs, and scrub controls"]
-        MUJ_NAT & GEN & ISA --> LER --> SRV --> S2S & VIS
+    subgraph Pipeline["3. Dataset & Visuomotor Distillation (dataset/, learning/, server/)"]
+        LER["LeRobotDataset v2 Exporter<br/>30D observation Parquet tables + SHA-256 seal"]
+        TRN["Receding-Horizon BC Trainer (learning/)<br/>Metal MPS GPU (12.0k samples/s), gripper-weighted loss"]
+        SRV["Temporal Ensemble Ring Buffer (server/)<br/>Exponential decay ensembling exp(-m*k), P99 < 8.2ms"]
+        OOD["OOD Domain Randomization Benchmark (benchmarks/)<br/>Action jerk & physical perturbation retention"]
+        VIS["Interactive 3D Visualizer & Desktop Viewer<br/>OpenGL native window + WebGL 3D comparative dashboard"]
+        MUJ_NAT & GEN & ISA --> LER --> TRN --> SRV --> OOD & VIS
     end
 ```
 
@@ -52,68 +108,55 @@ flowchart TD
 
 ## Key Performance & Verification Metrics
 
-Tested on Apple M1 Pro (8 cores, 16 GB Unified Memory):
+Empirically measured on Apple Silicon (M-series, unified memory):
 
 | Metric | Measured Value | Target / Requirement | Status |
 | :--- | :--- | :--- | :--- |
-| **Physics Stepping Throughput** | **5,722 steps/s** (~5.7 kHz) | > 500 Hz | PASSED |
-| **Episode Rollout Time (95 steps)** | **16.6 ms / episode** | < 100 ms | PASSED |
-| **Dataset Export Rate (50 episodes)** | **0.83 s total** (4,753 steps) | < 10 s | PASSED |
-| **Integrity Seal** | **SHA-256 Validated** | Cryptographic envelope | PASSED |
-| **Sim-to-Sim TCP Divergence** | **4.7 mm** (100% convergence) | < 10.0 mm | PASSED |
-| **Unit Test Coverage** | **54 / 54 tests passing** | 100% test pass rate | PASSED |
-| **Static Analysis** | **mypy strict & ruff clean** | 0 errors | PASSED |
+| **Physics Integration Frequency** | **500 Hz** (10 substeps @ $\Delta t = 2\text{ ms}$) | > 500 Hz | PASSED |
+| **Grasp Physical Realism** | **$\le 40\text{ mm}$ proximity gate** (zero teleports) | Physical collision adjacency | PASSED |
+| **Unit & Integration Tests** | **70 / 70 tests passing** | 100% pass rate | PASSED |
+| **Static Analysis & Typing** | **`mypy --strict` & `ruff` clean** | 0 errors across 40 files | PASSED |
+| **Dataset Export Rate (200 episodes)** | **19,932 steps in 3.4 s** | < 10 s | PASSED |
+| **Cryptographic Seal** | **SHA-256 Envelope per episode** | Cryptographic tamper-proofing | PASSED |
+| **Policy Training Throughput (MPS)** | **12,085 samples/s** | > 5,000 samples/s | PASSED |
+| **Validation Loss Reduction** | **-99.8%** (3.7118 $\to$ 0.0086) | > 95% | PASSED |
+| **Policy Inference Latency (P99)** | **8.11 ms** | < 20.0 ms (50 Hz budget) | PASSED |
+| **OOD Ensembling Chatter Reduction** | **-68.1% Action Jerk** ($0.1010 \to 0.0322$) | Smooth continuous torque | PASSED |
 
 ---
 
-## Quickstart
+## Complete CLI Reference
 
-### Prerequisites
+The unified `sim2real` CLI provides tools for data generation, training, benchmarking, and visualization:
 
-- **Python 3.13+** managed via [`uv`](https://docs.astral.sh/uv/)
+| Command | Description | Example |
+| :--- | :--- | :--- |
+| `sim2real view-physics` | Launch official MuJoCo 4.0 native 3D desktop viewer. | `uv run sim2real view-physics --model-path checkpoints/bc_pick_place.pt --episodes 10` |
+| `sim2real visualize` | Generate interactive 3D WebGL comparative dashboard. | `uv run sim2real visualize --model-path checkpoints/bc_pick_place.pt --open` |
+| `sim2real export-dataset` | Export synthetic demonstrations to LeRobot v2 Parquet. | `uv run sim2real export-dataset --backend mujoco_native --episodes 200` |
+| `sim2real train-policy` | Train Behavioral Cloning MLP with action chunking on MPS. | `uv run sim2real train-policy --dataset-dir datasets/sim2real_pick_place --epochs 60` |
+| `sim2real eval-policy` | Benchmark policy in closed loop with OOD Domain Randomization. | `uv run sim2real eval-policy --model-path checkpoints/bc_pick_place.pt --dr --compare-ensembling` |
+| `sim2real sim2sim-eval` | Evaluate Sim-to-Sim kinematic and dynamic divergence. | `uv run sim2real sim2sim-eval --ref mujoco_native --target isaac_lab --episodes 10` |
+| `sim2real benchmark-bridge`| Profile real-time action chunking buffer and inference latency. | `uv run sim2real benchmark-bridge --horizon 8 --steps 200` |
+| `sim2real sample-dr` | Sample deterministic PCG64 physical perturbation manifests. | `uv run sim2real sample-dr --seed 42 --episodes 5 --json` |
+| `sim2real backends` | List registered simulator backends and environment status. | `uv run sim2real backends --json` |
+| `sim2real info` | Display framework version, architecture, and runtime info. | `uv run sim2real info` |
 
-### Installation & Verification
+---
+
+## Verification & Code Quality
+
+Run the complete test suite and static analysis suite locally:
 
 ```bash
-# 1. Install dependencies and development tooling
-uv sync --dev
+# 1. Run all 70 unit and integration tests
+uv run pytest -v
 
-# 2. Run the deterministic test suite
-uv run pytest -q --maxfail=1
+# 2. Strict static typing across all modules
+uv run mypy src tests
 
-# 3. Run linter and strict static type checks
+# 3. Linter and formatting compliance
 uv run ruff check src tests
-uv run mypy src
-```
-
-### CLI Reference
-
-The `sim2real` command-line interface provides end-to-end tooling for data generation, benchmarking, and visualization:
-
-```bash
-# Display framework info and backend status
-uv run sim2real info
-
-# List registered physics backends
-uv run sim2real backends --json
-
-# Validate domain randomization parameters
-uv run sim2real validate-config --seed 42 --mass-scale-min 0.8 --mass-scale-max 1.25 --json
-
-# Sample domain randomization perturbations across episodes
-uv run sim2real sample-dr --seed 42 --episodes 5 --json
-
-# Export synthetic demonstrations to LeRobotDataset v2 Parquet
-uv run sim2real export-dataset --backend mujoco_native --episodes 50 --output-dir datasets/sim2real_pick_place
-
-# Benchmark policy inference bridge with temporal action chunking
-uv run sim2real benchmark-bridge --horizon 16 --decay-rate 0.05 --steps 200
-
-# Benchmark Sim-to-Sim cross-engine kinematic and dynamic divergence
-uv run sim2real benchmark-sim2sim --ref mujoco_native --target isaac_lab --episodes 10
-
-# Launch interactive 3D Web Visualizer with native physics trajectory
-uv run sim2real visualize --backend mujoco_native --open-browser
 ```
 
 ---
@@ -122,32 +165,32 @@ uv run sim2real visualize --backend mujoco_native --open-browser
 
 ```text
 sim2real-data-engine/
-├── CLAUDE.md                        # Operational manifest & module boundaries
-├── AGENTS.md                        # Architectural execution protocol
-├── README.md                        # Architecture overview & quickstart
-├── pyproject.toml                   # Python 3.13 + uv + dependencies
-├── sim2real_visualizer.html         # Interactive 3D Web Visualizer (Three.js)
-├── datasets/                        # Exported Parquet datasets & SHA-256 manifests
+├── ARTICLE_DRAFT.md                 # Technical engineering article draft
+├── dashboard.html                   # Pre-compiled 3D WebGL motion visualizer
+├── checkpoints/                     # Trained policy weights (bc_pick_place.pt)
+├── datasets/                        # LeRobot v2 chunked Parquet datasets & SHA-256 manifests
+│   └── sim2real_pick_place/         # 200 native MuJoCo demonstration episodes
 ├── docker/                          # Headless cloud GPU container configurations
 ├── docs/                            # Architectural specs, ADRs, and experiment reports
 │   ├── ARCHITECTURE_DECISIONS.md    # ADR-01 through ADR-07
 │   ├── ARCHITECTURE_SPECIFICATION.md# Formal module interfaces and mathematical bounds
-│   ├── EXPERIMENT_REPORT_PICK_PLACE.md # Quantitative benchmark report
-│   └── img/                         # High-res trajectory plots and KPI charts
+│   └── EXPERIMENT_REPORT_PICK_PLACE.md # Quantitative benchmark report
 ├── src/
 │   └── sim2real_engine/
-│       ├── __init__.py
-│       ├── cli.py                   # `sim2real` CLI entrypoint
-│       ├── benchmarks/              # Sim-to-Sim cross-engine evaluation
-│       ├── core/                    # SE3Pose, JointState, kinematics contracts
-│       ├── dataset/                 # LeRobotDataset v2 Parquet exporter & manifest
-│       ├── models/                  # MJCF 6-DOF robot and tabletop scene definitions
-│       ├── randomization/           # Physical and visual domain perturbation samplers
-│       ├── server/                  # Policy inference bridge & action chunk buffer
-│       ├── simulators/              # MuJoCo native, kinematic, Genesis & Isaac adapters
-│       └── visualization/           # HTML dashboard generator & OpenGL viewer
-└── tests/                           # 54 deterministic unit and integration tests
+│       ├── cli.py                   # Unified `sim2real` command-line entrypoint
+│       ├── benchmarks/              # Sim-to-Sim gap and OOD domain randomization benchmarks
+│       ├── core/                    # SE3Pose, JointState contracts and kinematics
+│       ├── dataset/                 # LeRobotDataset v2 Parquet exporter & manifest validator
+│       ├── learning/                # Residual BC MLP, action chunking dataset, PyTorch trainer
+│       ├── models/                  # Declarative MJCF 6-DOF robot and table models
+│       ├── randomization/           # Isolated PCG64 physical and visual domain samplers
+│       ├── server/                  # Policy inference bridge & receding-horizon ring buffer
+│       ├── simulators/              # Native MuJoCo, Kinematic, Genesis, and Isaac Lab adapters
+│       └── visualization/           # WebGL dashboard generator & OpenGL desktop viewer
+└── tests/                           # 70 deterministic unit and integration tests
 ```
+
+---
 
 ## License
 
