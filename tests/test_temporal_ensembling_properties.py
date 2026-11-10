@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import math
+
 import numpy as np
-import pytest
 
 from sim2real_engine.server.chunk_buffer import TemporalEnsembleBuffer
 
@@ -30,7 +30,10 @@ def test_convex_combination_unity_sum() -> None:
 
     # Action output must match the analytical weighted sum
     ensembled = buffer.get_ensembled_action(current_step=target_step)
-    expected_val = sum(w * float(t0) for w, t0 in zip(normalized_weights, range(target_step + 1)))
+    expected_val = sum(
+        w * float(t0)
+        for w, t0 in zip(normalized_weights, range(target_step + 1), strict=True)
+    )
     np.testing.assert_allclose(
         ensembled,
         expected_val,
@@ -44,13 +47,12 @@ def test_monotonic_exponential_weight_decay() -> None:
     """When decay_rate > 0, newer action predictions must strictly outweigh older predictions."""
     decay_rate = 0.1
     horizon = 8
-    buffer = TemporalEnsembleBuffer(action_dim=4, horizon=horizon, decay_rate=decay_rate)
 
     # Verify decay ordering for prediction ages k = 0, 1, 2, ...
     weights = [math.exp(-decay_rate * k) for k in range(horizon)]
     for i in range(len(weights) - 1):
         assert weights[i] > weights[i + 1], (
-            f"Weight monotonicity violated at age {i}: w_{i}={weights[i]} <= w_{i+1}={weights[i+1]}"
+            f"Weight decay violated at age {i}: w_{i}={weights[i]} <= w_{i+1}={weights[i+1]}"
         )
 
 
@@ -106,7 +108,8 @@ def test_action_jerk_and_chatter_attenuation() -> None:
     # Ensembling must attenuate chatter by at least 25%
     jerk_reduction_pct = (raw_jerk - ens_jerk) / raw_jerk * 100.0
     assert jerk_reduction_pct > 25.0, (
-        f"Expected >25% jerk reduction; got {jerk_reduction_pct:.2f}% (raw={raw_jerk:.4f}, ens={ens_jerk:.4f})"
+        f"Expected >25% jerk reduction; got {jerk_reduction_pct:.2f}% "
+        f"(raw={raw_jerk:.4f}, ens={ens_jerk:.4f})"
     )
 
 
@@ -123,7 +126,8 @@ def test_buffer_pruning_memory_leak_immunity() -> None:
 
         # Buffer must never hold more than horizon active chunks
         assert buffer.active_chunks_count <= horizon, (
-            f"Buffer leaked memory at step {step}: {buffer.active_chunks_count} chunks retained (limit {horizon})"
+            f"Buffer leaked memory at step {step}: "
+            f"{buffer.active_chunks_count} chunks retained (limit {horizon})"
         )
 
 
