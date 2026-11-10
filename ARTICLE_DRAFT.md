@@ -47,7 +47,7 @@ flowchart TB
     end
 
     subgraph Export["3. Hugging Face LeRobot v2 Pipeline"]
-        P["Chunked Parquet Tables<br/>(27D Vision-Conditioned State, 7D Action)"]
+        P["Chunked Parquet Tables<br/>(30D Vision-Conditioned State, 7D Action)"]
         S["SHA-256 Envelope & Stats<br/>(Per-dimension mean, std, min, max)"]
     end
 
@@ -109,11 +109,11 @@ Whether episode 42 is sampled sequentially on an Apple Silicon laptop or in para
 
 ---
 
-### Pillar 4: Hugging Face `LeRobot` v2 Parquet Serialization & 27D Perception
+### Pillar 4: Hugging Face `LeRobot` v2 Parquet Serialization & 30D Perception
 Instead of unvalidated pickle blobs, episodes are streamed to disk as strictly typed tabular Parquet files conforming to the Hugging Face `LeRobotDataset` v2 specification.
 
 To condition policy learning for closed-loop reactive manipulation, each step stores:
-- **Observation Space (27D):** Joint positions ($\mathbf{q} \in \mathbb{R}^6$), joint velocities ($\dot{\mathbf{q}} \in \mathbb{R}^6$), end-effector $SE(3)$ pose ($\mathbf{p}_{\text{ee}} \in \mathbb{R}^3, \mathbf{q}_{\text{ee}} \in S^3$), perception-derived payload $SE(3)$ pose ($\mathbf{p}_{\text{obj}} \in \mathbb{R}^3, \mathbf{q}_{\text{obj}} \in S^3$), and current gripper weld state ($g \in \{0, 1\}$).
+- **Observation Space (30D):** Joint positions ($\mathbf{q} \in \mathbb{R}^6$), joint velocities ($\dot{\mathbf{q}} \in \mathbb{R}^6$), end-effector $SE(3)$ pose ($\mathbf{p}_{\text{ee}} \in \mathbb{R}^3, \mathbf{q}_{\text{ee}} \in S^3$), perception-derived payload $SE(3)$ pose ($\mathbf{p}_{\text{obj}} \in \mathbb{R}^3, \mathbf{q}_{\text{obj}} \in S^3$), relative object displacement vector ($\Delta \mathbf{p} = \mathbf{p}_{\text{obj}} - \mathbf{p}_{\text{ee}} \in \mathbb{R}^3$), and current physical gripper latch state ($g \in \{0, 1\}$).
 - **Action Space (7D):** Commanded joint position targets ($[q_1..q_6]$) plus explicit binary gripper latch action ($g \in [0, 1]$ commanding weld activation).
 
 Upon collection, `finalize_manifest()` computes per-dimension normalization vectors ($\boldsymbol{\mu}, \boldsymbol{\sigma}, \mathbf{x}_{\min}, \mathbf{x}_{\max}$) for all observation and action dimensions, and seals each episode with a SHA-256 digest in `meta/manifest.json`. If a single byte is corrupted before training, `verify_integrity()` halts execution immediately.
@@ -124,8 +124,8 @@ Upon collection, `finalize_manifest()` computes per-dimension normalization vect
 Single-step action prediction with standard MSE loss suffers from quadratic compounding covariate shift ($O(T^2)$ error drift) and mode collapse when demonstrations contain multiple valid trajectories.
 
 To overcome this, the engine integrates an optimized PyTorch Behavioral Cloning architecture with multi-step action chunking:
-1. **Residual MLP with Pre-LayerNorm:** A deep trunk with residual skip connections and SiLU activations maps the normalized 27D observation vector to a full $(H=8, 7)$ future action trajectory chunk.
-2. **Metal Performance Shaders (MPS):** Training runs natively on Apple Silicon GPUs via PyTorch MPS, sustaining throughputs over **10,230 samples/s** and achieving **97.3% validation loss reduction** in under 5 seconds for 50 demonstration episodes.
+1. **Residual MLP with Pre-LayerNorm:** A deep trunk with residual skip connections and SiLU activations maps the normalized 30D observation vector to a full $(H=8, 7)$ future action trajectory chunk.
+2. **Metal Performance Shaders (MPS):** Training runs natively on Apple Silicon GPUs via PyTorch MPS, sustaining throughputs over **12,000 samples/s** and achieving **99.8% validation loss reduction** (Initial Loss: 3.7118 -> Final Val Loss: 0.0086) with a 5.0x loss weight on the binary gripper dimension to ensure crisp grasp initiation.
 3. **Temporal Ensembling Ring Buffer:** Overlapping action chunks from historical prediction steps $t - k$ are fused using exponential decay weights $w_k = \exp(-m \cdot k)$:
    $$\mathbf{u}_t = \frac{\sum_{k=0}^{K-1} \exp(-m \cdot k) \, \hat{\mathbf{a}}_{t | t-k}}{\sum_{k=0}^{K-1} \exp(-m \cdot k)}$$
    This temporal smoothing dampens high-frequency motor chatter and prevents discontinuous torque impulses on real hardware.
@@ -166,11 +166,11 @@ To verify policy resilience against physical hardware parameter shifts, we bench
 
 | Dynamics Regime | Temporal Ensembling | Task Success Rate | Mean Payload Transport | Control Chatter (Action Jerk) |
 | :--- | :---: | :---: | :---: | :---: |
-| **Nominal Simulation** | Enabled ($\exp(-m \cdot k)$) | **33.3%** | 131.3 mm | 0.0121 |
-| **OOD Perturbed Physics** | **Enabled ($\exp(-m \cdot k)$)** | **33.3%** | **130.8 mm** | 0.0121 |
-| **OOD Perturbed Physics** | **Disabled (Raw Chunks)** | **0.0%** | **84.1 mm** | 0.0107 (Failed / Stalled) |
+| **Nominal Simulation** | Enabled ($\exp(-m \cdot k)$) | **25.0%** | 52.8 mm | 0.0321 |
+| **OOD Perturbed Physics** | **Enabled ($\exp(-m \cdot k)$)** | **25.0%** | **51.0 mm** | 0.0322 |
+| **OOD Perturbed Physics** | **Disabled (Raw Chunks)** | **0.0%** | **20.5 mm** | 0.1010 (+213% chatter) |
 
-**Key Finding:** Under identical OOD physical perturbations, **temporal ensembling preserves 100% of the policy's transport capability**, whereas unblended receding-horizon execution drops to 0% success due to boundary discontinuity when gripper latching fails.
+**Key Finding:** Under identical OOD physical perturbations, **temporal ensembling preserves 25.0% full task success and reduces action jerk by 68.1%**, whereas unblended receding-horizon execution completely collapses to 0.0% success with severe control chatter (0.1010 jerk).
 
 ---
 
@@ -181,7 +181,7 @@ Embodied AI is transitioning from proof-of-concept research to deterministic sys
 The complete codebase, documentation, ADRs, and verification test suites are open-source:
 
 ```bash
-# 1. Clone and verify test suite (69 tests passing, mypy --strict clean)
+# 1. Clone and verify test suite (70 tests passing, mypy --strict clean)
 git clone https://github.com/LeanoA/sim2real-data-engine.git
 cd sim2real-data-engine
 uv sync
