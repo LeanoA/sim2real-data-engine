@@ -138,6 +138,7 @@ class PrivilegedPickPlaceExpert:
         q_home: NDArray[np.float64],
         ee_pose: SE3Pose,
         jacobian: NDArray[np.float64],
+        emit_gripper: bool = True,
     ) -> tuple[float, ...]:
         """Compute next joint position targets and advance the expert state machine."""
         waypoint = self.current_waypoint()
@@ -166,7 +167,7 @@ class PrivilegedPickPlaceExpert:
         elif self._stage == "TRANSPORT" and pos_dist <= self.waypoint_tol_m:
             self._stage = "PLACE"
             waypoint = self.current_waypoint()
-        elif self._stage == "PLACE" and pos_dist <= self.waypoint_tol_m:
+        elif self._stage == "PLACE" and pos_dist <= min(self.waypoint_tol_m, 0.01):
             self._stage = "COMPLETED"
 
         delta_q = self.ik_solver.step(
@@ -177,8 +178,21 @@ class PrivilegedPickPlaceExpert:
             jacobian=jacobian,
             max_step_rad=self.max_step_rad,
         )
-        q_target = q_current + delta_q
-        return tuple(float(val) for val in q_target)
+        q_target = tuple(float(val) for val in (q_current + delta_q))
+
+        if not emit_gripper:
+            return q_target
+
+        if self._stage in ("LIFT", "TRANSPORT", "PLACE"):
+            gripper_cmd = 1.0
+        elif self._stage in ("APPROACH", "DESCEND", "COMPLETED"):
+            gripper_cmd = 0.0
+        elif self._stage == "GRASP":
+            gripper_cmd = 1.0 if self._grasp_dwell_ticks >= 3 else 0.0
+        else:
+            gripper_cmd = 0.0
+
+        return (*q_target, gripper_cmd)
 
     def run_episode(
         self,
@@ -200,25 +214,15 @@ class PrivilegedPickPlaceExpert:
                 q_home=q_home,
                 ee_pose=ee_pose,
                 jacobian=jacobian,
+                emit_gripper=True,
             )
-
-            # Actuate gripper/weld constraint based on expert progression
-            if hasattr(backend, "set_gripper"):
-                if self._stage in ("LIFT", "TRANSPORT", "PLACE", "COMPLETED"):
-                    backend.set_gripper(True)
-                elif self._stage in ("APPROACH", "DESCEND"):
-                    backend.set_gripper(False)
-                elif self._stage == "GRASP":
-                    backend.set_gripper(self._grasp_dwell_ticks >= 3)
 
             step_record = backend.step(action_targets)
             if self._stage == "COMPLETED":
-                # Detach object at the dropoff target upon completion
-                if hasattr(backend, "set_gripper"):
-                    backend.set_gripper(False)
-                # Allow physical settling ticks for released payload to stabilize on table surface
+                # Detach object and allow physical settling ticks
+                release_action = (*action_targets[: len(q_home)], 0.0)
                 for _ in range(5):
-                    step_record = backend.step(action_targets)
+                    step_record = backend.step(release_action)
                     records.append(step_record)
                 step_record = step_record.model_copy(update={"is_terminal": True})
                 records[-1] = step_record
