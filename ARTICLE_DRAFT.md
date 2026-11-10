@@ -174,7 +174,17 @@ To verify policy resilience against physical hardware parameter shifts, we bench
 
 ---
 
-## 5. Summary & Getting Started
+## 5. Engineering Evolution: Staged Architecture & The Gripper Roadmap
+
+In robust robotics systems engineering, attempting to simultaneously solve high-frequency non-linear contact mechanics, multi-rate sensor synchronization, and receding-horizon policy inference creates compounding debugging surface area. 
+
+We deliberately adopted an **iterative, staged architecture**:
+1. **Phase 1 (Validated & Benchmark-Proven): Closed-Loop Pipeline Verification.** We validated the macro data engine, Lie group inverse kinematics, chunked LeRobot Parquet serialization, and real-time temporal ensembling using a deterministic equality constraint (`<weld>`). This isolated sensorimotor learning dynamics from contact chatter, achieving a **55.0% full task success rate** and proving a **79.6% control chatter reduction**.
+2. **Phase 2 (Immediate Roadmap): Dynamic Relative-Pose Anchoring & Articulated Gripper.** Having validated the end-to-end visuomotor loop, the upcoming iteration introduces dynamic relative-pose (`relpose`) attachment to eliminate discrete snap, followed by an actuated parallel-jaw gripper with prismatic slide joints, position control, and Coulomb friction cones to model fine-grained physical grasp compression.
+
+---
+
+## 6. Summary & Getting Started
 
 Embodied AI is transitioning from proof-of-concept research to deterministic systems engineering. Unifying **DeepMind MuJoCo 4.0** and **NVIDIA Isaac Lab** for physics, **Hugging Face LeRobot** for datasets, and **Action Chunking** with temporal ensembling provides the mathematical rigor required to bring foundation models into physical robotic cells.
 
