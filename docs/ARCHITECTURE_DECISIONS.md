@@ -11,9 +11,9 @@ Visuomotor policy pipelines and privileged trajectory experts are frequently cou
 
 ### Decision
 Isolate all SE(3) kinematics, trajectory planning, domain randomization schedules, and dataset serialization behind a strict hexagonal port (`SimulatorBackend` in `src/sim2real_engine/simulators/base.py`) consuming and emitting immutable Pydantic/NumPy contracts (`SE3Pose`, `JointState`, `EpisodeStepRecord`).
-- **Adapter 1 (`mujoco`)**: Runs natively on Apple Silicon ARM64 and Linux CPU at $1,000\text{ Hz}$ for local development and CI verification at zero cloud cost.
-- **Adapter 2 (`genesis`)**: Runs vectorized GPU contact sweeps for high-throughput domain randomization evaluation.
-- **Adapter 3 (`isaac_lab`)**: Runs inside headless RTX containers for photorealistic RGB-D synthetic rendering.
+- **Adapter 1 (`mujoco_native` / `mujoco`)**: Runs natively on Apple Silicon ARM64 and Linux CPU (500 Hz compiled contact physics and 1,000 Hz kinematic solver) for local development and CI verification at zero cloud cost.
+- **Adapter 2 (`genesis`)**: Provides a local analytical impedance reference model ($\alpha = 0.88$, 1,000 Hz) for offline contract and drift verification, paired with `docker/Dockerfile.genesis` for cloud GPU batch rollouts.
+- **Adapter 3 (`isaac_lab`)**: Provides a local analytical impedance reference model ($\alpha = 0.82$, 500 Hz) for offline contract and drift verification, paired with `docker/Dockerfile.isaaclab` for headless RTX container deployment.
 
 ### Consequences
 - **Positive**: 100% of kinematic experts, dataset exporters, and inference bridges are verified locally in milliseconds; switching physics engines requires zero changes to the expert or policy code.
@@ -77,7 +77,7 @@ Visuomotor foundation policies (ACT, Diffusion Policy, Flow-Matching) exhibit no
 Decouple policy inference from the physics loop via `PolicyInferenceBridge` and `TemporalEnsembleBuffer`:
 - The policy predicts a receding-horizon chunk of $H$ future actions $\hat{\mathbf{A}}_t \in \mathbb{R}^{H \times n}$.
 - Overlapping action predictions from the last $K$ steps are fused using exponential temporal weights $w_k = \exp(-m \cdot k)$.
-- The bridge tracks real-time P50, P95, and P99 inference latencies to enforce real-time control budgets.
+- The bridge measures real wall-clock forward-pass latency (`elapsed_ms`, ~0.11 ms on CPU for the 30D-to-7D MLP) and adds a configurable `simulated_latency_ms` synthetic IPC / network transport delay budget (default 8.0 ms, yielding ~8.11 ms P99) to stress-test 50 Hz (20 ms budget) control loops.
 
 ### Consequences
 - **Positive**: Smooth, jerk-free joint trajectories; resilience against transient inference latency spikes; exact observability of P99 control loop timing.
@@ -122,5 +122,5 @@ Modeling an active articulated parallel-jaw gripper in this stage would expand t
    The expert dwells for 3 control ticks at `GRASP`, activates the weld constraint, lifts $12\text{ cm}$, transports horizontally to the delivery zone on the table ($y \approx -0.10\text{ m}$), descends to the tabletop, and releases the constraint at `COMPLETED`.
 
 ### Consequences
-- **Positive**: 100% stable, deterministic multi-body dynamics in native MuJoCo where payload mass ($0.08\text{ kg}$) and inertia dynamically load the arm without kinematic teleportation hacks or contact chatter; preserves the pure 6-DOF action contract and $6 \times 6$ analytical Jacobian formulation across all benchmark adapters; enables full pick-and-place dataset collection.
-- **Negative**: Represents an idealized rigid grasp without modeling fingertip slip, grasp compliance, or micro-reorientation during transport.
+- **Positive**: 100% stable, deterministic multi-body dynamics in native MuJoCo where payload mass ($0.08\text{ kg}$) and inertia dynamically load the arm without un-gated teleportation; preserves the 6-DOF kinematic Jacobian formulation while supporting a 7D reactive action channel (6 joint targets + 1 binary gripper latch) for Phase 1 closed-loop Behavioral Cloning.
+- **Negative**: Represents a Phase 1 proximity-gated ($\le 40\text{ mm}$) rigid grasp abstraction without modeling fingertip slip or grasp compliance (addressed in Phase 2 via dynamic `relpose` anchoring and articulated parallel-jaw fingers).

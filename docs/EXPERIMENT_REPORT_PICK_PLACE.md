@@ -7,8 +7,8 @@ This report documents the architectural diagnosis, implementation, and empirical
 ## 1. Executive Summary
 
 - **Problem (Estado 0 — Baseline):** The payload object remained stationary on the workstation table ($z = 0.0698\text{ m}$) during native physics rollouts because `manipulator_6dof.xml` lacked gripper joints/actuators ($F_N = 0$), the opening clearance ($38\text{ mm}$) was narrower than the cube ($40\text{ mm}$), and `PrivilegedPickPlaceExpert` terminated prematurely at `LIFT`.
-- **Solution (Estado 1 — Physical Pick-and-Place):**
-  1. Integrated a site-based `<equality><weld>` constraint in MJCF, dynamically toggled via `data.eq_active` in `MuJoCoPhysicsAdapter.set_gripper(grasped: bool)`.
+- **Solution (Estado 1 — Phase 1 Physical Pick-and-Place):**
+  1. Integrated a proximity-gated ($\le 40\text{ mm}$) site-based `<equality><weld>` constraint in MJCF, dynamically toggled via `data.eq_active` in `MuJoCoPhysicsAdapter.set_gripper(grasped: bool)` to isolate Phase 1 sensorimotor learning from contact slip chatter (with Phase 2 introducing dynamic `relpose` anchoring and articulated parallel-jaw fingers).
   2. Increased finger clearance to $46\text{ mm}$ (`pos = 0.02 ±0.029 0`) to prevent contact collisions during descent.
   3. Extended `PrivilegedPickPlaceExpert` to a complete 6-stage lifecycle ($\text{APPROACH} \to \text{DESCEND} \to \text{GRASP} \to \text{LIFT} \to \text{TRANSPORT} \to \text{PLACE} \to \text{COMPLETED}$) followed by post-release gravity settling ticks.
 - **Results:**
@@ -31,7 +31,7 @@ This report documents the architectural diagnosis, implementation, and empirical
 | **Final Object Tilt Angle** | $0.0^\circ$ (unmoved) | **$0.0^\circ$** ($w = 0.999998$) | Stable flat settling |
 | **Episode Length (Steps)** | 56 steps | 89 steps | Complete macro-trajectory |
 | **Wall-Clock Computation Time** | $36.2\text{ ms}$ | **$27.8\text{ ms}$** | Real-time factor $>64\times$ |
-| **Contract Alignment** | 6 DOF (pure) | 6 DOF (pure) | Zero contract divergence |
+| **Contract Alignment** | 6 DOF arm + 1D gripper latch | 6 DOF arm + 1D gripper latch (7D reactive) | Zero contract divergence |
 
 ---
 

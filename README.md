@@ -3,25 +3,25 @@
 [![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/downloads/)
 [![Typed: mypy strict](https://img.shields.io/badge/typing-mypy%20strict-1f6feb.svg)](https://mypy-lang.org/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-261230.svg)](https://docs.astral.sh/ruff/)
-[![Tests: 86 passing](https://img.shields.io/badge/tests-86%20passing-success.svg)](tests/)
+[![Tests: 87 passing](https://img.shields.io/badge/tests-87%20passing-success.svg)](tests/)
 [![AWS EC2 Ready](https://img.shields.io/badge/AWS%20EC2-g5.2xlarge%20(A10G)-orange.svg)](docker/run_cloud_training.py)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**Deterministic Synthetic Data Engine, Multi-Engine Physics Benchmarking & Closed-Loop Policy Distillation for Robotic Manipulation.**
+**Deterministic Synthetic Data Engine, Multi-Engine Physics Benchmarking & Closed-Loop Sensorimotor Policy Distillation for Robotic Manipulation.**
 
 ---
 
 ## 🎬 Visual Demonstrations
 
 ### 1. High-Throughput Synthetic Data Synthesis (DeepMind MuJoCo 4.0 Native Physics)
-*Deterministic 50 Hz pick-and-place demonstration generation with compiled contact dynamics, proximity-gated grasp, and cross-table payload transport ($14.2\text{ cm}$). Generates **500 complete episodes (50,213 timesteps) in 9.1s on local CPU ($>5,500\text{ steps/s}$)**. Every episode is sealed into a chunked Hugging Face `LeRobotDataset` v2 Parquet table with per-dimension normalization stats and SHA-256 cryptographic manifests.*
+*Deterministic 50 Hz pick-and-place demonstration generation with compiled contact dynamics, proximity-gated dynamic `<weld>` grasp constraint (Phase 1), and cross-table payload transport ($14.2\text{ cm}$). Generates **500 complete episodes (50,213 timesteps) in 9.1s on local CPU ($>5,500\text{ steps/s}$)**. Every episode is sealed into a chunked Hugging Face `LeRobotDataset` v2 Parquet table with per-dimension normalization stats and SHA-256 cryptographic manifests.*
 
 ![Synthetic Data Generation](assets/synthetic_data_generation.gif)
 
 ---
 
-### 2. Closed-Loop Visuomotor Policy Execution (Action Chunking + Temporal Ensembling)
-*Trained Residual Behavioral Cloning (BC) neural network policy executing closed-loop pick-and-place in real time (50 Hz). The policy predicts an 8-step future trajectory chunk ($H=8$) with receding-horizon exponential temporal ensembling ($\exp(-m \cdot k)$), suppressing action chatter by **-79.6%** with deterministic **P99 inference latency < 8.2 ms**.*
+### 2. Closed-Loop 30D Sensorimotor Policy Execution (Action Chunking + Temporal Ensembling)
+*Trained Residual Behavioral Cloning (BC) neural network policy conditioned on a 30D privileged state vector executing closed-loop pick-and-place in real time (50 Hz). The policy predicts an 8-step future trajectory chunk ($H=8$) with receding-horizon exponential temporal ensembling ($\exp(-m \cdot k)$), suppressing action chatter by **-79.6%** with **~0.11 ms CPU MLP forward-pass latency** (**8.11 ms P99** end-to-end including an injected **8.0 ms synthetic IPC/transport delay budget**).*
 
 ![Policy Closed-Loop Execution](assets/policy_closed_loop.gif)
 
@@ -37,7 +37,7 @@ In modern robotic manipulation, policy learning (Action Chunking Transformers, D
 
 1. **High-Velocity Native Simulation:** Generates thousands of physics-validated demonstrations in seconds on local ARM64 CPU ($0 cloud cost) using compiled DeepMind MuJoCo 4.0 with Damped Least-Squares (DLS) kinematics and isolated `PCG64` domain randomization.
 2. **Open Standards Compliance:** Trajectories stream directly into tabular Parquet chunks conforming to Hugging Face **`LeRobotDataset` v2**, with empirical normalization envelopes ($\boldsymbol{\mu}, \boldsymbol{\sigma}, \min, \max$) and cryptographic SHA-256 tamper seals.
-3. **Closed-Loop Visuomotor Distillation:** Trains neural action policies with receding-horizon action chunking and exponential temporal ensembling on local Metal GPU (MPS, 11.4k samples/s), validated in closed-loop desktop viewers.
+3. **Closed-Loop Sensorimotor Distillation:** Trains 30D state-conditioned neural action policies with receding-horizon action chunking and exponential temporal ensembling on local Metal GPU (MPS, 11.4k samples/s), validated in closed-loop desktop viewers (establishing the control foundation for Phase 2 RGB-D vision encoder conditioning).
 4. **Cloud GPU Burst:** Features turnkey AWS EC2 GPU provisioning (`docker/run_cloud_training.py`) to burst identical dataset manifests to NVIDIA A10G cloud instances for massive 10,000+ parallel Isaac Lab rollouts.
 
 ---
@@ -107,15 +107,15 @@ flowchart TD
     subgraph Backends["2. Pluggable Physics Engine Layer (simulators/)"]
         MUJ_NAT["MuJoCo Native 4.0 Backend (C API / Mac ARM64)<br/>500 Hz contact solver & proximity-gated weld"]
         MUJ_KIN["MuJoCo Kinematic Backend (1,000 Hz CPU)<br/>Rapid CI kinematic verification"]
-        GEN["Genesis Backend (Cloud GPU Batch)<br/>High-throughput parallel contact rollouts"]
-        ISA["NVIDIA Isaac Lab Backend (Docker Headless RTX)<br/>Ray-traced RGB-D & Omniverse Replicator"]
+        GEN["Genesis Adapter (Analytical Impedance Reference / Cloud Batch)<br/>Offline contract emulator (alpha=0.88) & container target"]
+        ISA["Isaac Lab Adapter (Analytical Impedance Reference / Cloud RTX)<br/>Offline contract emulator (alpha=0.82) & container target"]
         FSM --> MUJ_NAT & MUJ_KIN & GEN & ISA
     end
 
-    subgraph Pipeline["3. Dataset & Visuomotor Distillation (dataset/, learning/, server/)"]
-        LER["LeRobotDataset v2 Exporter<br/>30D observation Parquet tables + SHA-256 seal"]
+    subgraph Pipeline["3. Dataset & Sensorimotor Distillation (dataset/, learning/, server/)"]
+        LER["LeRobotDataset v2 Exporter<br/>30D privileged state Parquet tables + SHA-256 seal"]
         TRN["Receding-Horizon BC Trainer (learning/)<br/>Metal MPS GPU (11.4k samples/s), -99.8% loss drop"]
-        SRV["Temporal Ensemble Ring Buffer (server/)<br/>Exponential decay exp(-m*k), P99 < 8.2ms"]
+        SRV["Temporal Ensemble Ring Buffer (server/)<br/>Exponential decay exp(-m*k), ~0.11ms MLP + 8.0ms IPC budget"]
         OOD["OOD Domain Randomization Benchmark (benchmarks/)<br/>-79.6% action jerk reduction, 55% retention"]
         VIS["Interactive 3D Visualizer & Desktop Viewer<br/>OpenGL native window + WebGL 3D dashboard"]
         MUJ_NAT & GEN & ISA --> LER --> TRN --> SRV --> OOD & VIS
@@ -131,28 +131,28 @@ All metrics empirically benchmarked on Apple Silicon (M-series, unified memory):
 | Metric | Measured Value | Production Target | Status |
 | :--- | :--- | :--- | :---: |
 | **Physics Stepping Frequency** | **500 Hz** (10 substeps @ $\Delta t = 2\text{ ms}$) | $\ge 500\text{ Hz}$ | **PASSED** |
-| **Grasp Physical Realism** | **$\le 40\text{ mm}$ proximity gate** (zero teleports) | Physical collision adjacency | **PASSED** |
+| **Grasp Physical Realism** | **$\le 40\text{ mm}$ proximity-gated `<weld>`** (Phase 1) | Physical collision adjacency | **PASSED** |
 | **Net Cross-Table Payload Transport** | **$14.2\text{ cm}$** ($y = +0.044\text{ m} \to -0.098\text{ m}$) | Complete macro-task delivery | **PASSED** |
-| **Unit & Integration Test Suite** | **86 / 86 tests passing (100%)** | 100% pass rate in CI | **PASSED** |
-| **Static Analysis & Typing** | **`mypy --strict` & `ruff` clean** | 0 warnings across 40 files | **PASSED** |
+| **Unit & Integration Test Suite** | **87 / 87 tests passing (100%)** | 100% pass rate in CI | **PASSED** |
+| **Static Analysis & Typing** | **`mypy --strict` & `ruff` clean** | 0 warnings across 43 files | **PASSED** |
 | **Dataset Export Rate (500 episodes)** | **50,213 steps in 9.1 s** ($>5,500\text{ steps/s}$) | $< 15\text{ s}$ | **PASSED** |
 | **Cryptographic Data Integrity** | **SHA-256 Digest per Parquet Chunk** | Tamper-proof manifest seal | **PASSED** |
-| **Policy Training Throughput (MPS)** | **11,438 samples/s** | $> 5,000\text{ samples/s}$ | **PASSED** |
+| **Policy Training Throughput (MPS)** | **11,438 samples/s** (45 epochs) | $> 5,000\text{ samples/s}$ | **PASSED** |
 | **Validation Loss Reduction** | **-99.8%** ($3.5266 \to 0.0087$) | $> 95\%$ on 50k samples | **PASSED** |
-| **Policy Inference Latency (P99)** | **8.15 ms** | $< 20.0\text{ ms}$ (50 Hz budget) | **PASSED** |
+| **Policy Inference Latency (P99)** | **0.11 ms MLP / 8.11 ms Bridge** (w/ 8.0 ms IPC budget) | $< 20.0\text{ ms}$ (50 Hz budget) | **PASSED** |
 | **OOD Ensembling Chatter Reduction** | **-79.6% Action Jerk** ($0.1409 \to 0.0287$) | Continuous smooth torques | **PASSED** |
 | **OOD Task Success Retention** | **55.0% success rate** (vs 0.0% unensembled) | Retain control under noise | **PASSED** |
 
 ---
 
-## 🧠 What Was Trained: Visuomotor Behavioral Cloning
+## 🧠 What Was Trained: 30D Privileged State Behavioral Cloning
 
-The framework includes an end-to-end policy distillation pipeline trained on the generated dataset:
+The framework includes an end-to-end sensorimotor policy distillation pipeline trained on the generated dataset (serving as the Phase 1 control foundation before attaching RGB-D vision encoders in Phase 2):
 
-1. **Architecture:** Residual Behavioral Cloning MLP with 30-dimensional observation tokens (joint angles $\mathbf{q}$, joint velocities $\dot{\mathbf{q}}$, Cartesian end-effector $SE(3)$ pose, privileged object $SE(3)$ pose, and gripper state).
-2. **Action Chunking Horizon ($H=8$):** Predicts an 8-step future action sequence ($\approx 160\text{ ms}$ receding horizon) to eliminate single-step compounding covariate shift ($O(T^2)$ drift).
-3. **Training Velocity:** Trained on Apple Silicon GPU via PyTorch Metal Performance Shaders (MPS), achieving **11,438 samples/s** and reducing validation loss by **-99.8%** in 60 epochs.
-4. **Temporal Ensembling Buffer:** During closed-loop execution, overlapping action chunks from historical steps $t - k$ are blended using exponential decay weights $w_k = \exp(-m \cdot k)$, reducing high-frequency actuator jerk by **-79.6%**.
+1. **Architecture:** Residual Behavioral Cloning MLP conditioned on 30-dimensional privileged state observations (6D joint angles $\mathbf{q}$, 6D joint velocities $\dot{\mathbf{q}}$, 7D Cartesian end-effector $SE(3)$ pose, 7D privileged object $SE(3)$ pose, 3D relative object-to-TCP displacement vector $\Delta \mathbf{p}$, and 1D binary gripper latch state).
+2. **Action Chunking Horizon ($H=8$):** Predicts an 8-step future 7D action sequence ($\approx 160\text{ ms}$ receding horizon) to mitigate single-step compounding covariate shift ($O(T^2)$ drift).
+3. **Training Velocity:** Trained on Apple Silicon GPU via PyTorch Metal Performance Shaders (MPS), achieving **11,438 samples/s** and reducing validation loss by **-99.8%** ($3.5266 \to 0.0087$) across 45 epochs (`batch_size=64`).
+4. **Temporal Ensembling & Latency Telemetry:** During closed-loop execution, overlapping action chunks from historical steps $t - k$ are blended using exponential decay weights $w_k = \exp(-m \cdot k)$, reducing high-frequency actuator jerk by **-79.6%**. The CPU MLP forward pass completes in **~0.11 ms** (**8.09 ms P50 / 8.11 ms P99** when evaluated with `PolicyInferenceBridge`'s default `8.0 ms` synthetic IPC/network transport latency budget).
 
 ---
 
@@ -179,9 +179,9 @@ We packaged an automated cloud training orchestrator in [`docker/run_cloud_train
 | `sim2real view-physics` | Launch official MuJoCo 4.0 native 3D desktop viewer. | `uv run sim2real view-physics --model-path checkpoints/bc_pick_place.pt --episodes 10` |
 | `sim2real visualize` | Generate interactive 3D WebGL comparative dashboard. | `uv run sim2real visualize --model-path checkpoints/bc_pick_place.pt --open` |
 | `sim2real export-dataset` | Export synthetic demonstrations to LeRobot v2 Parquet. | `uv run sim2real export-dataset --backend mujoco_native --episodes 200` |
-| `sim2real train-policy` | Train Behavioral Cloning MLP with action chunking on MPS. | `uv run sim2real train-policy --dataset-dir datasets/sim2real_pick_place --epochs 60` |
+| `sim2real train-policy` | Train 30D Behavioral Cloning MLP with action chunking on MPS. | `uv run sim2real train-policy --dataset-dir datasets/sim2real_pick_place --epochs 45` |
 | `sim2real eval-policy` | Benchmark policy in closed loop with OOD Domain Randomization. | `uv run sim2real eval-policy --model-path checkpoints/bc_pick_place.pt --dr --compare-ensembling` |
-| `sim2real sim2sim-eval` | Evaluate Sim-to-Sim kinematic and dynamic divergence. | `uv run sim2real sim2sim-eval --ref mujoco_native --target isaac_lab --episodes 10` |
+| `sim2real sim2sim-eval` | Evaluate Sim-to-Sim tracking drift against analytical reference adapters. | `uv run sim2real sim2sim-eval --ref mujoco_native --target isaac_lab --episodes 10` |
 | `sim2real benchmark-bridge`| Profile real-time action chunking buffer and inference latency. | `uv run sim2real benchmark-bridge --horizon 8 --steps 200` |
 | `sim2real sample-dr` | Sample deterministic PCG64 physical perturbation manifests. | `uv run sim2real sample-dr --seed 42 --episodes 5 --json` |
 | `sim2real backends` | List registered simulator backends and environment status. | `uv run sim2real backends --json` |
@@ -194,10 +194,10 @@ We packaged an automated cloud training orchestrator in [`docker/run_cloud_train
 Execute the entire test and quality verification suite locally:
 
 ```bash
-# 1. Run all 86 unit and integration tests (under 10 seconds)
+# 1. Run all 87 unit and integration tests (under 10 seconds)
 uv run pytest -v
 
-# 2. Strict static typing across all modules (0 errors across 40 files)
+# 2. Strict static typing across all modules (0 errors across 43 files)
 uv run mypy src tests
 
 # 3. Linter and formatting compliance
@@ -236,9 +236,9 @@ sim2real-data-engine/
 │       ├── models/                  # Declarative MJCF 6-DOF robot and table models
 │       ├── randomization/           # Isolated PCG64 physical and visual domain samplers
 │       ├── server/                  # Policy inference bridge & receding-horizon ring buffer
-│       ├── simulators/              # Native MuJoCo, Kinematic, Genesis, and Isaac Lab adapters
+│       ├── simulators/              # Native MuJoCo, Kinematic, & Analytical Impedance Adapters
 │       └── visualization/           # WebGL dashboard generator & OpenGL desktop viewer
-└── tests/                           # 86 deterministic unit and integration tests
+└── tests/                           # 87 deterministic unit and integration tests
 ```
 
 ---
