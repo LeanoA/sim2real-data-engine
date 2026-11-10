@@ -1,13 +1,13 @@
 # Bridging the Sim-to-Real Chasm: When DeepMind MuJoCo 4.0, NVIDIA Isaac Lab, Hugging Face LeRobot, and ACT Converge
 
-> **Subtitle:** *How hexagonal architecture, Lie group kinematics, compiled contact physics, and receding-horizon action chunking unify modern Embodied AI.*  
+> **Subtitle:** *How hexagonal architecture, Lie group kinematics, compiled contact physics, and receding-horizon action chunking unify modern robotic manipulation.*  
 > **Author:** Alexander Leaño  
 > **Target Publications:** Towards Data Science / Better Programming / Robotics & AI  
 > **Canonical Repository:** [`portfolio_lab/sim2real-data-engine`](https://github.com/LeanoA/sim2real-data-engine)
 
 ---
 
-## 1. The Fragmentation of Modern Embodied AI
+## 1. The Fragmentation of Modern Robot Learning
 
 Over the past eighteen months, robotics software has undergone a tectonic paradigm shift. For decades, robot manipulation was dominated by classical motion planning stacks (ROS MoveIt, OMPL) strictly decoupled from perception. Today, foundation visuomotor policies—Action Chunking with Transformers (ACT), Diffusion Policy, and Physical Intelligence’s **OpenPI** ($\pi_0$)—learn direct end-to-end sensorimotor mappings from raw RGB-D camera streams and joint proprioception to multi-step motor trajectory chunks.
 
@@ -186,7 +186,7 @@ We deliberately adopted an **iterative, staged architecture**:
 
 ## 6. Summary & Getting Started
 
-Embodied AI is transitioning from proof-of-concept research to deterministic systems engineering. Unifying **DeepMind MuJoCo 4.0** and **NVIDIA Isaac Lab** for physics, **Hugging Face LeRobot** for datasets, and **Action Chunking** with temporal ensembling provides the mathematical rigor required to bring foundation models into physical robotic cells.
+Robotic manipulation is transitioning from proof-of-concept research to deterministic systems engineering. Unifying **DeepMind MuJoCo 4.0** and **NVIDIA Isaac Lab** for physics, **Hugging Face LeRobot** for datasets, and **Action Chunking** with temporal ensembling provides the mathematical rigor required to bring learned policies into physical robotic cells.
 
 The complete codebase, documentation, ADRs, and verification test suites are open-source:
 

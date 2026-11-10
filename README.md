@@ -7,7 +7,7 @@
 [![AWS EC2 Ready](https://img.shields.io/badge/AWS%20EC2-g5.2xlarge%20(A10G)-orange.svg)](docker/run_cloud_training.py)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**Deterministic Synthetic Data Engine, Multi-Engine Physics Benchmarking & Closed-Loop Visuomotor Policy Distillation for Embodied AI.**
+**Deterministic Synthetic Data Engine, Multi-Engine Physics Benchmarking & Closed-Loop Policy Distillation for Robotic Manipulation.**
 
 ---
 
@@ -29,7 +29,7 @@
 
 ## 💡 Executive Summary for Engineers & Recruiters
 
-In modern Embodied AI, foundation models (Action Chunking Transformers, Diffusion Policies, Flow-Matching VLAs) are rarely bottlenecked by neural architecture capacity. Instead, **the true bottleneck is the Data Engine**:
+In modern robotic manipulation, policy learning (Action Chunking Transformers, Diffusion Policies, Behavioral Cloning) is rarely bottlenecked by neural architecture capacity. Instead, **the true bottleneck is the Data Engine**:
 - **Manual teleoperation is unscalable:** Physical robot arms require human teleoperation (50–80 episodes/hr) with operator fatigue, high latency jitter, and non-Markovian noise.
 - **Simulator drift breaks policies:** Ad-hoc scripts with global PRNG seeds create uncalibrated physics, non-standard schemas, and silent Sim-to-Sim divergence.
 
