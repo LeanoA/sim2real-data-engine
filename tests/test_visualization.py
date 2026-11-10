@@ -116,11 +116,16 @@ def test_cli_visualize_json(tmp_path: Path, capsys: pytest.CaptureFixture[str]) 
 
 
 def test_cli_view_physics_dispatches(monkeypatch: pytest.MonkeyPatch) -> None:
-    called_with: dict[str, int] = {}
+    called_with: dict[str, object] = {}
 
-    def mock_viewer(seed: int = 42, episodes: int = 3) -> None:
+    def mock_viewer(
+        seed: int = 42,
+        episodes: int = 3,
+        model_path: str | Path | None = None,
+    ) -> None:
         called_with["seed"] = seed
         called_with["episodes"] = episodes
+        called_with["model_path"] = model_path
 
     monkeypatch.setattr(
         "sim2real_engine.visualization.mujoco_gui.run_interactive_mujoco_viewer",
@@ -129,7 +134,23 @@ def test_cli_view_physics_dispatches(monkeypatch: pytest.MonkeyPatch) -> None:
 
     code = main(["view-physics", "--seed", "123", "--episodes", "5"])
     assert code == 0
-    assert called_with == {"seed": 123, "episodes": 5}
+    assert called_with == {"seed": 123, "episodes": 5, "model_path": None}
+
+    code_policy = main([
+        "view-physics",
+        "--seed",
+        "42",
+        "--episodes",
+        "2",
+        "--model-path",
+        "checkpoints/bc_pick_place.pt",
+    ])
+    assert code_policy == 0
+    assert called_with == {
+        "seed": 42,
+        "episodes": 2,
+        "model_path": "checkpoints/bc_pick_place.pt",
+    }
 
 
 def test_policy_vs_expert_visualization_and_cli(

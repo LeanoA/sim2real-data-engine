@@ -273,6 +273,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=3,
         help="Number of pick-and-place cycles to execute before closing.",
     )
+    view_phys_parser.add_argument(
+        "--model-path",
+        type=str,
+        default=None,
+        help="Optional trained policy checkpoint (.pt) to execute in real-time 3D.",
+    )
 
     train_parser = subparsers.add_parser(
         "train-policy",
@@ -614,10 +620,14 @@ def _run_visualize(
     return 0
 
 
-def _run_view_physics(seed: int, episodes: int) -> int:
+def _run_view_physics(
+    seed: int,
+    episodes: int,
+    model_path: str | None = None,
+) -> int:
     from sim2real_engine.visualization.mujoco_gui import run_interactive_mujoco_viewer
 
-    run_interactive_mujoco_viewer(seed=seed, episodes=episodes)
+    run_interactive_mujoco_viewer(seed=seed, episodes=episodes, model_path=model_path)
     return 0
 
 
@@ -915,6 +925,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_view_physics(
             seed=int(args.seed),
             episodes=int(args.episodes),
+            model_path=str(args.model_path) if args.model_path else None,
         )
 
     if args.command == "train-policy":
