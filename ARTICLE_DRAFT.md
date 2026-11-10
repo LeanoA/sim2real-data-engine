@@ -174,13 +174,49 @@ To verify policy resilience against physical hardware parameter shifts, we bench
 
 ---
 
-## 5. Engineering Evolution: Staged Architecture & The Gripper Roadmap
+## 5. Engineering Evolution & Lessons Learned
+
+### 5.1 Staged Architecture: Decoupling Macro-Pipelines from Contact Micro-Physics
 
 In robust robotics systems engineering, attempting to simultaneously solve high-frequency non-linear contact mechanics, multi-rate sensor synchronization, and receding-horizon policy inference creates compounding debugging surface area. 
 
 We deliberately adopted an **iterative, staged architecture**:
 1. **Phase 1 (Validated & Benchmark-Proven): Closed-Loop Pipeline Verification.** We validated the macro data engine, Lie group inverse kinematics, chunked LeRobot Parquet serialization, and real-time temporal ensembling using a deterministic equality constraint (`<weld>`). This isolated sensorimotor learning dynamics from contact chatter, achieving a **55.0% full task success rate** and proving a **79.6% control chatter reduction**.
 2. **Phase 2 (Immediate Roadmap): Dynamic Relative-Pose Anchoring & Articulated Gripper.** Having validated the end-to-end visuomotor loop, the upcoming iteration introduces dynamic relative-pose (`relpose`) attachment to eliminate discrete snap, followed by an actuated parallel-jaw gripper with prismatic slide joints, position control, and Coulomb friction cones to model fine-grained physical grasp compression.
+
+### 5.2 The Deceptive Open-Loop Trap: Why Batch Size 64 Beats Batch Size 128 in Closed-Loop Robotics
+
+A critical insight uncovered during policy tuning highlights the fundamental gap between static machine learning benchmarks and closed-loop robotic control.
+
+When scaling training on our 50,213 demonstration transitions, we evaluated two batch size regimes on Apple Silicon Metal GPU (`mps`):
+
+| Hyperparameter / Metric | Batch Size = 128 | Batch Size = 64 (Canonical) | Engineering Takeaway |
+| :--- | :---: | :---: | :---: |
+| **Total Epochs** | 50 epochs | 45 epochs | Comparable training budget |
+| **Wall-Clock Training Time** | **109.56 s** (20.6k samples/s) | 188.63 s (10.8k samples/s) | BS 128 has 1.9x higher GPU throughput |
+| **Initial Loss $\to$ Final Val Loss** | 3.6057 $\to$ **0.0098** (-99.7%) | 3.5266 $\to$ **0.0087** (-99.8%) | Open-loop loss delta is only **0.0011** |
+| **Closed-Loop Task Success Rate** | **5.0% - 10.0% (Severe Collapse)** | **55.0% (Robust Task Completion)** | **11x higher real-world task success** |
+| **Mean Payload Transport Distance** | 24.2 mm (fails grasp) | **125.1 mm** (transported to target) | BS 64 reliably triggers grasp latch |
+| **OOD Retention under Physics Shifts** | 0.0% retention | **100.0% retention** | BS 64 generalizes across mass/friction |
+
+#### Why did Batch Size 128 collapse in closed-loop execution?
+
+On paper, a validation loss difference of $0.0011$ in Smooth L1 loss would be dismissed as negligible in standard computer vision or NLP tasks. In physical robotics, however, it produced an existential failure mode due to three interacting mechanisms:
+
+1. **Gradient Update Frequency Across Discrete Task Phases:**
+   In Behavioral Cloning with action chunking ($H = 8$), demonstration trajectories contain sharp phase transitions: hover $\to$ descend $\to$ 5x-weighted gripper latch $\to$ lift $\to$ transport. With $N = 50,213$ transitions:
+   - $\text{Batch Size } 64 \implies \approx 785 \text{ updates/epoch} \implies \mathbf{35,325} \text{ stochastic weight adjustments}$.
+   - $\text{Batch Size } 128 \implies \approx 392 \text{ updates/epoch} \implies \mathbf{19,600} \text{ weight adjustments}$ (a 45% reduction in optimization trajectory steps).
+   The network trained with Batch Size 128 simply did not receive enough gradient updates to resolve the fine-grained decision boundary of the gripper latch action.
+
+2. **The "Flat Minima" Regularization Effect (Keskar et al., 2016):**
+   In supervised learning, smaller mini-batches introduce stochastic gradient noise that prevents the optimizer from settling into sharp, brittle local minima. For closed-loop imitation learning, finding flat minima is non-negotiable: the robot's physical trajectory inevitably encounters minor millimeter perturbations. A policy sitting in a sharp minimum overfits to the exact demonstration coordinates and exhibits zero compliance when perturbed.
+
+3. **Compounding Covariate Shift at the Grasp Horizon:**
+   In closed-loop execution, an imperceptible open-loop joint prediction error of $\approx 0.02\text{ rad}$ translates into a **15 to 30 mm Cartesian tracking offset** during the descent phase. Because the physical gripper engagement requires entering the threshold radius, missing the cube by just 15 mm causes the robot to close the gripper on empty air. 
+   Once the grasp fails, the subsequent observation $s_{t+1}$ contains an unlifted cube while the arm rises—a state completely absent from the demonstration dataset. The policy experiences catastrophic covariate shift, compounding errors across every subsequent time step until the episode terminates.
+
+**The Golden Rule:** *Never judge an imitation learning policy by its open-loop validation loss. Always benchmark autoregressive closed-loop rollouts where single-millimeter errors compound non-linearly.*
 
 ---
 
