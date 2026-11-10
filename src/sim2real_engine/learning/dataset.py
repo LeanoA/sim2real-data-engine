@@ -29,11 +29,13 @@ class LeRobotParquetDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
         root_dir: Path | str,
         horizon: int = 1,
         include_ee_pose: bool = True,
+        include_object_pose: bool = True,
         device: str = "cpu",
     ) -> None:
         self.root_dir = Path(root_dir)
         self.horizon = max(1, int(horizon))
         self.include_ee_pose = include_ee_pose
+        self.include_object_pose = include_object_pose
         self.device = torch.device(device)
 
         manifest_path = self.root_dir / "meta" / "manifest.json"
@@ -94,12 +96,21 @@ class LeRobotParquetDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
             v_norm = (v_raw - self._v_mean) / self._v_std
             act_norm = (act_raw - self._act_mean) / self._act_std
 
-            if self.include_ee_pose:
+            obs_parts = [q_norm, v_norm]
+            if self.include_ee_pose and "observation.ee_position" in d:
                 ee_pos = np.array(d["observation.ee_position"], dtype=np.float32)
                 ee_quat = np.array(d["observation.ee_quaternion"], dtype=np.float32)
-                obs_all = np.concatenate([q_norm, v_norm, ee_pos, ee_quat], axis=-1)
-            else:
-                obs_all = np.concatenate([q_norm, v_norm], axis=-1)
+                obs_parts.extend([ee_pos, ee_quat])
+
+            if self.include_object_pose and "observation.object_position" in d:
+                obj_pos = np.array(d["observation.object_position"], dtype=np.float32)
+                obj_quat = np.array(d["observation.object_quaternion"], dtype=np.float32)
+                obs_parts.extend([obj_pos, obj_quat])
+                if "observation.gripper_state" in d:
+                    grip_state = np.array(d["observation.gripper_state"], dtype=np.float32)
+                    obs_parts.append(grip_state)
+
+            obs_all = np.concatenate(obs_parts, axis=-1)
 
             # Build action chunks: shape (H, action_dim)
             for t in range(n_steps):
@@ -137,18 +148,33 @@ class LeRobotParquetDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
         velocities_rad_s: Sequence[float] | np.ndarray,
         ee_pos: Sequence[float] | np.ndarray | None = None,
         ee_quat: Sequence[float] | np.ndarray | None = None,
+        obj_pos: Sequence[float] | np.ndarray | None = None,
+        obj_quat: Sequence[float] | np.ndarray | None = None,
+        gripper_state: float | Sequence[float] | None = None,
     ) -> np.ndarray:
         """Normalize an incoming runtime observation for policy inference."""
         q = (np.asarray(positions_rad, dtype=np.float32) - self._q_mean) / self._q_std
         v = (np.asarray(velocities_rad_s, dtype=np.float32) - self._v_mean) / self._v_std
+        parts = [q, v]
         if self.include_ee_pose:
             if ee_pos is None or ee_quat is None:
                 msg = "ee_pos and ee_quat must be provided when include_ee_pose=True"
                 raise ValueError(msg)
-            p = np.asarray(ee_pos, dtype=np.float32)
-            q_rot = np.asarray(ee_quat, dtype=np.float32)
-            return np.concatenate([q, v, p, q_rot], axis=-1)
-        return np.concatenate([q, v], axis=-1)
+            parts.extend([
+                np.asarray(ee_pos, dtype=np.float32),
+                np.asarray(ee_quat, dtype=np.float32),
+            ])
+
+        if self.include_object_pose and obj_pos is not None and obj_quat is not None:
+            parts.extend([
+                np.asarray(obj_pos, dtype=np.float32),
+                np.asarray(obj_quat, dtype=np.float32),
+            ])
+            if gripper_state is not None:
+                grip_arr = np.atleast_1d(np.asarray(gripper_state, dtype=np.float32))
+                parts.append(grip_arr)
+
+        return np.concatenate(parts, axis=-1)
 
     def get_stats_dict(self) -> dict[str, Any]:
         """Return serializable normalization statistics."""
@@ -163,4 +189,5 @@ class LeRobotParquetDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
             "action_dim": self.action_dim,
             "horizon": self.horizon,
             "include_ee_pose": self.include_ee_pose,
+            "include_object_pose": self.include_object_pose,
         }

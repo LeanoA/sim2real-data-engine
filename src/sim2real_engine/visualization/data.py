@@ -266,7 +266,7 @@ def collect_policy_trajectory_data(
 
     model, metadata = BehaviorCloningMLP.load_checkpoint(model_path)
     adapter = create_simulator_backend(backend)
-    buffer = TemporalEnsembleBuffer(action_dim=adapter.dof, horizon=model.horizon)
+    buffer = TemporalEnsembleBuffer(action_dim=model.action_dim, horizon=model.horizon)
     policy_fn = model.to_policy_fn(metadata)
     bridge = PolicyInferenceBridge(buffer=buffer, policy_fn=policy_fn)
 
@@ -282,11 +282,26 @@ def collect_policy_trajectory_data(
     ]
 
     current_joints = joints
+    current_ee = initial_ee
+    current_obj = initial_obj
+    current_gripper = 0.0
+
     for step_idx in range(max_steps):
-        act_chunk = bridge.infer_step(current_joints, step_idx)
+        act_chunk = bridge.infer_step(
+            current_joints,
+            step_idx,
+            ee_pose=current_ee,
+            object_pose=current_obj,
+            gripper_state=current_gripper,
+        )
         act_step = tuple(float(x) for x in act_chunk)
         step_record = adapter.step(act_step)
         current_joints = step_record.joint_state
+        current_ee = step_record.end_effector_pose
+        current_obj = step_record.privileged_object_pose
+        current_gripper = (
+            1.0 if step_record.gripper_action and step_record.gripper_action > 0.5 else 0.0
+        )
 
         timesteps.append(step_record.timestamp_s)
         ee_traj.append(step_record.end_effector_pose.position)

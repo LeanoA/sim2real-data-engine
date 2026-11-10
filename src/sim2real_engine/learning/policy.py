@@ -10,7 +10,7 @@ import torch
 from numpy.typing import NDArray
 from torch import nn
 
-from sim2real_engine.core.contracts import JointState
+from sim2real_engine.core.contracts import JointState, SE3Pose
 from sim2real_engine.server.bridge import PolicyFn
 
 
@@ -158,19 +158,38 @@ class BehaviorCloningMLP(nn.Module):
         act_mean = np.array(stats["act_mean"], dtype=np.float32)
         act_std = np.array(stats["act_std"], dtype=np.float32)
 
-        def _policy(observation: JointState, step: int) -> NDArray[np.float64]:
+        def _policy(
+            observation: JointState,
+            step: int,
+            ee_pose: SE3Pose | None = None,
+            object_pose: SE3Pose | None = None,
+            gripper_state: float | None = None,
+        ) -> NDArray[np.float64]:
             q_raw = np.array(observation.positions_rad, dtype=np.float32)
             v_raw = np.array(observation.velocities_rad_s, dtype=np.float32)
 
             q_norm = (q_raw - q_mean) / np.where(q_std < 1e-6, 1.0, q_std)
             v_norm = (v_raw - v_mean) / np.where(v_std < 1e-6, 1.0, v_std)
 
-            if self.obs_dim > len(q_norm) + len(v_norm):
-                # Model expects EE pose or extra features; pad with zeros if not supplied
-                pad_len = self.obs_dim - (len(q_norm) + len(v_norm))
-                obs_np = np.concatenate([q_norm, v_norm, np.zeros(pad_len, dtype=np.float32)])
-            else:
-                obs_np = np.concatenate([q_norm, v_norm])
+            parts: list[NDArray[Any]] = [q_norm, v_norm]
+            if ee_pose is not None:
+                p = np.asarray(ee_pose.position, dtype=np.float32)
+                q_rot = np.asarray(ee_pose.quaternion_wxyz, dtype=np.float32)
+                parts.extend([p, q_rot])
+
+            if object_pose is not None:
+                op = np.asarray(object_pose.position, dtype=np.float32)
+                oq = np.asarray(object_pose.quaternion_wxyz, dtype=np.float32)
+                parts.extend([op, oq])
+                if gripper_state is not None:
+                    parts.append(np.array([float(gripper_state)], dtype=np.float32))
+
+            obs_np = np.concatenate(parts)
+            if len(obs_np) < self.obs_dim:
+                pad_len = self.obs_dim - len(obs_np)
+                obs_np = np.concatenate([obs_np, np.zeros(pad_len, dtype=np.float32)])
+            elif len(obs_np) > self.obs_dim:
+                obs_np = obs_np[: self.obs_dim]
 
             obs_tensor = torch.from_numpy(obs_np).unsqueeze(0).to(dev)
             with torch.no_grad():

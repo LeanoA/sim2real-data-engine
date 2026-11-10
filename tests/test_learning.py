@@ -30,18 +30,20 @@ def dataset_path() -> Path:
 
 
 def test_dataset_loading_and_chunking(dataset_path: Path) -> None:
-    ds = LeRobotParquetDataset(dataset_path, horizon=4, include_ee_pose=False)
+    ds = LeRobotParquetDataset(
+        dataset_path, horizon=4, include_ee_pose=False, include_object_pose=False
+    )
     assert len(ds) > 0
     assert ds.obs_dim == 12
-    assert ds.action_dim == 6
+    assert ds.action_dim == 7
     assert ds.horizon == 4
 
     obs, act = ds[0]
     assert obs.shape == torch.Size([12])
-    assert act.shape == torch.Size([4, 6])
+    assert act.shape == torch.Size([4, 7])
 
     denorm = ds.denormalize_action(act)
-    assert denorm.shape == (4, 6)
+    assert denorm.shape == (4, 7)
 
     norm_obs = ds.normalize_observation(
         positions_rad=tuple(np.zeros(6)),
@@ -51,36 +53,51 @@ def test_dataset_loading_and_chunking(dataset_path: Path) -> None:
 
 
 def test_dataset_with_ee_pose(dataset_path: Path) -> None:
-    ds = LeRobotParquetDataset(dataset_path, horizon=1, include_ee_pose=True)
+    ds = LeRobotParquetDataset(
+        dataset_path, horizon=1, include_ee_pose=True, include_object_pose=False
+    )
     assert ds.obs_dim == 19
     obs, act = ds[0]
     assert obs.shape == torch.Size([19])
-    assert act.shape == torch.Size([1, 6])
+    assert act.shape == torch.Size([1, 7])
+
+
+def test_dataset_vision_conditioned_with_object_pose(dataset_path: Path) -> None:
+    ds = LeRobotParquetDataset(
+        dataset_path, horizon=1, include_ee_pose=True, include_object_pose=True
+    )
+    # 6 q + 6 v + 3 ee_pos + 4 ee_quat + 3 obj_pos + 4 obj_quat + 1 gripper = 27
+    assert ds.obs_dim == 27
+    obs, act = ds[0]
+    assert obs.shape == torch.Size([27])
+    assert act.shape == torch.Size([1, 7])
 
 
 def test_policy_forward_shape() -> None:
-    model = BehaviorCloningMLP(obs_dim=12, action_dim=6, horizon=8, hidden_dim=64, num_blocks=1)
-    x = torch.randn(4, 12)
+    model = BehaviorCloningMLP(obs_dim=27, action_dim=7, horizon=8, hidden_dim=64, num_blocks=1)
+    x = torch.randn(4, 27)
     out = model(x)
-    assert out.shape == torch.Size([4, 8, 6])
+    assert out.shape == torch.Size([4, 8, 7])
 
 
 def test_policy_checkpoint_serialization(tmp_path: Path) -> None:
-    model = BehaviorCloningMLP(obs_dim=12, action_dim=6, horizon=4, hidden_dim=64, num_blocks=1)
+    model = BehaviorCloningMLP(obs_dim=27, action_dim=7, horizon=4, hidden_dim=64, num_blocks=1)
     ckpt_file = tmp_path / "model.pt"
-    meta = {"test_key": "test_val", "q_mean": [0.0] * 6, "act_mean": [0.0] * 6}
+    meta = {"test_key": "test_val", "q_mean": [0.0] * 6, "act_mean": [0.0] * 7}
     model.save_checkpoint(ckpt_file, metadata=meta)
     assert ckpt_file.is_file()
 
     loaded, loaded_meta = BehaviorCloningMLP.load_checkpoint(ckpt_file, device="cpu")
-    assert loaded.obs_dim == 12
-    assert loaded.action_dim == 6
+    assert loaded.obs_dim == 27
+    assert loaded.action_dim == 7
     assert loaded.horizon == 4
     assert loaded_meta["test_key"] == "test_val"
 
 
 def test_policy_to_policy_fn_bridge_integration(dataset_path: Path) -> None:
-    ds = LeRobotParquetDataset(dataset_path, horizon=4, include_ee_pose=False)
+    ds = LeRobotParquetDataset(
+        dataset_path, horizon=4, include_ee_pose=False, include_object_pose=False
+    )
     model = BehaviorCloningMLP(obs_dim=ds.obs_dim, action_dim=ds.action_dim, horizon=4)
     stats = ds.get_stats_dict()
     policy_fn = model.to_policy_fn(stats, device="cpu")
@@ -91,12 +108,12 @@ def test_policy_to_policy_fn_bridge_integration(dataset_path: Path) -> None:
         torques_nm=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
     )
     predicted_chunk = policy_fn(js, 0)
-    assert predicted_chunk.shape == (4, 6)
+    assert predicted_chunk.shape == (4, 7)
 
-    buffer = TemporalEnsembleBuffer(action_dim=6, horizon=4)
+    buffer = TemporalEnsembleBuffer(action_dim=7, horizon=4)
     bridge = PolicyInferenceBridge(buffer=buffer, policy_fn=policy_fn)
     action = bridge.infer_step(js, step=0)
-    assert action.shape == (6,)
+    assert action.shape == (7,)
 
 
 def test_train_policy_loss_descent(dataset_path: Path, tmp_path: Path) -> None:

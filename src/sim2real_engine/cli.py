@@ -631,6 +631,7 @@ class PolicyEvalSummary(BaseModel):
     num_episodes: int
     mean_steps: float
     mean_ee_displacement_m: float
+    mean_payload_displacement_m: float = 0.0
     inference_latency_p50_ms: float
     inference_latency_p99_ms: float
 
@@ -726,31 +727,52 @@ def _run_eval_policy(
         return 1
 
     adapter = create_simulator_backend(cast(BackendName, backend_name))
-    buffer = TemporalEnsembleBuffer(action_dim=adapter.dof, horizon=model.horizon)
+    buffer = TemporalEnsembleBuffer(action_dim=model.action_dim, horizon=model.horizon)
     policy_fn = model.to_policy_fn(metadata)
     bridge = PolicyInferenceBridge(buffer=buffer, policy_fn=policy_fn)
 
     displacements: list[float] = []
+    payload_displacements: list[float] = []
     step_counts: list[int] = []
 
     for ep in range(episodes):
         ep_seed = seed + ep
-        joints, initial_ee, _ = adapter.reset(seed=ep_seed)
+        joints, initial_ee, initial_obj = adapter.reset(seed=ep_seed)
         bridge.reset()
         current_joints = joints
+        current_ee = initial_ee
+        current_obj = initial_obj
+        current_gripper = 0.0
         initial_pos = np.asarray(initial_ee.position, dtype=np.float64)
+        initial_obj_pos = np.asarray(initial_obj.position, dtype=np.float64)
 
         for step_idx in range(max_steps):
-            act_chunk = bridge.infer_step(current_joints, step_idx)
+            act_chunk = bridge.infer_step(
+                current_joints,
+                step_idx,
+                ee_pose=current_ee,
+                object_pose=current_obj,
+                gripper_state=current_gripper,
+            )
             act_step = tuple(float(x) for x in act_chunk)
             step_record = adapter.step(act_step)
             current_joints = step_record.joint_state
+            current_ee = step_record.end_effector_pose
+            current_obj = step_record.privileged_object_pose
+            current_gripper = (
+                1.0
+                if step_record.gripper_action and step_record.gripper_action > 0.5
+                else 0.0
+            )
             if step_record.is_terminal:
                 break
 
         final_pos = np.asarray(step_record.end_effector_pose.position, dtype=np.float64)
+        final_obj_pos = np.asarray(step_record.privileged_object_pose.position, dtype=np.float64)
         disp = float(np.linalg.norm(final_pos - initial_pos))
+        obj_disp = float(np.linalg.norm(final_obj_pos - initial_obj_pos))
         displacements.append(disp)
+        payload_displacements.append(obj_disp)
         step_counts.append(step_idx + 1)
 
     latency_metrics = bridge.get_latency_metrics()
@@ -760,6 +782,7 @@ def _run_eval_policy(
         num_episodes=episodes,
         mean_steps=round(float(np.mean(step_counts)), 1),
         mean_ee_displacement_m=round(float(np.mean(displacements)), 4),
+        mean_payload_displacement_m=round(float(np.mean(payload_displacements)), 4),
         inference_latency_p50_ms=latency_metrics.p50_ms,
         inference_latency_p99_ms=latency_metrics.p99_ms,
     )

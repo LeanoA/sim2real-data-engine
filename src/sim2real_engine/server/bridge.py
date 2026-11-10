@@ -9,10 +9,10 @@ import numpy as np
 from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, Field
 
-from sim2real_engine.core.contracts import JointState
+from sim2real_engine.core.contracts import JointState, SE3Pose
 from sim2real_engine.server.chunk_buffer import TemporalEnsembleBuffer
 
-PolicyFn = Callable[[JointState, int], NDArray[np.float64]]
+PolicyFn = Callable[..., NDArray[np.float64]]
 
 
 class LatencySummary(BaseModel):
@@ -59,13 +59,29 @@ class PolicyInferenceBridge:
             chunk[i] = q + 0.015 * np.sin(phase + np.arange(dof) * 0.4)
         return chunk
 
-    def infer_step(self, observation: JointState, step: int) -> NDArray[np.float64]:
+    def infer_step(
+        self,
+        observation: JointState,
+        step: int,
+        ee_pose: SE3Pose | None = None,
+        object_pose: SE3Pose | None = None,
+        gripper_state: float | None = None,
+    ) -> NDArray[np.float64]:
         """Query policy, feed temporal ensemble buffer, record latency, and emit action."""
         t_start = time.perf_counter()
 
         if step % self.replan_interval == 0:
             if self.policy_fn is not None:
-                chunk = self.policy_fn(observation, step)
+                try:
+                    chunk = self.policy_fn(
+                        observation,
+                        step,
+                        ee_pose=ee_pose,
+                        object_pose=object_pose,
+                        gripper_state=gripper_state,
+                    )
+                except TypeError:
+                    chunk = self.policy_fn(observation, step)
             else:
                 chunk = self._default_synthetic_policy(observation, step)
             self.buffer.push_chunk(chunk, step=step)
