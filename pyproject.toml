@@ -1,11 +1,34 @@
 [project]
 name = "sim2real-engine"
 version = "0.1.0"
-description = "Modular Synthetic Data Generation, Multi-Engine Physics Benchmarking & Policy Distillation Framework for Robotic Manipulation"
+description = "Hexagonal Sim-to-Real Data Engine: Deterministic MuJoCo 4.0 Physics, Hugging Face LeRobot v2 Datasets & Closed-Loop Action-Chunked Policy Distillation"
 readme = "README.md"
 requires-python = ">=3.13"
 license = { text = "MIT" }
-authors = [{ name = "Alexander" }]
+authors = [{ name = "Alexander Leano" }]
+keywords = [
+    "robotics",
+    "embodied-ai",
+    "sim2real",
+    "mujoco",
+    "lerobot",
+    "imitation-learning",
+    "action-chunking",
+    "domain-randomization",
+    "hexagonal-architecture",
+    "isaac-lab",
+    "openpi",
+    "pytorch",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+]
 dependencies = [
     "mujoco>=4.0.0",
     "numpy>=2.1",
@@ -13,6 +36,11 @@ dependencies = [
     "pydantic>=2.9",
     "torch>=2.15.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/LeanoA/sim2real-data-engine"
+Repository = "https://github.com/LeanoA/sim2real-data-engine.git"
+Documentation = "https://github.com/LeanoA/sim2real-data-engine/blob/main/ARTICLE_DRAFT.md"
 
 [project.scripts]
 sim2real = "sim2real_engine.cli:main"
