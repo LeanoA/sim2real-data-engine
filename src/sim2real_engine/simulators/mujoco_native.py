@@ -9,6 +9,7 @@ from numpy.typing import NDArray
 from sim2real_engine.core.contracts import EpisodeStepRecord, JointState, SE3Pose
 from sim2real_engine.models import load_robot_mjcf
 from sim2real_engine.randomization.samplers import EpisodePerturbation
+from sim2real_engine.simulators.base import GRASP_ENGAGE_RADIUS_M
 
 
 class MuJoCoPhysicsAdapter:
@@ -138,11 +139,29 @@ class MuJoCoPhysicsAdapter:
             quaternion_wxyz=(float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3])),
         )
 
-    def set_gripper(self, grasped: bool) -> None:
-        """Activate or deactivate payload weld equality constraint."""
+    def tcp_to_payload_distance(self) -> float:
+        """Return the Euclidean distance between the gripper TCP and the payload site."""
+        tcp = self.data.site("ee_tcp").xpos
+        payload = self.data.site("payload_site").xpos
+        return float(np.linalg.norm(tcp - payload))
+
+    @property
+    def gripper_state(self) -> float:
+        """Actual latch state: 1.0 when the payload is held, else 0.0."""
+        return 1.0 if self._object_grasped else 0.0
+
+    def set_gripper(self, grasped: bool) -> bool:
+        """Command the gripper; returns the resulting latch state.
+
+        Closing only latches the payload when it lies within ``GRASP_ENGAGE_RADIUS_M`` of the
+        TCP. Opening always releases.
+        """
+        if grasped and not self._object_grasped:
+            grasped = self.tcp_to_payload_distance() <= GRASP_ENGAGE_RADIUS_M
         self._object_grasped = grasped
         if self._weld_id >= 0:
             self.data.eq_active[self._weld_id] = 1 if grasped else 0
+        return grasped
 
     def get_jacobian(self) -> NDArray[np.float64]:
         """Compute exact 6x6 spatial geometric Jacobian at the end-effector via MuJoCo C API."""
@@ -169,7 +188,7 @@ class MuJoCoPhysicsAdapter:
         elif len(joint_targets_rad) == self._dof + 1:
             arm_targets = joint_targets_rad[: self._dof]
             gripper_cmd = float(joint_targets_rad[self._dof])
-            self.set_gripper(gripper_cmd >= 0.45)
+            self.set_gripper(gripper_cmd > 0.5)
         else:
             msg = (
                 f"Expected {self._dof} (arm only) or {self._dof + 1} (arm + gripper) "
@@ -204,4 +223,5 @@ class MuJoCoPhysicsAdapter:
             privileged_object_pose=obj_pose,
             action_joint_targets_rad=joint_targets_rad,
             is_terminal=False,
+            gripper_state=self.gripper_state,
         )

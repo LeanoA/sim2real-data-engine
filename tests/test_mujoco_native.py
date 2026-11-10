@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import mujoco
 import numpy as np
 import pytest
 
@@ -74,16 +75,24 @@ def test_mujoco_physics_adapter_step_advances_simulation() -> None:
     assert len(record.joint_state.torques_nm) == 6
     assert record.gripper_action is None
 
+    # Move payload site near TCP to test proximity-gated grasp
+    tcp_pos = adapter.data.site("ee_tcp").xpos.copy()
+    adapter.data.joint("payload_freejoint").qpos[:3] = tcp_pos
+    mujoco.mj_forward(adapter.model, adapter.data)
+    assert adapter.tcp_to_payload_distance() <= 0.04
+
     # Test 7D action: close gripper / activate weld (g = 1.0)
     target_7d_close = (*target_q, 1.0)
     rec_close = adapter.step(joint_targets_rad=target_7d_close)
     assert rec_close.gripper_action == 1.0
+    assert rec_close.gripper_state == 1.0
     assert adapter.data.eq_active[adapter._weld_id] == 1
 
     # Test 7D action: open gripper / deactivate weld (g = 0.0)
     target_7d_open = (*target_q, 0.0)
     rec_open = adapter.step(joint_targets_rad=target_7d_open)
     assert rec_open.gripper_action == 0.0
+    assert rec_open.gripper_state == 0.0
     assert adapter.data.eq_active[adapter._weld_id] == 0
 
     # Invalid dimension
@@ -170,3 +179,22 @@ def test_mujoco_physics_adapter_domain_perturbation() -> None:
     adapter.reset(seed=11)
     assert pytest.approx(float(adapter.model.body("payload_object").mass[0])) == nominal_mass
     assert pytest.approx(float(adapter.model.geom("payload_geom").friction[0])) == nominal_fric
+
+
+def test_mujoco_physics_adapter_proximity_gated_grasp() -> None:
+    adapter = MuJoCoPhysicsAdapter()
+    adapter.reset(seed=42)
+
+    # Robot at home is far from payload (> 100 mm)
+    assert adapter.tcp_to_payload_distance() > 0.10
+
+    # Premature grasp command must NOT latch weld or teleport object
+    latched = adapter.set_gripper(True)
+    assert latched is False
+    assert adapter.gripper_state == 0.0
+    assert adapter.data.eq_active[adapter._weld_id] == 0
+
+    # Step with 7D action (g = 1.0) while far away
+    rec = adapter.step((*adapter.home_configuration, 1.0))
+    assert rec.gripper_state == 0.0
+    assert adapter.data.eq_active[adapter._weld_id] == 0

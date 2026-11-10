@@ -169,6 +169,15 @@ class EpisodeStepRecord(BaseModel):
     privileged_object_pose: SE3Pose
     action_joint_targets_rad: tuple[float, ...] = Field(..., min_length=1)
     is_terminal: bool = False
+    gripper_state: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Actual gripper latch state (1.0 = payload held) at the time of the observation "
+            "stored in this record. Distinct from the commanded gripper action."
+        ),
+    )
 
     @model_validator(mode="after")
     def _validate_action_dimension(self) -> Self:

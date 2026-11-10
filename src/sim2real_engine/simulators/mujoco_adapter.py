@@ -10,6 +10,7 @@ from numpy.typing import NDArray
 from sim2real_engine.core.contracts import EpisodeStepRecord, JointState, SE3Pose
 from sim2real_engine.core.kinematics import so3_log_map
 from sim2real_engine.randomization.samplers import EpisodePerturbation
+from sim2real_engine.simulators.base import GRASP_ENGAGE_RADIUS_M
 
 
 def _rot_x(angle: float) -> NDArray[np.float64]:
@@ -161,9 +162,23 @@ class MuJoCoKinematicAdapter:
         """Return current privileged object SE(3) pose in world coordinates."""
         return self._object_pose
 
-    def set_gripper(self, grasped: bool) -> None:
-        """Control kinematic grasp state."""
+    @property
+    def gripper_state(self) -> float:
+        """Actual latch state: 1.0 when the payload is held, else 0.0."""
+        return 1.0 if self._object_grasped else 0.0
+
+    def set_gripper(self, grasped: bool) -> bool:
+        """Command the kinematic grasp; returns the resulting latch state.
+
+        Closing only latches the payload when it lies within ``GRASP_ENGAGE_RADIUS_M`` of the
+        end effector. Opening always releases.
+        """
+        if grasped and not self._object_grasped:
+            ee_pos = np.asarray(self._forward_kinematics(self._q).position, dtype=np.float64)
+            obj_pos = np.asarray(self._object_pose.position, dtype=np.float64)
+            grasped = float(np.linalg.norm(ee_pos - obj_pos)) <= GRASP_ENGAGE_RADIUS_M
         self._object_grasped = grasped
+        return grasped
 
     def get_jacobian(self) -> NDArray[np.float64]:
         """Compute 6x6 spatial geometric Jacobian at the current joint configuration."""
@@ -197,7 +212,7 @@ class MuJoCoKinematicAdapter:
         elif len(joint_targets_rad) == self._dof + 1:
             arm_targets = joint_targets_rad[: self._dof]
             gripper_cmd = float(joint_targets_rad[self._dof])
-            self.set_gripper(gripper_cmd >= 0.45)
+            self.set_gripper(gripper_cmd > 0.5)
         else:
             msg = (
                 f"Expected {self._dof} (arm only) or {self._dof + 1} (arm + gripper) "
@@ -237,4 +252,5 @@ class MuJoCoKinematicAdapter:
             privileged_object_pose=self._object_pose,
             action_joint_targets_rad=joint_targets_rad,
             is_terminal=False,
+            gripper_state=self.gripper_state,
         )

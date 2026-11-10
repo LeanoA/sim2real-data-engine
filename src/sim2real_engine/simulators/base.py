@@ -14,6 +14,12 @@ from sim2real_engine.randomization.samplers import EpisodePerturbation
 
 ExpertStage = Literal["APPROACH", "DESCEND", "GRASP", "LIFT", "TRANSPORT", "PLACE", "COMPLETED"]
 
+# Maximum TCP-to-payload distance at which the gripper can latch the payload.
+# Cube half-size is 20 mm; the privileged expert latches at 23-33 mm. Beyond this radius a
+# close command is a missed grasp: the site-to-site weld would otherwise snap the payload
+# to the TCP from any distance.
+GRASP_ENGAGE_RADIUS_M = 0.04
+
 
 class RolloutSummary(BaseModel):
     """Summary metrics for a batch of privileged expert episode rollouts."""
@@ -66,7 +72,12 @@ class SimulatorBackend(Protocol):
         """Return current privileged object SE(3) pose in world coordinates."""
         ...
 
-    def set_gripper(self, grasped: bool) -> None:
+    @property
+    def gripper_state(self) -> float:
+        """Actual gripper latch state: 1.0 when held, else 0.0."""
+        ...
+
+    def set_gripper(self, grasped: bool) -> bool:
         """Control gripper grasp or weld constraint attachment state."""
         ...
 

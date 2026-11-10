@@ -299,9 +299,11 @@ def collect_policy_trajectory_data(
         current_joints = step_record.joint_state
         current_ee = step_record.end_effector_pose
         current_obj = step_record.privileged_object_pose
-        current_gripper = (
-            1.0 if step_record.gripper_action and step_record.gripper_action > 0.5 else 0.0
-        )
+        if step_record.gripper_state is not None:
+            current_gripper = float(step_record.gripper_state)
+        else:
+            has_grip = bool(step_record.gripper_action and step_record.gripper_action > 0.5)
+            current_gripper = 1.0 if has_grip else 0.0
 
         timesteps.append(step_record.timestamp_s)
         ee_traj.append(step_record.end_effector_pose.position)
