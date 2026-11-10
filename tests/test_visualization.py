@@ -180,5 +180,9 @@ def test_policy_vs_expert_visualization_and_cli(
     assert payload["status"] == "success"
     html_text = out_file.read_text(encoding="utf-8")
     assert "Policy vs. Privileged Expert 3D Evaluation" in html_text
+    assert "plot-2d-telemetry" in html_text
+    assert "LATCHED (weld)" in html_text
+    assert "Cross-Table Payload Transport" in html_text
+    assert "https://github.com/LeanoA/sim2real-data-engine" in html_text
 
 

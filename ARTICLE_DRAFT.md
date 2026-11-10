@@ -3,7 +3,8 @@
 > **Subtitle:** *How hexagonal architecture, Lie group kinematics, compiled contact physics, and receding-horizon action chunking unify modern robotic manipulation.*  
 > **Author:** Alexander Leaño  
 > **Target Publications:** Towards Data Science / Better Programming / Robotics & AI  
-> **Canonical Repository:** [`LeanoA/sim2real-data-engine`](https://github.com/LeanoA/sim2real-data-engine)
+> **Canonical Repository:** [`LeanoA/sim2real-data-engine`](https://github.com/LeanoA/sim2real-data-engine)  
+> **Interactive 3D WebGL Telemetry Demo:** [`leanoa.github.io/sim2real-data-engine`](https://leanoa.github.io/sim2real-data-engine/)
 
 ---
 

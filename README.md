@@ -4,10 +4,13 @@
 [![Typed: mypy strict](https://img.shields.io/badge/typing-mypy%20strict-1f6feb.svg)](https://mypy-lang.org/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-261230.svg)](https://docs.astral.sh/ruff/)
 [![Tests: 87 passing](https://img.shields.io/badge/tests-87%20passing-success.svg)](tests/)
+[![Live 3D WebGL Demo](https://img.shields.io/badge/Live%203D%20Demo-WebGL%20Dashboard-ec4899.svg)](https://leanoa.github.io/sim2real-data-engine/)
 [![AWS EC2 Ready](https://img.shields.io/badge/AWS%20EC2-g5.2xlarge%20(A10G)-orange.svg)](docker/run_cloud_training.py)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 **Deterministic Synthetic Data Engine, Multi-Engine Physics Benchmarking & Closed-Loop Sensorimotor Policy Distillation for Robotic Manipulation.**
+
+> 🌐 **[Launch Live Interactive 3D WebGL Evaluation Dashboard in Your Browser ↗](https://leanoa.github.io/sim2real-data-engine/)** *(No installation required — inspect the 6-DOF robot arm, closed-loop BC policy vs. privileged IK expert, dynamic `weld` grasp states, and 50 Hz tracking error telemetry).*
 
 ---
 
