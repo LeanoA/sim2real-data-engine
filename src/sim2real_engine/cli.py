@@ -480,8 +480,10 @@ def _run_export_dataset(
     for ep_id in range(episodes):
         ep_seed = base_seed + ep_id
         # Sample domain perturbation to drive deterministic variation
-        _ = randomizer.sample_episode(ep_id)
-        records = expert.run_episode(backend=adapter, seed=ep_seed, max_steps=120)
+        perturbation = randomizer.sample_episode(ep_id)
+        records = expert.run_episode(
+            backend=adapter, seed=ep_seed, max_steps=120, perturbation=perturbation
+        )
         exporter.write_episode(episode_id=ep_id, steps=records)
 
     manifest = exporter.finalize_manifest()

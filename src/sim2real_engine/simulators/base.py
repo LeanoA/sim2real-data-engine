@@ -215,9 +215,10 @@ class PrivilegedPickPlaceExpert:
         backend: SimulatorBackend,
         seed: int = 42,
         max_steps: int = 120,
+        perturbation: EpisodePerturbation | None = None,
     ) -> list[EpisodeStepRecord]:
         """Execute a complete closed-loop pick-and-place demonstration rollout."""
-        joint_state, ee_pose, obj_pose = backend.reset(seed=seed)
+        joint_state, ee_pose, obj_pose = backend.reset(seed=seed, perturbation=perturbation)
         self.reset(initial_object_pose=obj_pose)
         q_home = backend.home_configuration
         records: list[EpisodeStepRecord] = []
