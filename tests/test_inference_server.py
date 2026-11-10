@@ -147,3 +147,20 @@ def test_cli_benchmark_bridge_plain_and_invalid(capsys: pytest.CaptureFixture[st
     assert ret_err == 1
     captured_err = capsys.readouterr()
     assert "Steps and horizon must be >= 1" in captured_err.err
+
+
+def test_temporal_ensemble_disabled_toggle() -> None:
+    """When enabled=False, TemporalEnsembleBuffer emits raw newest chunk without weighting."""
+    buf = TemporalEnsembleBuffer(action_dim=1, horizon=3, enabled=False)
+
+    buf.push_chunk(np.full((3, 1), 10.0), step=0)
+    buf.push_chunk(np.full((3, 1), 20.0), step=1)
+
+    # Step 1 without ensembling must strictly take the newest chunk value (20.0)
+    val = buf.get_ensembled_action(current_step=1)
+    assert val[0] == 20.0
+
+    # Dynamic toggle
+    buf.enabled = True
+    val_ens = buf.get_ensembled_action(current_step=1)
+    assert val_ens[0] < 20.0  # Blended with chunk 0 (10.0)

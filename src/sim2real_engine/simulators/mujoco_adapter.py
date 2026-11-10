@@ -9,6 +9,7 @@ from numpy.typing import NDArray
 
 from sim2real_engine.core.contracts import EpisodeStepRecord, JointState, SE3Pose
 from sim2real_engine.core.kinematics import so3_log_map
+from sim2real_engine.randomization.samplers import EpisodePerturbation
 
 
 def _rot_x(angle: float) -> NDArray[np.float64]:
@@ -118,8 +119,13 @@ class MuJoCoKinematicAdapter:
             quaternion_wxyz=quat,
         )
 
-    def reset(self, seed: int = 42) -> tuple[JointState, SE3Pose, SE3Pose]:
+    def reset(
+        self,
+        seed: int = 42,
+        perturbation: EpisodePerturbation | None = None,
+    ) -> tuple[JointState, SE3Pose, SE3Pose]:
         """Reset manipulator to home configuration and sample a seeded object target pose."""
+        del perturbation
         rng = np.random.Generator(np.random.PCG64(np.random.SeedSequence(seed)))
         self._q = self._home_q.copy()
         self._dq = np.zeros(self._dof, dtype=np.float64)

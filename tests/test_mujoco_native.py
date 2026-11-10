@@ -141,3 +141,32 @@ def test_mujoco_native_pick_and_place_full_rollout() -> None:
     assert pytest.approx(obj_final_y, abs=0.03) == -0.10
     # Payload must rest stably on the table surface (z ~ 0.07m)
     assert pytest.approx(obj_final_z, abs=0.02) == 0.07
+
+
+def test_mujoco_physics_adapter_domain_perturbation() -> None:
+    from sim2real_engine.randomization.samplers import EpisodePerturbation
+
+    adapter = MuJoCoPhysicsAdapter()
+    nominal_mass = float(adapter.model.body("payload_object").mass[0])
+    nominal_fric = float(adapter.model.geom("payload_geom").friction[0])
+
+    pert = EpisodePerturbation(
+        episode_id=1,
+        derived_seed=999,
+        mass_scale=1.5,
+        friction_scale=2.0,
+        damping_scale=1.2,
+        lighting_intensity=1.0,
+        camera_pose_offset=SE3Pose(position=(0.0, 0.0, 0.0)),
+    )
+
+    adapter.reset(seed=10, perturbation=pert)
+    new_mass = float(adapter.model.body("payload_object").mass[0])
+    new_fric = float(adapter.model.geom("payload_geom").friction[0])
+    assert pytest.approx(new_mass) == nominal_mass * 1.5
+    assert pytest.approx(new_fric) == nominal_fric * 2.0
+
+    # Resetting without perturbation restores nominal values
+    adapter.reset(seed=11)
+    assert pytest.approx(float(adapter.model.body("payload_object").mass[0])) == nominal_mass
+    assert pytest.approx(float(adapter.model.geom("payload_geom").friction[0])) == nominal_fric

@@ -8,6 +8,7 @@ from numpy.typing import NDArray
 
 from sim2real_engine.core.contracts import EpisodeStepRecord, JointState, SE3Pose
 from sim2real_engine.models import load_robot_mjcf
+from sim2real_engine.randomization.samplers import EpisodePerturbation
 
 
 class MuJoCoPhysicsAdapter:
@@ -37,6 +38,15 @@ class MuJoCoPhysicsAdapter:
         self._episode_id = 0
         self._step_index = 0
 
+        # Cache nominal physical parameters for domain randomization
+        self._nominal_payload_mass: float = float(self.model.body("payload_object").mass[0])
+        self._nominal_friction: tuple[float, float, float] = (
+            float(self.model.geom("payload_geom").friction[0]),
+            float(self.model.geom("payload_geom").friction[1]),
+            float(self.model.geom("payload_geom").friction[2]),
+        )
+        self._nominal_dof_damping: NDArray[np.float64] = self.model.dof_damping[:6].copy()
+
     @property
     def dof(self) -> int:
         """Number of articulated manipulator degrees of freedom."""
@@ -47,8 +57,37 @@ class MuJoCoPhysicsAdapter:
         """Nominal home joint configuration in radians."""
         return self._home_q.copy()
 
-    def reset(self, seed: int = 42) -> tuple[JointState, SE3Pose, SE3Pose]:
+    def apply_perturbation(self, perturbation: EpisodePerturbation) -> None:
+        """Apply physical parameter scaling (mass, friction, damping) to the MuJoCo model."""
+        self.model.body("payload_object").mass = [
+            self._nominal_payload_mass * perturbation.mass_scale
+        ]
+        self.model.geom("payload_geom").friction = [
+            self._nominal_friction[0] * perturbation.friction_scale,
+            self._nominal_friction[1] * perturbation.friction_scale,
+            self._nominal_friction[2] * perturbation.friction_scale,
+        ]
+        self.model.dof_damping[:6] = self._nominal_dof_damping * perturbation.damping_scale
+        mujoco.mj_setConst(self.model, self.data)
+
+    def restore_nominal_physics(self) -> None:
+        """Restore nominal payload mass, friction, and joint damping."""
+        self.model.body("payload_object").mass = [self._nominal_payload_mass]
+        self.model.geom("payload_geom").friction = list(self._nominal_friction)
+        self.model.dof_damping[:6] = self._nominal_dof_damping.copy()
+        mujoco.mj_setConst(self.model, self.data)
+
+    def reset(
+        self,
+        seed: int = 42,
+        perturbation: EpisodePerturbation | None = None,
+    ) -> tuple[JointState, SE3Pose, SE3Pose]:
         """Reset physics simulation and deterministically perturb the payload position."""
+        if perturbation is not None:
+            self.apply_perturbation(perturbation)
+        else:
+            self.restore_nominal_physics()
+
         rng = np.random.Generator(np.random.PCG64(np.random.SeedSequence(seed)))
         mujoco.mj_resetDataKeyframe(self.model, self.data, self._home_key_id)
 

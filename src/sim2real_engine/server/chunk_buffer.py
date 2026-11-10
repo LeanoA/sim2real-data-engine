@@ -22,6 +22,7 @@ class TemporalEnsembleBuffer:
         action_dim: int,
         horizon: int = 16,
         decay_rate: float = 0.05,
+        enabled: bool = True,
     ) -> None:
         if action_dim < 1:
             msg = f"action_dim must be >= 1; got {action_dim}"
@@ -36,6 +37,7 @@ class TemporalEnsembleBuffer:
         self.action_dim = action_dim
         self.horizon = horizon
         self.decay_rate = decay_rate
+        self.enabled = enabled
         # Key: base_step t_0 -> Value: array of shape (horizon, action_dim)
         self._chunks: dict[int, NDArray[np.float64]] = {}
 
@@ -62,6 +64,19 @@ class TemporalEnsembleBuffer:
         if current_step < 0:
             msg = f"current_step must be non-negative; got {current_step}"
             raise ValueError(msg)
+
+        if not self.enabled:
+            # Without temporal ensembling: return the slice from the newest active chunk
+            covering = [t0 for t0 in self._chunks if t0 <= current_step < t0 + self.horizon]
+            if not covering:
+                msg = f"No active action chunks available covering step {current_step}."
+                raise RuntimeError(msg)
+            latest_t0 = max(covering)
+            offset = current_step - latest_t0
+            action_slice: NDArray[np.float64] = np.asarray(
+                self._chunks[latest_t0][offset], dtype=np.float64
+            )
+            return action_slice.copy()
 
         weights: list[float] = []
         actions: list[NDArray[np.float64]] = []
