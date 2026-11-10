@@ -159,18 +159,18 @@ Evaluating the trained 7D Behavioral Cloning policy across closed-loop MuJoCo ro
 | **Inference Latency (P50)** | **8.09 ms** | 20.0 ms (50 Hz control loop) | Passed |
 | **Inference Latency (P99)** | **8.11 ms** | 20.0 ms (50 Hz control loop) | **Zero Deadline Misses** |
 | **Mean EE Displacement** | 261.2 mm | Full workspace reach | Reached |
-| **MPS Training Throughput** | 10,238 samples/s | > 5,000 samples/s | 2x Headroom |
+| **MPS Training Throughput** | 11,438 samples/s | > 5,000 samples/s | 2x Headroom |
 
 ### 4.3 Out-of-Distribution (OOD) Domain Randomization & Ensembling Ablation
 To verify policy resilience against physical hardware parameter shifts, we benchmarked rollouts under randomized payload mass ($m \in [0.5, 2.0] \times m_{\text{nom}}$), Coulomb surface friction ($\mu \in [0.4, 2.5] \times \mu_{\text{nom}}$), and joint damping:
 
 | Dynamics Regime | Temporal Ensembling | Task Success Rate | Mean Payload Transport | Control Chatter (Action Jerk) |
 | :--- | :---: | :---: | :---: | :---: |
-| **Nominal Simulation** | Enabled ($\exp(-m \cdot k)$) | **25.0%** | 52.8 mm | 0.0321 |
-| **OOD Perturbed Physics** | **Enabled ($\exp(-m \cdot k)$)** | **25.0%** | **51.0 mm** | 0.0322 |
-| **OOD Perturbed Physics** | **Disabled (Raw Chunks)** | **0.0%** | **20.5 mm** | 0.1010 (+213% chatter) |
+| **Nominal Simulation** | Enabled ($\exp(-m \cdot k)$) | **55.0%** | 125.1 mm | 0.0286 |
+| **OOD Perturbed Physics** | **Enabled ($\exp(-m \cdot k)$)** | **55.0%** | **125.1 mm** | 0.0287 |
+| **OOD Perturbed Physics** | **Disabled (Raw Chunks)** | **0.0%** | **14.0 mm** | 0.1409 (+391% chatter) |
 
-**Key Finding:** Under identical OOD physical perturbations, **temporal ensembling preserves 25.0% full task success and reduces action jerk by 68.1%**, whereas unblended receding-horizon execution completely collapses to 0.0% success with severe control chatter (0.1010 jerk).
+**Key Finding:** Under identical OOD physical perturbations, **temporal ensembling preserves 55.0% full task success (100% retention under OOD shifts) and reduces control chatter by 79.6% ($0.1409 \to 0.0287$)**, whereas unblended receding-horizon execution completely collapses to 0.0% success with severe control chatter ($0.1409$ jerk).
 
 ---
 
@@ -181,7 +181,7 @@ Embodied AI is transitioning from proof-of-concept research to deterministic sys
 The complete codebase, documentation, ADRs, and verification test suites are open-source:
 
 ```bash
-# 1. Clone and verify test suite (70 tests passing, mypy --strict clean)
+# 1. Clone and verify test suite (86 tests passing, mypy --strict clean)
 git clone https://github.com/LeanoA/sim2real-data-engine.git
 cd sim2real-data-engine
 uv sync

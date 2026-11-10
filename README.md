@@ -116,12 +116,13 @@ Empirically measured on Apple Silicon (M-series, unified memory):
 | **Grasp Physical Realism** | **$\le 40\text{ mm}$ proximity gate** (zero teleports) | Physical collision adjacency | PASSED |
 | **Unit & Integration Tests** | **86 / 86 tests passing** | 100% pass rate | PASSED |
 | **Static Analysis & Typing** | **`mypy --strict` & `ruff` clean** | 0 errors across 40 files | PASSED |
-| **Dataset Export Rate (200 episodes)** | **19,932 steps in 3.4 s** | < 10 s | PASSED |
+| **Dataset Export Rate (500 episodes)** | **50,213 steps in 9.1 s** | < 15 s | PASSED |
 | **Cryptographic Seal** | **SHA-256 Envelope per episode** | Cryptographic tamper-proofing | PASSED |
-| **Policy Training Throughput (MPS)** | **12,085 samples/s** | > 5,000 samples/s | PASSED |
-| **Validation Loss Reduction** | **-99.8%** (3.7118 $\to$ 0.0086) | > 95% | PASSED |
-| **Policy Inference Latency (P99)** | **8.11 ms** | < 20.0 ms (50 Hz budget) | PASSED |
-| **OOD Ensembling Chatter Reduction** | **-68.1% Action Jerk** ($0.1010 \to 0.0322$) | Smooth continuous torque | PASSED |
+| **Policy Training Throughput (MPS)** | **11,438 samples/s** | > 5,000 samples/s | PASSED |
+| **Validation Loss Reduction** | **-99.8%** (3.5266 $\to$ 0.0087) | > 95% on 50k samples | PASSED |
+| **Policy Inference Latency (P99)** | **8.15 ms** | < 20.0 ms (50 Hz budget) | PASSED |
+| **OOD Ensembling Chatter Reduction** | **-79.6% Action Jerk** ($0.1409 \to 0.0287$) | Smooth continuous torque | PASSED |
+| **OOD Task Success Retention** | **55.0% success rate** (vs 0.0% unensembled) | 100% retention under OOD shifts | PASSED |
 
 ---
 
