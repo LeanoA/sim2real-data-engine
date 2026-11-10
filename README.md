@@ -3,7 +3,7 @@
 [![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/downloads/)
 [![Typed: mypy strict](https://img.shields.io/badge/typing-mypy%20strict-1f6feb.svg)](https://mypy-lang.org/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-261230.svg)](https://docs.astral.sh/ruff/)
-[![Tests: 70 passing](https://img.shields.io/badge/tests-70%20passing-success.svg)](tests/)
+[![Tests: 86 passing](https://img.shields.io/badge/tests-86%20passing-success.svg)](tests/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 **Modular Synthetic Data Generation, Multi-Engine Physics Benchmarking & Visuomotor Distillation Framework for Embodied AI.**
@@ -114,7 +114,7 @@ Empirically measured on Apple Silicon (M-series, unified memory):
 | :--- | :--- | :--- | :--- |
 | **Physics Integration Frequency** | **500 Hz** (10 substeps @ $\Delta t = 2\text{ ms}$) | > 500 Hz | PASSED |
 | **Grasp Physical Realism** | **$\le 40\text{ mm}$ proximity gate** (zero teleports) | Physical collision adjacency | PASSED |
-| **Unit & Integration Tests** | **70 / 70 tests passing** | 100% pass rate | PASSED |
+| **Unit & Integration Tests** | **86 / 86 tests passing** | 100% pass rate | PASSED |
 | **Static Analysis & Typing** | **`mypy --strict` & `ruff` clean** | 0 errors across 40 files | PASSED |
 | **Dataset Export Rate (200 episodes)** | **19,932 steps in 3.4 s** | < 10 s | PASSED |
 | **Cryptographic Seal** | **SHA-256 Envelope per episode** | Cryptographic tamper-proofing | PASSED |
@@ -149,7 +149,7 @@ The unified `sim2real` CLI provides tools for data generation, training, benchma
 Run the complete test suite and static analysis suite locally:
 
 ```bash
-# 1. Run all 70 unit and integration tests
+# 1. Run all 86 unit and integration tests
 uv run pytest -v
 
 # 2. Strict static typing across all modules
@@ -187,7 +187,7 @@ sim2real-data-engine/
 │       ├── server/                  # Policy inference bridge & receding-horizon ring buffer
 │       ├── simulators/              # Native MuJoCo, Kinematic, Genesis, and Isaac Lab adapters
 │       └── visualization/           # WebGL dashboard generator & OpenGL desktop viewer
-└── tests/                           # 70 deterministic unit and integration tests
+└── tests/                           # 86 deterministic unit and integration tests
 ```
 
 ---
