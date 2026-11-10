@@ -49,7 +49,17 @@ class LeRobotEpisodeExporter:
                 "observation.ee_quaternion": [
                     list(s.end_effector_pose.quaternion_wxyz) for s in steps
                 ],
-                "action": [list(s.action_joint_targets_rad) for s in steps],
+                "observation.object_position": [
+                    list(s.privileged_object_pose.position) for s in steps
+                ],
+                "observation.object_quaternion": [
+                    list(s.privileged_object_pose.quaternion_wxyz) for s in steps
+                ],
+                "observation.gripper_state": [
+                    [1.0 if s.gripper_action and s.gripper_action > 0.5 else 0.0]
+                    for s in steps
+                ],
+                "action": [list(s.action) for s in steps],
                 "is_terminal": [s.is_terminal for s in steps],
             }
         )
@@ -85,9 +95,16 @@ class LeRobotEpisodeExporter:
             "observation.velocity": self._compute_stats(
                 [list(s.joint_state.velocities_rad_s) for s in self._all_steps]
             ),
-            "action": self._compute_stats(
-                [list(s.action_joint_targets_rad) for s in self._all_steps]
+            "observation.object_position": self._compute_stats(
+                [list(s.privileged_object_pose.position) for s in self._all_steps]
             ),
+            "observation.gripper_state": self._compute_stats(
+                [
+                    [1.0 if s.gripper_action and s.gripper_action > 0.5 else 0.0]
+                    for s in self._all_steps
+                ]
+            ),
+            "action": self._compute_stats([list(s.action) for s in self._all_steps]),
         }
 
         manifest = DatasetManifest(

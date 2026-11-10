@@ -75,6 +75,9 @@ def test_exporter_parquet_round_trip(tmp_path: Path) -> None:
     table = pq.read_table(file_path)
     assert table.num_rows == 5
     assert "observation.state" in table.column_names
+    assert "observation.object_position" in table.column_names
+    assert "observation.object_quaternion" in table.column_names
+    assert "observation.gripper_state" in table.column_names
     assert "action" in table.column_names
     assert "is_terminal" in table.column_names
 
@@ -103,6 +106,37 @@ def test_exporter_finalize_manifest_and_stats(tmp_path: Path) -> None:
 
     manifest_on_disk = tmp_path / "meta" / "manifest.json"
     assert manifest_on_disk.is_file()
+    assert "observation.object_position" in manifest.feature_stats
+    assert "observation.gripper_state" in manifest.feature_stats
+
+
+def test_exporter_7d_reactive_action_export(tmp_path: Path) -> None:
+    """Exporter properly serializes 7-DOF reactive actions and statistics."""
+    exporter = LeRobotEpisodeExporter(root_dir=tmp_path, dataset_name="test_7d")
+    steps: list[EpisodeStepRecord] = []
+    for i in range(5):
+        s = _make_dummy_step(0, i)
+        s7 = EpisodeStepRecord(
+            episode_id=s.episode_id,
+            step_index=s.step_index,
+            timestamp_s=s.timestamp_s,
+            joint_state=s.joint_state,
+            end_effector_pose=s.end_effector_pose,
+            privileged_object_pose=s.privileged_object_pose,
+            action_joint_targets_rad=(*s.action_joint_targets_rad, 1.0 if i >= 2 else 0.0),
+            is_terminal=s.is_terminal,
+        )
+        steps.append(s7)
+
+    exporter.write_episode(episode_id=0, steps=steps)
+    manifest = exporter.finalize_manifest()
+
+    action_stats = manifest.feature_stats["action"]
+    assert len(action_stats.mean) == 7
+    assert len(action_stats.std) == 7
+    assert action_stats.max[6] == 1.0
+    assert action_stats.min[6] == 0.0
+    manifest_on_disk = tmp_path / "meta" / "manifest.json"
     raw_json = manifest_on_disk.read_text(encoding="utf-8")
     loaded_manifest = DatasetManifest.model_validate_json(raw_json)
     assert loaded_manifest == manifest
