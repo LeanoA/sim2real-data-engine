@@ -8,6 +8,8 @@ __pycache__/
 *.local.*
 data/raw/
 datasets/
+checkpoints/
+*.pt
 outputs/
 dist/
 build/

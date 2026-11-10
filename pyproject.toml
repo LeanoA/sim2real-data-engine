@@ -11,6 +11,7 @@ dependencies = [
     "numpy>=2.1",
     "pyarrow>=26.0.1",
     "pydantic>=2.9",
+    "torch>=2.15.0",
 ]
 
 [project.scripts]

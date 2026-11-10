@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import cast
 
 import numpy as np
-from pydantic import ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from sim2real_engine import __version__
 from sim2real_engine.benchmarks.sim2sim_eval import (
@@ -268,6 +268,102 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Number of pick-and-place cycles to execute before closing.",
     )
 
+    train_parser = subparsers.add_parser(
+        "train-policy",
+        help="Train a Behavioral Cloning policy network on demonstration Parquet datasets.",
+    )
+    train_parser.add_argument(
+        "--dataset-dir",
+        type=str,
+        default="./datasets/sim2real_pick_place",
+        help="Path to dataset directory containing data/ and meta/manifest.json.",
+    )
+    train_parser.add_argument(
+        "--epochs",
+        type=int,
+        default=15,
+        help="Number of complete training epochs (default: 15).",
+    )
+    train_parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=64,
+        help="Training batch size (default: 64).",
+    )
+    train_parser.add_argument(
+        "--lr",
+        type=float,
+        default=1e-3,
+        help="Initial AdamW learning rate (default: 1e-3).",
+    )
+    train_parser.add_argument(
+        "--horizon",
+        type=int,
+        default=8,
+        help="Action chunk prediction horizon H (default: 8).",
+    )
+    train_parser.add_argument(
+        "--include-ee-pose",
+        action="store_true",
+        help="Include Cartesian EE position and quaternion in observations.",
+    )
+    train_parser.add_argument(
+        "--output-model",
+        type=str,
+        default="./checkpoints/bc_policy.pt",
+        help="Destination checkpoint file path.",
+    )
+    train_parser.add_argument(
+        "--device",
+        type=str,
+        choices=["auto", "cpu", "mps", "cuda"],
+        default="auto",
+        help="Compute execution device (default: auto).",
+    )
+    train_parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Deterministic training RNG seed.",
+    )
+    train_parser.add_argument("--json", action="store_true", help="Emit JSON output.")
+
+    eval_parser = subparsers.add_parser(
+        "eval-policy",
+        help="Evaluate a trained Behavioral Cloning policy in closed-loop physics simulation.",
+    )
+    eval_parser.add_argument(
+        "--model-path",
+        type=str,
+        default="./checkpoints/bc_policy.pt",
+        help="Path to saved policy checkpoint file (.pt).",
+    )
+    eval_parser.add_argument(
+        "--backend",
+        choices=list(DEFAULT_BACKENDS.keys()),
+        default="mujoco_native",
+        help="Simulator backend for evaluation rollouts.",
+    )
+    eval_parser.add_argument(
+        "--episodes",
+        type=int,
+        default=5,
+        help="Number of evaluation episodes to execute.",
+    )
+    eval_parser.add_argument(
+        "--max-steps",
+        type=int,
+        default=120,
+        help="Maximum steps allowed per episode.",
+    )
+    eval_parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Base deterministic evaluation RNG seed.",
+    )
+    eval_parser.add_argument("--json", action="store_true", help="Emit JSON output.")
+
     return parser
 
 
@@ -504,6 +600,162 @@ def _run_view_physics(seed: int, episodes: int) -> int:
     return 0
 
 
+class PolicyEvalSummary(BaseModel):
+    """Telemetry metrics summary for closed-loop policy evaluation rollouts."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    model_path: str
+    backend: str
+    num_episodes: int
+    mean_steps: float
+    mean_ee_displacement_m: float
+    inference_latency_p50_ms: float
+    inference_latency_p99_ms: float
+
+
+def _run_train_policy(
+    dataset_dir: str,
+    epochs: int,
+    batch_size: int,
+    learning_rate: float,
+    horizon: int,
+    include_ee_pose: bool,
+    output_model: str,
+    device: str,
+    seed: int,
+    emit_json: bool,
+) -> int:
+    from typing import Any
+
+    from sim2real_engine.learning import (
+        LeRobotParquetDataset,
+        TrainerConfig,
+        train_policy,
+    )
+
+    ds_path = Path(dataset_dir)
+    if not ds_path.is_dir():
+        print(f"Dataset directory not found: {ds_path}", file=sys.stderr)
+        return 1
+
+    try:
+        dataset = LeRobotParquetDataset(
+            root_dir=ds_path,
+            horizon=horizon,
+            include_ee_pose=include_ee_pose,
+        )
+    except Exception as exc:
+        print(f"Failed to load dataset: {exc}", file=sys.stderr)
+        return 1
+
+    config = TrainerConfig(
+        epochs=epochs,
+        batch_size=batch_size,
+        learning_rate=learning_rate,
+        device=cast(Any, device),
+        seed=seed,
+    )
+
+    model, summary = train_policy(dataset, config, checkpoint_path=output_model)
+
+    if emit_json:
+        payload = {
+            "status": "success",
+            "model_path": str(Path(output_model).resolve()),
+            "summary": summary.model_dump(),
+        }
+        print(json.dumps(payload, indent=2))
+    else:
+        print(
+            f"Policy training complete: {summary.total_epochs} epochs on "
+            f"{summary.total_samples} transitions."
+        )
+        print(
+            f"Initial Loss: {summary.initial_loss:.4f} -> Final Val Loss: "
+            f"{summary.final_val_loss:.4f} (-{summary.loss_reduction_pct:.1f}%)"
+        )
+        print(
+            f"Throughput: {summary.throughput_samples_per_s:.1f} samples/s "
+            f"({summary.training_time_s:.2f}s total on {summary.device_used})"
+        )
+        print(f"Checkpoint saved to: {output_model}")
+    return 0
+
+
+def _run_eval_policy(
+    model_path: str,
+    backend_name: str,
+    episodes: int,
+    max_steps: int,
+    seed: int,
+    emit_json: bool,
+) -> int:
+    from sim2real_engine.learning import BehaviorCloningMLP
+
+    ckpt_path = Path(model_path)
+    if not ckpt_path.is_file():
+        print(f"Model checkpoint not found: {ckpt_path}", file=sys.stderr)
+        return 1
+
+    try:
+        model, metadata = BehaviorCloningMLP.load_checkpoint(ckpt_path)
+    except Exception as exc:
+        print(f"Failed to load checkpoint: {exc}", file=sys.stderr)
+        return 1
+
+    adapter = create_simulator_backend(cast(BackendName, backend_name))
+    buffer = TemporalEnsembleBuffer(action_dim=adapter.dof, horizon=model.horizon)
+    policy_fn = model.to_policy_fn(metadata)
+    bridge = PolicyInferenceBridge(buffer=buffer, policy_fn=policy_fn)
+
+    displacements: list[float] = []
+    step_counts: list[int] = []
+
+    for ep in range(episodes):
+        ep_seed = seed + ep
+        joints, initial_ee, _ = adapter.reset(seed=ep_seed)
+        bridge.reset()
+        current_joints = joints
+        initial_pos = np.asarray(initial_ee.position, dtype=np.float64)
+
+        for step_idx in range(max_steps):
+            act_chunk = bridge.infer_step(current_joints, step_idx)
+            act_step = tuple(float(x) for x in act_chunk)
+            step_record = adapter.step(act_step)
+            current_joints = step_record.joint_state
+            if step_record.is_terminal:
+                break
+
+        final_pos = np.asarray(step_record.end_effector_pose.position, dtype=np.float64)
+        disp = float(np.linalg.norm(final_pos - initial_pos))
+        displacements.append(disp)
+        step_counts.append(step_idx + 1)
+
+    latency_metrics = bridge.get_latency_metrics()
+    summary = PolicyEvalSummary(
+        model_path=str(ckpt_path),
+        backend=backend_name,
+        num_episodes=episodes,
+        mean_steps=round(float(np.mean(step_counts)), 1),
+        mean_ee_displacement_m=round(float(np.mean(displacements)), 4),
+        inference_latency_p50_ms=latency_metrics.p50_ms,
+        inference_latency_p99_ms=latency_metrics.p99_ms,
+    )
+
+    if emit_json:
+        print(json.dumps(summary.model_dump(), indent=2))
+    else:
+        print(f"Policy evaluation complete ({summary.backend}):")
+        print(f"Episodes: {summary.num_episodes}, Mean Steps: {summary.mean_steps}")
+        print(f"Mean EE Displacement: {summary.mean_ee_displacement_m * 1000.0:.1f} mm")
+        print(
+            f"Inference Latency: P50={summary.inference_latency_p50_ms} ms, "
+            f"P99={summary.inference_latency_p99_ms} ms"
+        )
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Execute the `sim2real` CLI entrypoint."""
     parser = _build_parser()
@@ -618,6 +870,30 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_view_physics(
             seed=int(args.seed),
             episodes=int(args.episodes),
+        )
+
+    if args.command == "train-policy":
+        return _run_train_policy(
+            dataset_dir=str(args.dataset_dir),
+            epochs=int(args.epochs),
+            batch_size=int(args.batch_size),
+            learning_rate=float(args.lr),
+            horizon=int(args.horizon),
+            include_ee_pose=bool(args.include_ee_pose),
+            output_model=str(args.output_model),
+            device=str(args.device),
+            seed=int(args.seed),
+            emit_json=bool(args.json),
+        )
+
+    if args.command == "eval-policy":
+        return _run_eval_policy(
+            model_path=str(args.model_path),
+            backend_name=str(args.backend),
+            episodes=int(args.episodes),
+            max_steps=int(args.max_steps),
+            seed=int(args.seed),
+            emit_json=bool(args.json),
         )
 
     return 1
