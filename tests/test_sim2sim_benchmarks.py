@@ -112,3 +112,69 @@ def test_cli_sim2sim_eval_plain_and_invalid(capsys: pytest.CaptureFixture[str]) 
     assert ret_err == 1
     captured_err = capsys.readouterr()
     assert "Number of episodes must be >= 1" in captured_err.err
+
+
+def test_evaluate_ood_robustness_missing_checkpoint() -> None:
+    """Missing checkpoint raises FileNotFoundError."""
+    from sim2real_engine.benchmarks.ood_dr_eval import evaluate_ood_robustness
+
+    with pytest.raises(FileNotFoundError, match="Policy checkpoint not found"):
+        evaluate_ood_robustness("non_existent_model.pt")
+
+
+def test_evaluate_ood_robustness_execution() -> None:
+    """OOD robustness benchmark executes across nominal and OOD perturbed regimes."""
+    from sim2real_engine.benchmarks.ood_dr_eval import (
+        OODBenchmarkReport,
+        evaluate_ood_robustness,
+    )
+
+    report = evaluate_ood_robustness(
+        model_path="checkpoints/bc_pick_place.pt",
+        backend="mujoco_native",
+        num_episodes=2,
+        base_seed=42,
+        max_steps=10,
+        compare_ensembling=True,
+    )
+    assert isinstance(report, OODBenchmarkReport)
+    assert report.num_episodes == 2
+    assert report.nominal.num_episodes == 2
+    assert report.ood_dr_ensembled.num_episodes == 2
+    assert report.ood_dr_no_ensemble is not None
+    assert report.ood_dr_no_ensemble.num_episodes == 2
+    assert report.action_jerk_reduction_pct is not None
+
+
+def test_cli_eval_policy_dr_and_compare_ensembling(capsys: pytest.CaptureFixture[str]) -> None:
+    """`sim2real eval-policy --dr --compare-ensembling` emits formatted summary and JSON."""
+    ret = main([
+        "eval-policy",
+        "--model-path", "checkpoints/bc_pick_place.pt",
+        "--dr",
+        "--compare-ensembling",
+        "--episodes", "1",
+        "--max-steps", "10",
+        "--json",
+    ])
+    assert ret == 0
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["backend"] == "mujoco_native"
+    assert "nominal" in payload
+    assert "ood_dr_ensembled" in payload
+    assert payload["ood_dr_no_ensemble"] is not None
+
+    # Plain text run
+    ret_plain = main([
+        "eval-policy",
+        "--model-path", "checkpoints/bc_pick_place.pt",
+        "--dr",
+        "--compare-ensembling",
+        "--episodes", "1",
+        "--max-steps", "10",
+    ])
+    assert ret_plain == 0
+    captured_plain = capsys.readouterr()
+    assert "OOD Robustness Benchmark (mujoco_native)" in captured_plain.out
+    assert "Ensembling Robustness Benefit:" in captured_plain.out

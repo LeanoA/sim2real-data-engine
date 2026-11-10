@@ -169,7 +169,7 @@ class MuJoCoPhysicsAdapter:
         elif len(joint_targets_rad) == self._dof + 1:
             arm_targets = joint_targets_rad[: self._dof]
             gripper_cmd = float(joint_targets_rad[self._dof])
-            self.set_gripper(gripper_cmd > 0.5)
+            self.set_gripper(gripper_cmd >= 0.45)
         else:
             msg = (
                 f"Expected {self._dof} (arm only) or {self._dof + 1} (arm + gripper) "

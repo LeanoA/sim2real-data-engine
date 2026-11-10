@@ -102,7 +102,7 @@ def run_interactive_mujoco_viewer(
                 step_record = adapter.step(action_targets)
                 current_gripper = (
                     1.0
-                    if step_record.gripper_action and step_record.gripper_action > 0.5
+                    if step_record.gripper_action and step_record.gripper_action >= 0.45
                     else 0.0
                 )
             elif expert is not None:

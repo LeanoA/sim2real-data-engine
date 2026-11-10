@@ -374,6 +374,16 @@ def _build_parser() -> argparse.ArgumentParser:
         default=42,
         help="Base deterministic evaluation RNG seed.",
     )
+    eval_parser.add_argument(
+        "--dr",
+        action="store_true",
+        help="Run out-of-distribution domain randomization robustness benchmark.",
+    )
+    eval_parser.add_argument(
+        "--compare-ensembling",
+        action="store_true",
+        help="Compare performance with vs without temporal ensembling under identical OOD physics.",
+    )
     eval_parser.add_argument("--json", action="store_true", help="Emit JSON output.")
 
     return parser
@@ -722,6 +732,8 @@ def _run_eval_policy(
     max_steps: int,
     seed: int,
     emit_json: bool,
+    dr: bool = False,
+    compare_ensembling: bool = False,
 ) -> int:
     from sim2real_engine.learning import BehaviorCloningMLP
 
@@ -729,6 +741,53 @@ def _run_eval_policy(
     if not ckpt_path.is_file():
         print(f"Model checkpoint not found: {ckpt_path}", file=sys.stderr)
         return 1
+
+    if dr:
+        from sim2real_engine.benchmarks import evaluate_ood_robustness
+
+        report = evaluate_ood_robustness(
+            model_path=ckpt_path,
+            backend=cast(BackendName, backend_name),
+            num_episodes=episodes,
+            base_seed=seed,
+            max_steps=max_steps,
+            compare_ensembling=compare_ensembling,
+        )
+        if emit_json:
+            print(json.dumps(report.model_dump(), indent=2))
+        else:
+            print(f"OOD Robustness Benchmark ({report.backend}):")
+            print(f"Model: {report.model_path}")
+            print(f"Episodes: {report.num_episodes}")
+            print(
+                f"  Nominal: Success Rate={report.nominal.success_rate * 100.0:.1f}%, "
+                f"Payload Disp={report.nominal.mean_payload_displacement_m * 1000.0:.1f} mm, "
+                f"Action Jerk={report.nominal.mean_action_jerk:.4f}"
+            )
+            print(
+                f"  OOD DR (Ensembled): Success Rate="
+                f"{report.ood_dr_ensembled.success_rate * 100.0:.1f}%, "
+                f"Payload Disp="
+                f"{report.ood_dr_ensembled.mean_payload_displacement_m * 1000.0:.1f} mm, "
+                f"Action Jerk={report.ood_dr_ensembled.mean_action_jerk:.4f}"
+            )
+            if report.ood_dr_no_ensemble is not None:
+                print(
+                    f"  OOD DR (No Ensemble): Success Rate="
+                    f"{report.ood_dr_no_ensemble.success_rate * 100.0:.1f}%, "
+                    f"Payload Disp="
+                    f"{report.ood_dr_no_ensemble.mean_payload_displacement_m * 1000.0:.1f} mm, "
+                    f"Action Jerk={report.ood_dr_no_ensemble.mean_action_jerk:.4f}"
+                )
+                success_diff = (
+                    report.ood_dr_ensembled.success_rate
+                    - report.ood_dr_no_ensemble.success_rate
+                ) * 100.0
+                print(
+                    f"Ensembling Robustness Benefit: {success_diff:+.1f}% success rate retention "
+                    f"under OOD physical variations"
+                )
+        return 0
 
     try:
         model, metadata = BehaviorCloningMLP.load_checkpoint(ckpt_path)
@@ -771,7 +830,7 @@ def _run_eval_policy(
             current_obj = step_record.privileged_object_pose
             current_gripper = (
                 1.0
-                if step_record.gripper_action and step_record.gripper_action > 0.5
+                if step_record.gripper_action and step_record.gripper_action >= 0.45
                 else 0.0
             )
             if step_record.is_terminal:
@@ -950,6 +1009,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             max_steps=int(args.max_steps),
             seed=int(args.seed),
             emit_json=bool(args.json),
+            dr=bool(args.dr),
+            compare_ensembling=bool(args.compare_ensembling),
         )
 
     return 1

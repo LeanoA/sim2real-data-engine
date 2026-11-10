@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict
 
 from sim2real_engine.core.contracts import EpisodeStepRecord, JointState, SE3Pose
 from sim2real_engine.core.kinematics import DampedLeastSquaresIK
+from sim2real_engine.randomization.samplers import EpisodePerturbation
 
 ExpertStage = Literal["APPROACH", "DESCEND", "GRASP", "LIFT", "TRANSPORT", "PLACE", "COMPLETED"]
 
@@ -41,7 +42,11 @@ class SimulatorBackend(Protocol):
         """Nominal home joint configuration in radians."""
         ...
 
-    def reset(self, seed: int = 42) -> tuple[JointState, SE3Pose, SE3Pose]:
+    def reset(
+        self,
+        seed: int = 42,
+        perturbation: EpisodePerturbation | None = None,
+    ) -> tuple[JointState, SE3Pose, SE3Pose]:
         """Reset episode state with a deterministic seed; returns (joints, ee_pose, object_pose)."""
         ...
 
