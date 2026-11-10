@@ -207,49 +207,38 @@ def generate_policy_comparison_html(
     ]
 
     plot_layout = {
-        "title": {
-            "text": "3D Kinematics: Arm (Green), Policy Trail (Pink) vs. Expert (Cyan)",
-            "font": {"size": 15, "color": "#f8fafc", "family": "system-ui, sans-serif"},
-            "x": 0.03,
-            "y": 0.96,
-        },
         "scene": {
             "xaxis": {
-                "title": "X (Forward) [m]",
-                "range": [-0.15, 0.75],
+                "title": {"text": "X (Forward) [m]", "font": {"size": 11, "color": "#94a3b8"}},
+                "range": [-0.08, 0.64],
                 "backgroundcolor": "#090d16",
                 "gridcolor": "#1e293b",
                 "showbackground": True,
             },
             "yaxis": {
-                "title": "Y (Lateral) [m]",
-                "range": [-0.45, 0.45],
+                "title": {"text": "Y (Lateral) [m]", "font": {"size": 11, "color": "#94a3b8"}},
+                "range": [-0.26, 0.22],
                 "backgroundcolor": "#090d16",
                 "gridcolor": "#1e293b",
                 "showbackground": True,
             },
             "zaxis": {
-                "title": "Z (Vertical) [m]",
-                "range": [-0.05, 0.70],
+                "title": {"text": "Z (Vertical) [m]", "font": {"size": 11, "color": "#94a3b8"}},
+                "range": [-0.02, 0.48],
                 "backgroundcolor": "#090d16",
                 "gridcolor": "#1e293b",
                 "showbackground": True,
             },
             "camera": {
-                "eye": {"x": 1.45, "y": -1.55, "z": 0.95},
-                "center": {"x": 0.25, "y": 0.0, "z": 0.15},
+                "eye": {"x": 1.05, "y": -1.18, "z": 0.68},
+                "center": {"x": 0.24, "y": -0.02, "z": 0.14},
             },
-            "aspectmode": "cube",
+            "aspectmode": "data",
         },
         "paper_bgcolor": "#0f172a",
         "plot_bgcolor": "#0f172a",
-        "margin": {"l": 0, "r": 0, "b": 0, "t": 38},
-        "legend": {
-            "font": {"color": "#94a3b8", "size": 11},
-            "bgcolor": "rgba(15, 23, 42, 0.82)",
-            "x": 0.02,
-            "y": 0.92,
-        },
+        "margin": {"l": 0, "r": 0, "b": 0, "t": 0},
+        "showlegend": False,
     }
 
     # 2D Synchronized Telemetry Chart (Error mm & Payload Z cm vs Step)
@@ -304,30 +293,32 @@ def generate_policy_comparison_html(
     ]
 
     telemetry_2d_layout = {
-        "title": {
-            "text": "Synchronized Rollout Telemetry: Tracking Error (mm) & Payload Lift Z (cm)",
-            "font": {"size": 12, "color": "#cbd5e1", "family": "system-ui, sans-serif"},
-            "x": 0.02,
-            "y": 0.94,
-        },
         "xaxis": {
-            "title": "Control Step (50 Hz / Δt = 20 ms)",
+            "title": {
+                "text": "Control Step (50 Hz / Δt = 20 ms)",
+                "font": {"size": 11, "color": "#94a3b8"},
+            },
+            "tickfont": {"size": 10, "color": "#94a3b8"},
             "gridcolor": "#1e293b",
             "color": "#94a3b8",
             "zeroline": False,
         },
         "yaxis": {
-            "title": "Error (mm)",
-            "titlefont": {"color": "#ec4899"},
-            "tickfont": {"color": "#ec4899"},
+            "title": {
+                "text": "Error (mm)",
+                "font": {"size": 11, "color": "#ec4899"},
+            },
+            "tickfont": {"size": 10, "color": "#ec4899"},
             "gridcolor": "#1e293b",
             "zeroline": False,
             "range": [0, max(15.0, float(max(spatial_errors_mm, default=12.0)) * 1.15)],
         },
         "yaxis2": {
-            "title": "Payload Z (cm)",
-            "titlefont": {"color": "#f59e0b"},
-            "tickfont": {"color": "#f59e0b"},
+            "title": {
+                "text": "Payload Z (cm)",
+                "font": {"size": 11, "color": "#f59e0b"},
+            },
+            "tickfont": {"size": 10, "color": "#f59e0b"},
             "overlaying": "y",
             "side": "right",
             "gridcolor": "rgba(30, 41, 59, 0.25)",
@@ -336,13 +327,8 @@ def generate_policy_comparison_html(
         },
         "paper_bgcolor": "#0f172a",
         "plot_bgcolor": "#090d16",
-        "margin": {"l": 46, "r": 46, "b": 40, "t": 34},
-        "legend": {
-            "orientation": "h",
-            "font": {"color": "#94a3b8", "size": 10},
-            "x": 0.02,
-            "y": 1.14,
-        },
+        "margin": {"l": 52, "r": 50, "b": 42, "t": 12},
+        "showlegend": False,
     }
 
     # Serialized animation bundle for client-side JavaScript player
@@ -531,7 +517,7 @@ def generate_policy_comparison_html(
 
     .main-stage {{
       display: grid;
-      grid-template-columns: 1.75fr 1.05fr;
+      grid-template-columns: 1.65fr 1.15fr;
       gap: 1.25rem;
       margin-bottom: 1rem;
     }}
@@ -543,8 +529,54 @@ def generate_policy_comparison_html(
       border: 1px solid var(--border);
       border-radius: 0.75rem;
       overflow: hidden;
-      height: 620px;
+      height: 660px;
+      display: flex;
+      flex-direction: column;
     }}
+    .plot-card-header {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      border-bottom: 1px solid var(--border);
+      padding: 0.7rem 1rem;
+      background: rgba(255, 255, 255, 0.02);
+    }}
+    .plot-card-title {{
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }}
+    .plot-card-legend {{
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      font-size: 0.73rem;
+      flex-wrap: wrap;
+    }}
+    .legend-chip {{
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }}
+    .dot {{
+      width: 8px;
+      height: 8px;
+      border-radius: 9999px;
+      display: inline-block;
+      flex-shrink: 0;
+    }}
+    .dot-pink {{ background: var(--accent-policy); box-shadow: 0 0 6px var(--accent-policy); }}
+    .dot-amber {{ background: var(--accent-obj); box-shadow: 0 0 6px var(--accent-obj); }}
+    .dot-arm {{ background: var(--accent-arm); box-shadow: 0 0 6px var(--accent-arm); }}
+    .dot-expert {{ background: var(--accent-expert); box-shadow: 0 0 6px var(--accent-expert); }}
+
     .right-column {{
       display: flex;
       flex-direction: column;
@@ -554,47 +586,86 @@ def generate_policy_comparison_html(
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 0.75rem;
-      padding: 1rem 1.15rem;
+      padding: 0.85rem 1.15rem;
       display: flex;
       flex-direction: column;
-      gap: 0.4rem;
+      gap: 0.2rem;
+      contain: layout style;
+    }}
+    .hud-header {{
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--text);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.45rem;
+      margin-bottom: 0.25rem;
     }}
     .hud-row {{
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-      padding: 0.36rem 0;
-      font-size: 0.82rem;
+      min-height: 1.85rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      padding: 0.15rem 0;
+      font-size: 0.81rem;
+      gap: 0.75rem;
     }}
     .hud-row:last-child {{ border-bottom: none; }}
-    .hud-label {{ color: var(--text-muted); }}
-    .hud-value {{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; }}
-    .phase-pill {{
-      padding: 0.15rem 0.55rem;
+    .hud-label {{
+      color: var(--text-muted);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }}
+    .hud-value {{
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-weight: 600;
+      text-align: right;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }}
+    .hud-badge {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 135px;
+      height: 1.45rem;
+      padding: 0 0.55rem;
       border-radius: 0.375rem;
-      background: rgba(56, 189, 248, 0.15);
+      font-size: 0.74rem;
+      font-weight: 600;
+      box-sizing: border-box;
+      text-align: center;
+      line-height: 1;
+      white-space: nowrap;
+    }}
+    .phase-pill {{
+      min-width: 175px;
+      background: rgba(56, 189, 248, 0.14);
       color: #38bdf8;
-      border: 1px solid rgba(56, 189, 248, 0.4);
-      font-size: 0.78rem;
+      border: 1px solid rgba(56, 189, 248, 0.38);
     }}
     .gripper-open {{
       color: #94a3b8;
+      background: rgba(148, 163, 184, 0.10);
+      border: 1px solid rgba(148, 163, 184, 0.25);
     }}
     .gripper-latched {{
       color: #fbbf24;
       background: rgba(245, 158, 11, 0.16);
       border: 1px solid rgba(245, 158, 11, 0.45);
-      padding: 0.12rem 0.5rem;
-      border-radius: 0.375rem;
-      font-size: 0.76rem;
     }}
-    .plot-2d-container {{
+    .plot-2d-card {{
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 0.75rem;
       overflow: hidden;
-      height: 255px;
+      display: flex;
+      flex-direction: column;
+    }}
+    .plot-2d-container {{
+      width: 100%;
+      height: 295px;
+      overflow: hidden;
     }}
   </style>
 </head>
@@ -691,21 +762,29 @@ def generate_policy_comparison_html(
   </div>
 
   <div class="main-stage">
-    <div class="plot-container" id="plot-3d"></div>
+    <div class="plot-container">
+      <div class="plot-card-header">
+        <div class="plot-card-title">3D Kinematics Workspace</div>
+        <div class="plot-card-legend">
+          <span class="legend-chip"><span class="dot dot-arm"></span> Policy Arm</span>
+          <span class="legend-chip"><span class="dot dot-pink"></span> Policy Trail</span>
+          <span class="legend-chip"><span class="dot dot-expert"></span> Privileged Expert</span>
+          <span class="legend-chip"><span class="dot dot-amber"></span> Payload Cube</span>
+        </div>
+      </div>
+      <div id="plot-3d" style="flex: 1; min-height: 0; width: 100%;"></div>
+    </div>
 
     <div class="right-column">
       <div class="telemetry-card">
-        <h3 style="font-size: 0.95rem; border-bottom: 1px solid var(--border);
-                   padding-bottom: 0.45rem; margin-bottom: 0.2rem;">
-          Real-Time Telemetry HUD
-        </h3>
+        <div class="hud-header">Real-Time Telemetry HUD</div>
         <div class="hud-row">
           <span class="hud-label">Manipulation Phase:</span>
-          <span class="hud-value phase-pill" id="hud-phase">1. Pre-Grasp Approach</span>
+          <span class="hud-value hud-badge phase-pill" id="hud-phase">1. Pre-Grasp Approach</span>
         </div>
         <div class="hud-row">
           <span class="hud-label">Gripper Constraint:</span>
-          <span class="hud-value gripper-open" id="hud-gripper">OPEN</span>
+          <span class="hud-value hud-badge gripper-open" id="hud-gripper">OPEN</span>
         </div>
         <div class="hud-row">
           <span class="hud-label">Control Step / Elapsed:</span>
@@ -738,7 +817,16 @@ def generate_policy_comparison_html(
         </div>
       </div>
 
-      <div class="plot-2d-container" id="plot-2d-telemetry"></div>
+      <div class="plot-2d-card">
+        <div class="plot-card-header">
+          <div class="plot-card-title">Synchronized Rollout Telemetry</div>
+          <div class="plot-card-legend">
+            <span class="legend-chip"><span class="dot dot-pink"></span> Tracking Error</span>
+            <span class="legend-chip"><span class="dot dot-amber"></span> Payload Z</span>
+          </div>
+        </div>
+        <div class="plot-2d-container" id="plot-2d-telemetry"></div>
+      </div>
     </div>
   </div>
 
@@ -813,7 +901,7 @@ def generate_policy_comparison_html(
       document.getElementById('hud-phase').textContent = phaseStr;
       hudGripper.textContent = gripStr;
       const gripCls = gripStr.startsWith('LATCHED') ? 'gripper-latched' : 'gripper-open';
-      hudGripper.className = 'hud-value ' + gripCls;
+      hudGripper.className = 'hud-value hud-badge ' + gripCls;
       document.getElementById('hud-step').textContent = step + ' / ' + (bundle.totalSteps - 1);
       document.getElementById('hud-time').textContent = bundle.timesteps[step].toFixed(2) + ' s';
       document.getElementById('hud-error').textContent = errMm.toFixed(1) + ' mm';
