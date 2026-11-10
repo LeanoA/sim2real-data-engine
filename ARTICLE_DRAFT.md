@@ -9,13 +9,13 @@
 
 ## 1. The Fragmentation of Modern Robot Learning
 
-Over the past eighteen months, robotics software has undergone a tectonic paradigm shift. For decades, robot manipulation was dominated by classical motion planning stacks (ROS MoveIt, OMPL) strictly decoupled from perception. Today, foundation visuomotor policies—Action Chunking with Transformers (ACT), Diffusion Policy, and Physical Intelligence’s **OpenPI** ($\pi_0$)—learn direct end-to-end sensorimotor mappings from raw RGB-D camera streams and joint proprioception to multi-step motor trajectory chunks.
+Over the past eighteen months, robotics software has undergone a tectonic paradigm shift. For decades, robot manipulation was dominated by classical motion planning stacks (ROS MoveIt, OMPL) strictly decoupled from perception. Today, foundation visuomotor policies—Action Chunking with Transformers (ACT), Diffusion Policy, and Physical Intelligence’s **OpenPI** (`π₀`)—learn direct end-to-end sensorimotor mappings from raw RGB-D camera streams and joint proprioception to multi-step motor trajectory chunks.
 
 Yet, engineering teams attempting to take these foundation models from research notebooks to physical industrial cells face a fragmented, brittle software landscape:
 
 1. **The Simulation Island:** NVIDIA **Isaac Lab** (Omniverse PhysX 5.x) delivers photorealistic ray-traced rendering and massive GPU parallelization. Meanwhile, **DeepMind MuJoCo 4.0** remains the gold standard for deterministic, zero-cost CPU contact dynamics, analytical Jacobians, and desktop testing.
 2. **The Dataset Island:** Hugging Face **LeRobot** has emerged as the open standard for robotics data, formalizing chunked tabular Parquet storage, synchronized camera metadata, and normalization envelopes.
-3. **The Policy Inference Island:** Visuomotor foundation models predict receding-horizon *action chunks* ($H = 16..64$) rather than instantaneous single-step commands. This demands real-time temporal ensembling and strict P99 latency guarantees ($< 15\text{ ms}$) to prevent high-frequency actuator jitter and control instability on physical hardware.
+3. **The Policy Inference Island:** Visuomotor foundation models predict receding-horizon *action chunks* (`H = 16..64`) rather than instantaneous single-step commands. This demands real-time temporal ensembling and strict P99 latency guarantees (`< 15 ms`) to prevent high-frequency actuator jitter and control instability on physical hardware.
 
 When these three domains are glued together with ad-hoc Python scripts and global `np.random.seed()` calls, pipelines silently degrade: random number generator state drifts across parallel worker threads, simulator physics drift undetected between developer laptops and cloud clusters, and models overfit to unnormalized sensor scales.
 
@@ -72,8 +72,8 @@ flowchart TB
 
 ## 3. Core Architectural Pillars
 
-### Pillar 1: Singularity-Robust $SE(3)$ Kinematics on Lie Groups
-Traditional Euler-angle representations suffer from gimbal lock, while naïve Jacobian pseudoinverse solvers ($\Delta \mathbf{q} = \mathbf{J}^\dagger \mathbf{e}$) explode near kinematic singularities ($\sigma_{\min}(\mathbf{J}) \to 0$).
+### Pillar 1: Singularity-Robust `SE(3)` Kinematics on Lie Groups
+Traditional Euler-angle representations suffer from gimbal lock, while naïve Jacobian pseudoinverse solvers (`Δq = J† e`) explode near kinematic singularities (`σ_min(J) → 0`).
 
 We implement Levenberg-Marquardt Damped Least-Squares (DLS) kinematics with adaptive singular-value damping and null-space posture regularization:
 
@@ -86,8 +86,8 @@ All orientation errors are computed on the Lie algebra $\mathfrak{so}(3)$ via th
 ### Pillar 2: Native DeepMind MuJoCo 4.0 Contact Physics
 Rather than relying on kinematic mocks that magically teleport objects, `sim2real-data-engine` integrates compiled DeepMind MuJoCo 4.0 contact mechanics:
 - **`MjModel` vs. `MjData`:** Decouples immutable kinematic and inertial blueprints (`MjModel`) from dynamic runtime state buffers (`MjData`).
-- **Linear Complementarity Problem (LCP) Contact Solver:** Enforces hard non-penetration and pyramidal Coulomb friction cones ($\|\mathbf{f}_T\| \le \mu f_N$).
-- **Multi-Rate Substepping:** The physical manipulator executes 10 physics substeps at 500 Hz ($\Delta t = 2\text{ ms}$) within each 50 Hz ($\Delta t = 20\text{ ms}$) control step, completely eliminating numerical contact explosion.
+- **Linear Complementarity Problem (LCP) Contact Solver:** Enforces hard non-penetration and pyramidal Coulomb friction cones (`||f_T|| <= μ f_N`).
+- **Multi-Rate Substepping:** The physical manipulator executes 10 physics substeps at 500 Hz (`dt = 2 ms`) within each 50 Hz (`dt = 20 ms`) control step, completely eliminating numerical contact explosion.
 - **Analytical Jacobians:** Direct C-API queries via `mujoco.mj_jac` provide analytical translational and rotational Jacobians in microseconds.
 
 ---
@@ -105,7 +105,7 @@ friction_scale = float(rng.uniform(fric_min, fric_max))
 camera_jitter = rng.uniform(-delta_c, delta_c, size=3)
 ```
 
-Whether episode 42 is sampled sequentially on an Apple Silicon laptop or in parallel across a 64-worker Kubernetes cluster, link mass multipliers, Coulomb friction coefficients, and camera extrinsic $SE(3)$ jitter are bit-for-bit identical.
+Whether episode 42 is sampled sequentially on an Apple Silicon laptop or in parallel across a 64-worker Kubernetes cluster, link mass multipliers, Coulomb friction coefficients, and camera extrinsic `SE(3)` jitter are bit-for-bit identical.
 
 ---
 
@@ -113,19 +113,19 @@ Whether episode 42 is sampled sequentially on an Apple Silicon laptop or in para
 Instead of unvalidated pickle blobs, episodes are streamed to disk as strictly typed tabular Parquet files conforming to the Hugging Face `LeRobotDataset` v2 specification.
 
 To condition Phase 1 sensorimotor policy learning for closed-loop reactive manipulation (prior to attaching RGB-D vision encoders in Phase 2), each step stores:
-- **Observation Space (30D Privileged State):** Joint positions ($\mathbf{q} \in \mathbb{R}^6$), joint velocities ($\dot{\mathbf{q}} \in \mathbb{R}^6$), end-effector $SE(3)$ pose ($\mathbf{p}_{\text{ee}} \in \mathbb{R}^3, \mathbf{q}_{\text{ee}} \in S^3$), privileged payload $SE(3)$ pose ($\mathbf{p}_{\text{obj}} \in \mathbb{R}^3, \mathbf{q}_{\text{obj}} \in S^3$), relative object displacement vector ($\Delta \mathbf{p} = \mathbf{p}_{\text{obj}} - \mathbf{p}_{\text{ee}} \in \mathbb{R}^3$), and current physical gripper latch state ($g \in \{0, 1\}$).
-- **Action Space (7D):** Commanded joint position targets ($[q_1..q_6]$) plus explicit binary gripper latch action ($g \in [0, 1]$ commanding proximity-gated `<weld>` activation).
+- **Observation Space (30D Privileged State):** Joint positions (`q` in R⁶), joint velocities (`dq` in R⁶), end-effector `SE(3)` pose (`p_ee` in R³, `q_ee` in S³), privileged payload `SE(3)` pose (`p_obj` in R³, `q_obj` in S³), relative object displacement vector (`Δp = p_obj - p_ee` in R³), and current physical gripper latch state (`g` in `{0, 1}`).
+- **Action Space (7D):** Commanded joint position targets (`[q1..q6]`) plus explicit binary gripper latch action (`g` in `[0, 1]` commanding proximity-gated `weld` equality activation).
 
-Upon collection, `finalize_manifest()` computes per-dimension normalization vectors ($\boldsymbol{\mu}, \boldsymbol{\sigma}, \mathbf{x}_{\min}, \mathbf{x}_{\max}$) for all observation and action dimensions, and seals each episode with a SHA-256 digest in `meta/manifest.json`. If a single byte is corrupted before training, `verify_integrity()` halts execution immediately.
+Upon collection, `finalize_manifest()` computes per-dimension normalization vectors (`mean`, `std`, `min`, `max`) for all observation and action dimensions, and seals each episode with a SHA-256 digest in `meta/manifest.json`. If a single byte is corrupted before training, `verify_integrity()` halts execution immediately.
 
 ---
 
 ### Pillar 5: Receding-Horizon Policy Training on Metal MPS GPU
-Single-step action prediction with standard MSE loss suffers from quadratic compounding covariate shift ($O(T^2)$ error drift) and mode collapse when demonstrations contain multiple valid trajectories.
+Single-step action prediction with standard MSE loss suffers from quadratic compounding covariate shift (`O(T²)` error drift) and mode collapse when demonstrations contain multiple valid trajectories.
 
 To overcome this, the engine integrates an optimized PyTorch Behavioral Cloning architecture with multi-step action chunking:
-1. **Residual MLP with Pre-LayerNorm:** A deep trunk with residual skip connections and SiLU activations maps the normalized 30D observation vector to a full $(H=8, 7)$ future action trajectory chunk.
-2. **Metal Performance Shaders (MPS):** Training runs natively on Apple Silicon GPUs via PyTorch MPS, sustaining **11,438 samples/s** across 45 epochs and achieving **99.8% validation loss reduction** (Initial Loss: 3.5266 -> Final Val Loss: 0.0087) with a 5.0x loss weight on the binary gripper dimension to ensure crisp grasp initiation.
+1. **Residual MLP with Pre-LayerNorm:** A deep trunk with residual skip connections and SiLU activations maps the normalized 30D observation vector to a full `(H=8, 7)` future action trajectory chunk.
+2. **Metal Performance Shaders (MPS):** Training runs natively on Apple Silicon GPUs via PyTorch MPS, sustaining **11,438 samples/s** across 45 epochs and achieving **99.8% validation loss reduction** (`3.5266 → 0.0087`) with a 5.0x loss weight on the binary gripper dimension to ensure crisp grasp initiation.
 3. **Temporal Ensembling Ring Buffer:** Overlapping action chunks from historical prediction steps $t - k$ are fused using exponential decay weights $w_k = \exp(-m \cdot k)$:
    $$\mathbf{u}_t = \frac{\sum_{k=0}^{K-1} \exp(-m \cdot k) \, \hat{\mathbf{a}}_{t | t-k}}{\sum_{k=0}^{K-1} \exp(-m \cdot k)}$$
    This temporal smoothing dampens high-frequency motor chatter and prevents discontinuous torque impulses on real hardware.
@@ -142,13 +142,13 @@ Debugging robotic trajectories solely from terminal printouts or static loss cur
 ## 4. Empirical Benchmarks: Sim-to-Sim Gap, Latency & OOD Robustness
 
 ### 4.1 Cross-Backend Tracking Drift (MuJoCo 4.0 Native vs. Analytical Impedance Reference Adapter)
-Executing `sim2real sim2sim-eval` compares full native contact physics against our local analytical impedance reference adapter (`IsaacLabAdapter`, an offline contract emulator with stiff joint compliance $k_p = 48.0\text{ N}\cdot\text{m/rad}, \alpha = 0.82$ used for zero-GPU CI verification before cloud RTX container deployment):
+Executing `sim2real sim2sim-eval` compares full native contact physics against our local analytical impedance reference adapter (`IsaacLabAdapter`, an offline contract emulator with stiff joint compliance `kp = 48.0 N·m/rad`, `alpha = 0.82` used for zero-GPU CI verification before cloud RTX container deployment):
 
 | Metric | Reference (`mujoco_native` 4.0) | Target (`IsaacLabAdapter` Emulator) | Divergence / Telemetry |
 | :--- | :---: | :---: | :---: |
 | **Physics Integration Frequency** | 500 Hz (10 substeps) | 500 Hz (analytical impedance) | Nominal stepping alignment |
 | **Pick-and-Place Task Success Rate** | 100.0% | 100.0% | 0.0% Contract Gap |
-| **Mean Trajectory Drift ($\text{RMSE}_{\text{traj}}$)** | Baseline | 0.0355 rad | ~2.0° cumulative tracking lag |
+| **Mean Trajectory Drift (`RMSE_traj`)** | Baseline | 0.0355 rad | ~2.0° cumulative tracking lag |
 | **Mean Final End-Effector Divergence** | Baseline | 0.00052 m | **< 0.6 mm Cartesian drift** |
 
 ### 4.2 Closed-Loop 7D Policy Inference Telemetry
@@ -163,15 +163,15 @@ Evaluating the trained 30D-to-7D Behavioral Cloning policy across closed-loop Mu
 | **MPS Training Throughput** | 11,438 samples/s | > 5,000 samples/s | 2x Headroom |
 
 ### 4.3 Out-of-Distribution (OOD) Domain Randomization & Ensembling Ablation
-To verify policy resilience against physical hardware parameter shifts, we benchmarked rollouts under randomized payload mass ($\pm 15\%, m \in [0.85, 1.15] \times m_{\text{nom}}$), Coulomb surface friction ($\pm 30\%, \mu \in [0.70, 1.30] \times \mu_{\text{nom}}$), and joint damping ($\pm 10\%, b \in [0.90, 1.10] \times b_{\text{nom}}$):
+To verify policy resilience against physical hardware parameter shifts, we benchmarked rollouts under randomized payload mass (`±15%`, `m in [0.85, 1.15] × m_nom`), Coulomb surface friction (`±30%`, `μ in [0.70, 1.30] × μ_nom`), and joint damping (`±10%`, `b in [0.90, 1.10] × b_nom`):
 
 | Dynamics Regime | Temporal Ensembling | Task Success Rate | Mean Payload Transport | Control Chatter (Action Jerk) |
 | :--- | :---: | :---: | :---: | :---: |
-| **Nominal Simulation** | Enabled ($\exp(-m \cdot k)$) | **55.0%** | 125.1 mm | 0.0286 |
-| **OOD Perturbed Physics** | **Enabled ($\exp(-m \cdot k)$)** | **55.0%** | **125.1 mm** | 0.0287 |
+| **Nominal Simulation** | Enabled (`exp(-m · k)`) | **55.0%** | 125.1 mm | 0.0286 |
+| **OOD Perturbed Physics** | **Enabled (`exp(-m · k)`)** | **55.0%** | **125.1 mm** | 0.0287 |
 | **OOD Perturbed Physics** | **Disabled (Raw Chunks)** | **0.0%** | **14.0 mm** | 0.1409 (+391% chatter) |
 
-**Key Finding:** Under identical OOD physical perturbations, **temporal ensembling preserves 55.0% full task success (100% retention under OOD shifts) and reduces control chatter by 79.6% ($0.1409 \to 0.0287$)**, whereas unblended receding-horizon execution completely collapses to 0.0% success with severe control chatter ($0.1409$ jerk).
+**Key Finding:** Under identical OOD physical perturbations, **temporal ensembling preserves 55.0% full task success (100% retention under OOD shifts) and reduces control chatter by 79.6% (`0.1409 → 0.0287`)**, whereas unblended receding-horizon execution completely collapses to 0.0% success with severe control chatter (`0.1409` jerk).
 
 ---
 
@@ -182,7 +182,7 @@ To verify policy resilience against physical hardware parameter shifts, we bench
 In robust robotics systems engineering, attempting to simultaneously solve high-frequency non-linear contact mechanics, multi-rate sensor synchronization, and receding-horizon policy inference creates compounding debugging surface area. 
 
 We deliberately adopted an **iterative, staged architecture**:
-1. **Phase 1 (Validated & Benchmark-Proven): Closed-Loop Sensorimotor Pipeline Verification.** We validated the macro data engine, Lie group inverse kinematics, chunked LeRobot Parquet serialization, and real-time temporal ensembling using a proximity-gated ($\le 40\text{ mm}$) dynamic equality constraint (`<weld>`) and 30D privileged state conditioning. This isolated sensorimotor learning dynamics from contact chatter, achieving a **55.0% full task success rate** and proving a **79.6% control chatter reduction**.
+1. **Phase 1 (Validated & Benchmark-Proven): Closed-Loop Sensorimotor Pipeline Verification.** We validated the macro data engine, Lie group inverse kinematics, chunked LeRobot Parquet serialization, and real-time temporal ensembling using a proximity-gated (`<= 40 mm`) dynamic `weld` equality constraint and 30D privileged state conditioning. This isolated sensorimotor learning dynamics from contact chatter, achieving a **55.0% full task success rate** and proving a **79.6% control chatter reduction**.
 2. **Phase 2 (Immediate Roadmap): RGB-D Vision Conditioning, Dynamic Relative-Pose Anchoring & Articulated Gripper.** Having validated the end-to-end sensorimotor control loop, the upcoming iteration replaces privileged object pose tokens with RGB-D vision encoder features, introduces dynamic relative-pose (`relpose`) attachment to eliminate discrete snap, and adds an actuated parallel-jaw gripper with prismatic slide joints and Coulomb friction cones to model fine-grained physical grasp compression.
 
 ### 5.2 The Deceptive Open-Loop Trap: Why Batch Size 64 Beats Batch Size 128 in Closed-Loop Robotics
@@ -195,19 +195,19 @@ When scaling training on our 50,213 demonstration transitions, we evaluated two 
 | :--- | :---: | :---: | :---: |
 | **Total Epochs** | 50 epochs | 45 epochs | Comparable training budget |
 | **Wall-Clock Training Time** | **109.56 s** (20.6k samples/s) | 197.60 s (11,438 samples/s) | BS 128 has 1.8x higher GPU throughput |
-| **Initial Loss $\to$ Final Val Loss** | 3.6057 $\to$ **0.0098** (-99.7%) | 3.5266 $\to$ **0.0087** (-99.8%) | Open-loop loss delta is only **0.0011** |
+| **Initial Loss → Final Val Loss** | `3.6057 → 0.0098` (-99.7%) | `3.5266 → 0.0087` (-99.8%) | Open-loop loss delta is only **0.0011** |
 | **Closed-Loop Task Success Rate** | **5.0% - 10.0% (Severe Collapse)** | **55.0% (Robust Task Completion)** | **11x higher real-world task success** |
 | **Mean Payload Transport Distance** | 24.2 mm (fails grasp) | **125.1 mm** (transported to target) | BS 64 reliably triggers grasp latch |
 | **OOD Retention under Physics Shifts** | 0.0% retention | **100.0% retention** | BS 64 generalizes across mass/friction |
 
 #### Why did Batch Size 128 collapse in closed-loop execution?
 
-On paper, a validation loss difference of $0.0011$ in Smooth L1 loss would be dismissed as negligible in standard computer vision or NLP tasks. In physical robotics, however, it produced an existential failure mode due to three interacting mechanisms:
+On paper, a validation loss difference of `0.0011` in Smooth L1 loss would be dismissed as negligible in standard computer vision or NLP tasks. In physical robotics, however, it produced an existential failure mode due to three interacting mechanisms:
 
 1. **Gradient Update Frequency Across Discrete Task Phases:**
-   In Behavioral Cloning with action chunking ($H = 8$), demonstration trajectories contain sharp phase transitions: hover $\to$ descend $\to$ 5x-weighted gripper latch $\to$ lift $\to$ transport. With $N = 50,213$ transitions:
-   - $\text{Batch Size } 64 \implies \approx 785 \text{ updates/epoch} \implies \mathbf{35,325} \text{ stochastic weight adjustments}$.
-   - $\text{Batch Size } 128 \implies \approx 392 \text{ updates/epoch} \implies \mathbf{19,600} \text{ weight adjustments}$ (a 45% reduction in optimization trajectory steps).
+   In Behavioral Cloning with action chunking (`H = 8`), demonstration trajectories contain sharp phase transitions: `hover → descend → 5x-weighted gripper latch → lift → transport`. With `N = 50,213` transitions:
+   - `Batch Size 64` → ~785 updates/epoch → **35,325 stochastic weight adjustments**.
+   - `Batch Size 128` → ~392 updates/epoch → **19,600 weight adjustments** (a 45% reduction in optimization trajectory steps).
    The network trained with Batch Size 128 simply did not receive enough gradient updates to resolve the fine-grained decision boundary of the gripper latch action.
 
 2. **The "Flat Minima" Regularization Effect (Keskar et al., 2016):**

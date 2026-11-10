@@ -14,14 +14,14 @@
 ## 🎬 Visual Demonstrations
 
 ### 1. High-Throughput Synthetic Data Synthesis (DeepMind MuJoCo 4.0 Native Physics)
-*Deterministic 50 Hz pick-and-place demonstration generation with compiled contact dynamics, proximity-gated dynamic `<weld>` grasp constraint (Phase 1), and cross-table payload transport ($14.2\text{ cm}$). Generates **500 complete episodes (50,213 timesteps) in 9.1s on local CPU ($>5,500\text{ steps/s}$)**. Every episode is sealed into a chunked Hugging Face `LeRobotDataset` v2 Parquet table with per-dimension normalization stats and SHA-256 cryptographic manifests.*
+*Deterministic 50 Hz pick-and-place demonstration generation with compiled contact dynamics, proximity-gated dynamic `weld` equality grasp constraint (Phase 1), and cross-table payload transport (14.2 cm). Generates **500 complete episodes (50,213 timesteps) in 9.1s on local CPU (> 5,500 steps/s)**. Every episode is sealed into a chunked Hugging Face `LeRobotDataset` v2 Parquet table with per-dimension normalization stats and SHA-256 cryptographic manifests.*
 
 ![Synthetic Data Generation](assets/synthetic_data_generation.gif)
 
 ---
 
 ### 2. Closed-Loop 30D Sensorimotor Policy Execution (Action Chunking + Temporal Ensembling)
-*Trained Residual Behavioral Cloning (BC) neural network policy conditioned on a 30D privileged state vector executing closed-loop pick-and-place in real time (50 Hz). The policy predicts an 8-step future trajectory chunk ($H=8$) with receding-horizon exponential temporal ensembling ($\exp(-m \cdot k)$), suppressing action chatter by **-79.6%** with **~0.11 ms CPU MLP forward-pass latency** (**8.11 ms P99** end-to-end including an injected **8.0 ms synthetic IPC/transport delay budget**).*
+*Trained Residual Behavioral Cloning (BC) neural network policy conditioned on a 30D privileged state vector executing closed-loop pick-and-place in real time (50 Hz). The policy predicts an 8-step future trajectory chunk (`H = 8`) with receding-horizon exponential temporal ensembling (`w_k = exp(-m · k)`), suppressing action chatter by **-79.6%** with **~0.11 ms CPU MLP forward-pass latency** (**8.11 ms P99** end-to-end including an injected **8.0 ms synthetic IPC/transport delay budget**).*
 
 ![Policy Closed-Loop Execution](assets/policy_closed_loop.gif)
 
@@ -35,8 +35,8 @@ In modern robotic manipulation, policy learning (Action Chunking Transformers, D
 
 `sim2real-data-engine` solves this by delivering an **industrial-grade, local-first synthetic data infrastructure**:
 
-1. **High-Velocity Native Simulation:** Generates thousands of physics-validated demonstrations in seconds on local ARM64 CPU ($0 cloud cost) using compiled DeepMind MuJoCo 4.0 with Damped Least-Squares (DLS) kinematics and isolated `PCG64` domain randomization.
-2. **Open Standards Compliance:** Trajectories stream directly into tabular Parquet chunks conforming to Hugging Face **`LeRobotDataset` v2**, with empirical normalization envelopes ($\boldsymbol{\mu}, \boldsymbol{\sigma}, \min, \max$) and cryptographic SHA-256 tamper seals.
+1. **High-Velocity Native Simulation:** Generates thousands of physics-validated demonstrations in seconds on local ARM64 CPU (zero cloud cost) using compiled DeepMind MuJoCo 4.0 with Damped Least-Squares (DLS) kinematics and isolated `PCG64` domain randomization.
+2. **Open Standards Compliance:** Trajectories stream directly into tabular Parquet chunks conforming to Hugging Face **`LeRobotDataset` v2**, with empirical normalization envelopes (`mean`, `std`, `min`, `max`) and cryptographic SHA-256 tamper seals.
 3. **Closed-Loop Sensorimotor Distillation:** Trains 30D state-conditioned neural action policies with receding-horizon action chunking and exponential temporal ensembling on local Metal GPU (MPS, 11.4k samples/s), validated in closed-loop desktop viewers (establishing the control foundation for Phase 2 RGB-D vision encoder conditioning).
 4. **Cloud GPU Burst:** Features turnkey AWS EC2 GPU provisioning (`docker/run_cloud_training.py`) to burst identical dataset manifests to NVIDIA A10G cloud instances for massive 10,000+ parallel Isaac Lab rollouts.
 
@@ -130,17 +130,17 @@ All metrics empirically benchmarked on Apple Silicon (M-series, unified memory):
 
 | Metric | Measured Value | Production Target | Status |
 | :--- | :--- | :--- | :---: |
-| **Physics Stepping Frequency** | **500 Hz** (10 substeps @ $\Delta t = 2\text{ ms}$) | $\ge 500\text{ Hz}$ | **PASSED** |
-| **Grasp Physical Realism** | **$\le 40\text{ mm}$ proximity-gated `<weld>`** (Phase 1) | Physical collision adjacency | **PASSED** |
-| **Net Cross-Table Payload Transport** | **$14.2\text{ cm}$** ($y = +0.044\text{ m} \to -0.098\text{ m}$) | Complete macro-task delivery | **PASSED** |
+| **Physics Stepping Frequency** | **500 Hz** (10 substeps @ `dt = 2 ms`) | `>= 500 Hz` | **PASSED** |
+| **Grasp Physical Realism** | **`<= 40 mm` proximity-gated `weld` constraint** (Phase 1) | Physical collision adjacency | **PASSED** |
+| **Net Cross-Table Payload Transport** | **14.2 cm** (`y = +0.044 m → -0.098 m`) | Complete macro-task delivery | **PASSED** |
 | **Unit & Integration Test Suite** | **87 / 87 tests passing (100%)** | 100% pass rate in CI | **PASSED** |
 | **Static Analysis & Typing** | **`mypy --strict` & `ruff` clean** | 0 warnings across 43 files | **PASSED** |
-| **Dataset Export Rate (500 episodes)** | **50,213 steps in 9.1 s** ($>5,500\text{ steps/s}$) | $< 15\text{ s}$ | **PASSED** |
+| **Dataset Export Rate (500 episodes)** | **50,213 steps in 9.1 s** (`> 5,500 steps/s`) | `< 15 s` | **PASSED** |
 | **Cryptographic Data Integrity** | **SHA-256 Digest per Parquet Chunk** | Tamper-proof manifest seal | **PASSED** |
-| **Policy Training Throughput (MPS)** | **11,438 samples/s** (45 epochs) | $> 5,000\text{ samples/s}$ | **PASSED** |
-| **Validation Loss Reduction** | **-99.8%** ($3.5266 \to 0.0087$) | $> 95\%$ on 50k samples | **PASSED** |
-| **Policy Inference Latency (P99)** | **0.11 ms MLP / 8.11 ms Bridge** (w/ 8.0 ms IPC budget) | $< 20.0\text{ ms}$ (50 Hz budget) | **PASSED** |
-| **OOD Ensembling Chatter Reduction** | **-79.6% Action Jerk** ($0.1409 \to 0.0287$) | Continuous smooth torques | **PASSED** |
+| **Policy Training Throughput (MPS)** | **11,438 samples/s** (45 epochs) | `> 5,000 samples/s` | **PASSED** |
+| **Validation Loss Reduction** | **-99.8%** (`3.5266 → 0.0087`) | `> 95%` on 50k samples | **PASSED** |
+| **Policy Inference Latency (P99)** | **0.11 ms MLP / 8.11 ms Bridge** (w/ 8.0 ms IPC budget) | `< 20.0 ms` (50 Hz budget) | **PASSED** |
+| **OOD Ensembling Chatter Reduction** | **-79.6% Action Jerk** (`0.1409 → 0.0287`) | Continuous smooth torques | **PASSED** |
 | **OOD Task Success Retention** | **55.0% success rate** (vs 0.0% unensembled) | Retain control under noise | **PASSED** |
 
 ---
@@ -149,16 +149,16 @@ All metrics empirically benchmarked on Apple Silicon (M-series, unified memory):
 
 The framework includes an end-to-end sensorimotor policy distillation pipeline trained on the generated dataset (serving as the Phase 1 control foundation before attaching RGB-D vision encoders in Phase 2):
 
-1. **Architecture:** Residual Behavioral Cloning MLP conditioned on 30-dimensional privileged state observations (6D joint angles $\mathbf{q}$, 6D joint velocities $\dot{\mathbf{q}}$, 7D Cartesian end-effector $SE(3)$ pose, 7D privileged object $SE(3)$ pose, 3D relative object-to-TCP displacement vector $\Delta \mathbf{p}$, and 1D binary gripper latch state).
-2. **Action Chunking Horizon ($H=8$):** Predicts an 8-step future 7D action sequence ($\approx 160\text{ ms}$ receding horizon) to mitigate single-step compounding covariate shift ($O(T^2)$ drift).
-3. **Training Velocity:** Trained on Apple Silicon GPU via PyTorch Metal Performance Shaders (MPS), achieving **11,438 samples/s** and reducing validation loss by **-99.8%** ($3.5266 \to 0.0087$) across 45 epochs (`batch_size=64`).
-4. **Temporal Ensembling & Latency Telemetry:** During closed-loop execution, overlapping action chunks from historical steps $t - k$ are blended using exponential decay weights $w_k = \exp(-m \cdot k)$, reducing high-frequency actuator jerk by **-79.6%**. The CPU MLP forward pass completes in **~0.11 ms** (**8.09 ms P50 / 8.11 ms P99** when evaluated with `PolicyInferenceBridge`'s default `8.0 ms` synthetic IPC/network transport latency budget).
+1. **Architecture:** Residual Behavioral Cloning MLP conditioned on 30-dimensional privileged state observations (6D joint angles `q`, 6D joint velocities `dq`, 7D Cartesian end-effector `SE(3)` pose, 7D privileged object `SE(3)` pose, 3D relative object-to-TCP displacement vector `Δp`, and 1D binary gripper latch state).
+2. **Action Chunking Horizon (`H = 8`):** Predicts an 8-step future 7D action sequence (~160 ms receding horizon) to mitigate single-step compounding covariate shift (`O(T²)` drift).
+3. **Training Velocity:** Trained on Apple Silicon GPU via PyTorch Metal Performance Shaders (MPS), achieving **11,438 samples/s** and reducing validation loss by **-99.8%** (`3.5266 → 0.0087`) across 45 epochs (`batch_size=64`).
+4. **Temporal Ensembling & Latency Telemetry:** During closed-loop execution, overlapping action chunks from historical steps `t - k` are blended using exponential decay weights `w_k = exp(-m · k)`, reducing high-frequency actuator jerk by **-79.6%**. The CPU MLP forward pass completes in **~0.11 ms** (**8.09 ms P50 / 8.11 ms P99** when evaluated with `PolicyInferenceBridge`'s default `8.0 ms` synthetic IPC/network transport latency budget).
 
 ---
 
 ## ☁️ Future Work & Cloud GPU Scaling: AWS EC2
 
-While 100% of synthetic data generation, kinematic solving, unit testing, and policy evaluation runs locally at $0 cloud cost, scaling to **foundation visuomotor pre-training** (e.g. Action Chunking Transformers and Flow-Matching OpenPI $\pi_0$ across 10,000+ parallel Isaac Lab environments) requires cloud GPU clusters.
+While 100% of synthetic data generation, kinematic solving, unit testing, and policy evaluation runs locally at zero cloud cost, scaling to **foundation visuomotor pre-training** (e.g. Action Chunking Transformers and Flow-Matching OpenPI `π₀` across 10,000+ parallel Isaac Lab environments) requires cloud GPU clusters.
 
 We packaged an automated cloud training orchestrator in [`docker/run_cloud_training.py`](docker/run_cloud_training.py):
 

@@ -4,7 +4,7 @@ This document records the foundational architectural decisions governing the des
 
 ---
 
-## ADR-01: Hexagonal Simulator Adapter Pattern (`MuJoCo` $\leftrightarrow$ `Genesis` $\leftrightarrow$ `Isaac Lab`)
+## ADR-01: Hexagonal Simulator Adapter Pattern (`MuJoCo` ↔ `Genesis` ↔ `Isaac Lab`)
 
 ### Context & Problem
 Visuomotor policy pipelines and privileged trajectory experts are frequently coupled directly to a single physics simulator's internal data structures (e.g., `mujoco.MjData` or Omniverse USD prims). This tight coupling prevents local development on macOS laptops when the target production environment uses NVIDIA RTX containers, and makes it impossible to quantify Sim-to-Sim physics drift across engines.
@@ -12,8 +12,8 @@ Visuomotor policy pipelines and privileged trajectory experts are frequently cou
 ### Decision
 Isolate all SE(3) kinematics, trajectory planning, domain randomization schedules, and dataset serialization behind a strict hexagonal port (`SimulatorBackend` in `src/sim2real_engine/simulators/base.py`) consuming and emitting immutable Pydantic/NumPy contracts (`SE3Pose`, `JointState`, `EpisodeStepRecord`).
 - **Adapter 1 (`mujoco_native` / `mujoco`)**: Runs natively on Apple Silicon ARM64 and Linux CPU (500 Hz compiled contact physics and 1,000 Hz kinematic solver) for local development and CI verification at zero cloud cost.
-- **Adapter 2 (`genesis`)**: Provides a local analytical impedance reference model ($\alpha = 0.88$, 1,000 Hz) for offline contract and drift verification, paired with `docker/Dockerfile.genesis` for cloud GPU batch rollouts.
-- **Adapter 3 (`isaac_lab`)**: Provides a local analytical impedance reference model ($\alpha = 0.82$, 500 Hz) for offline contract and drift verification, paired with `docker/Dockerfile.isaaclab` for headless RTX container deployment.
+- **Adapter 2 (`genesis`)**: Provides a local analytical impedance reference model (`alpha = 0.88`, 1,000 Hz) for offline contract and drift verification, paired with `docker/Dockerfile.genesis` for cloud GPU batch rollouts.
+- **Adapter 3 (`isaac_lab`)**: Provides a local analytical impedance reference model (`alpha = 0.82`, 500 Hz) for offline contract and drift verification, paired with `docker/Dockerfile.isaaclab` for headless RTX container deployment.
 
 ### Consequences
 - **Positive**: 100% of kinematic experts, dataset exporters, and inference bridges are verified locally in milliseconds; switching physics engines requires zero changes to the expert or policy code.
@@ -24,7 +24,7 @@ Isolate all SE(3) kinematics, trajectory planning, domain randomization schedule
 ## ADR-02: Singularity-Robust Damped Least-Squares Differential IK with Null-Space Posture Control
 
 ### Context & Problem
-Standard Jacobian pseudoinverse kinematics ($\Delta \mathbf{q} = \mathbf{J}^\dagger \mathbf{e}$) suffers from unbounded joint velocity spikes when a manipulator approaches kinematic singularities ($\sigma_{\min}(\mathbf{J}) \to 0$), corrupting synthetic training demonstrations with physically impossible joint torques.
+Standard Jacobian pseudoinverse kinematics (`Δq = J† e`) suffers from unbounded joint velocity spikes when a manipulator approaches kinematic singularities (`σ_min(J) → 0`), corrupting synthetic training demonstrations with physically impossible joint torques.
 
 ### Decision
 Implement Levenberg-Marquardt Damped Least-Squares (DLS) Inverse Kinematics with adaptive singular-value damping and null-space posture regularization:
@@ -33,7 +33,7 @@ All orientation errors are computed on the Lie algebra $\mathfrak{so}(3)$ via th
 
 ### Consequences
 - **Positive**: Guaranteed bounded joint velocities through singularities, zero gimbal lock, and natural elbow-up posture preservation via the null-space projector.
-- **Negative**: Requires a $6 \times 6$ linear solve and SVD check per control step ($< 25\ \mu\text{s}$ in NumPy).
+- **Negative**: Requires a 6×6 linear solve and SVD check per control step (`< 25 μs` in NumPy).
 
 ---
 
@@ -71,7 +71,7 @@ Standardize dataset export around the `LeRobotDataset` v2 layout (`src/sim2real_
 ## ADR-05: Decoupled Actor-Policy Server with Action Chunking & Temporal Ensembling
 
 ### Context & Problem
-Visuomotor foundation policies (ACT, Diffusion Policy, Flow-Matching) exhibit non-trivial inference latency ($10\text{ ms}$ to $50\text{ ms}$) and suffer from compounding single-step errors and high-frequency action jitter when queried step-by-step inside a $50\text{ Hz}$ control loop.
+Visuomotor foundation policies (ACT, Diffusion Policy, Flow-Matching) exhibit non-trivial inference latency (`10 ms` to `50 ms`) and suffer from compounding single-step errors and high-frequency action jitter when queried step-by-step inside a `50 Hz` control loop.
 
 ### Decision
 Decouple policy inference from the physics loop via `PolicyInferenceBridge` and `TemporalEnsembleBuffer`:
@@ -88,7 +88,7 @@ Decouple policy inference from the physics loop via `PolicyInferenceBridge` and 
 ## ADR-06: Mac-First ARM64 Local Execution + Spot Cloud GPU Burst Topology
 
 ### Context & Problem
-Developing and debugging robotics simulation pipelines exclusively on cloud GPU instances ($1.00–$4.00/hr) burns cloud credits on routine software iteration, unit testing, and kinematic tuning.
+Developing and debugging robotics simulation pipelines exclusively on cloud GPU instances (USD 1.00–4.00/hr) burns cloud credits on routine software iteration, unit testing, and kinematic tuning.
 
 ### Decision
 Enforce a two-tier compute topology:
@@ -104,7 +104,7 @@ Enforce a two-tier compute topology:
 ## ADR-07: MuJoCo Dynamic Equality Weld Constraint and End-to-End Pick-and-Place FSM
 
 ### Context & Problem
-In the native DeepMind MuJoCo 4.x physics simulation (`MuJoCoPhysicsAdapter`), the manipulator fingers (`finger_left`, `finger_right`) in `manipulator_6dof.xml` are rigid bodies attached to `end_effector` without prismatic slide joints or dedicated gripper actuators. Without normal clamping force ($F_N$), Coulomb friction cannot support the payload against gravity, leaving the object stationary on the workstation table ($z \approx 0.07\text{ m}$) during `LIFT`. Furthermore, the privileged trajectory expert (`PrivilegedPickPlaceExpert`) previously truncated execution after `LIFT`, lacking `TRANSPORT`, `PLACE`, and dropoff coordination.
+In the native DeepMind MuJoCo 4.x physics simulation (`MuJoCoPhysicsAdapter`), the manipulator fingers (`finger_left`, `finger_right`) in `manipulator_6dof.xml` are rigid bodies attached to `end_effector` without prismatic slide joints or dedicated gripper actuators. Without normal clamping force (`F_N`), Coulomb friction cannot support the payload against gravity, leaving the object stationary on the workstation table (`z ≈ 0.07 m`) during `LIFT`. Furthermore, the privileged trajectory expert (`PrivilegedPickPlaceExpert`) previously truncated execution after `LIFT`, lacking `TRANSPORT`, `PLACE`, and dropoff coordination.
 
 Modeling an active articulated parallel-jaw gripper in this stage would expand the action dimension from 6 to 7/8 DOF (or require a separate gripper action channel), breaking strict 6-DOF contract alignment (`JointState`, `EpisodeStepRecord`, `DampedLeastSquaresIK`) and introducing contact chattering/slip non-determinism during dataset generation.
 
@@ -119,8 +119,8 @@ Modeling an active articulated parallel-jaw gripper in this stage would expand t
 2. **Hexagonal Backend Port Extension**: Add `set_gripper(grasped: bool) -> None` to `SimulatorBackend`, implemented across both kinematic and native physics adapters.
 3. **End-to-End Pick-and-Place FSM**: Extend `PrivilegedPickPlaceExpert` to a complete lifecycle:
    $$\text{APPROACH} \to \text{DESCEND} \to \text{GRASP} \to \text{LIFT} \to \text{TRANSPORT} \to \text{PLACE} \to \text{COMPLETED}$$
-   The expert dwells for 3 control ticks at `GRASP`, activates the weld constraint, lifts $12\text{ cm}$, transports horizontally to the delivery zone on the table ($y \approx -0.10\text{ m}$), descends to the tabletop, and releases the constraint at `COMPLETED`.
+   The expert dwells for 3 control ticks at `GRASP`, activates the weld constraint, lifts `12 cm`, transports horizontally to the delivery zone on the table (`y ≈ -0.10 m`), descends to the tabletop, and releases the constraint at `COMPLETED`.
 
 ### Consequences
-- **Positive**: 100% stable, deterministic multi-body dynamics in native MuJoCo where payload mass ($0.08\text{ kg}$) and inertia dynamically load the arm without un-gated teleportation; preserves the 6-DOF kinematic Jacobian formulation while supporting a 7D reactive action channel (6 joint targets + 1 binary gripper latch) for Phase 1 closed-loop Behavioral Cloning.
-- **Negative**: Represents a Phase 1 proximity-gated ($\le 40\text{ mm}$) rigid grasp abstraction without modeling fingertip slip or grasp compliance (addressed in Phase 2 via dynamic `relpose` anchoring and articulated parallel-jaw fingers).
+- **Positive**: 100% stable, deterministic multi-body dynamics in native MuJoCo where payload mass (`0.08 kg`) and inertia dynamically load the arm without un-gated teleportation; preserves the 6-DOF kinematic Jacobian formulation while supporting a 7D reactive action channel (6 joint targets + 1 binary gripper latch) for Phase 1 closed-loop Behavioral Cloning.
+- **Negative**: Represents a Phase 1 proximity-gated (`<= 40 mm`) rigid grasp abstraction without modeling fingertip slip or grasp compliance (addressed in Phase 2 via dynamic `relpose` anchoring and articulated parallel-jaw fingers).

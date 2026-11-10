@@ -105,7 +105,7 @@ For episode index $e \in \mathbb{N}$ and base seed $s_0$, derive a deterministic
 ### Phase 4: LeRobotDataset v2 Exporter (`dataset/manifest.py`, `dataset/exporter.py`)
 
 #### Mathematical Formulation — Feature Normalization & SHA-256 Envelope
-Across $N$ recorded timesteps, compute per-dimension statistics $\boldsymbol{\mu}, \boldsymbol{\sigma}, \mathbf{x}_{\min}, \mathbf{x}_{\max}$ for `observation.state` ($\mathbf{q}, \dot{\mathbf{q}}$) and `action` ($\mathbf{q}_{\text{des}}$), and seal each episode file with a SHA-256 digest in `meta/manifest.json`.
+Across $N$ recorded timesteps, compute per-dimension statistics (`mean`, `std`, `min`, `max`) for `observation.state` (`q`, `dq`) and `action` (`q_des`), and seal each episode file with a SHA-256 digest in `meta/manifest.json`.
 
 #### Required Interfaces
 - `src/sim2real_engine/dataset/manifest.py`:
@@ -123,7 +123,7 @@ Across $N$ recorded timesteps, compute per-dimension statistics $\boldsymbol{\mu
 ### Phase 5: Decoupled Policy Inference Server (`server/chunk_buffer.py`, `server/bridge.py`)
 
 #### Mathematical Formulation — Receding-Horizon Action Chunking & Temporal Ensembling
-At control step $t$, the policy outputs an action chunk $\hat{\mathbf{A}}_t \in \mathbb{R}^{H \times n}$ of horizon $H$. For overlapping chunks predicted at steps $t - k$ ($k \in \{0, \dots, K-1\}$), the executed command $\mathbf{u}_t \in \mathbb{R}^n$ is the exponentially weighted average:
+At control step $t$, the policy outputs an action chunk $\hat{\mathbf{A}}_t \in \mathbb{R}^{H \times n}$ of horizon $H$. For overlapping chunks predicted at steps $t - k$ for $k \in \{0, \dots, K-1\}$, the executed command $\mathbf{u}_t \in \mathbb{R}^n$ is the exponentially weighted average:
 $$\mathbf{u}_t = \frac{\sum_{k=0}^{K-1} \exp(-m \cdot k) \, \hat{\mathbf{a}}_{t | t-k}}{\sum_{k=0}^{K-1} \exp(-m \cdot k)}$$
 
 #### Required Interfaces
