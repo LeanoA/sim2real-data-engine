@@ -60,11 +60,11 @@ def generate_policy_comparison_html(
     policy_arm_trace = {
         "type": "scatter3d",
         "mode": "lines+markers",
-        "name": "Policy 6-DOF Manipulator",
+        "name": "Policy 6-DOF Manipulator (Green)",
         "x": init_arm["xs"],
         "y": init_arm["ys"],
         "z": init_arm["zs"],
-        "line": {"color": "#ec4899", "width": 8},
+        "line": {"color": "#10b981", "width": 9},
         "marker": {"size": 8, "color": "#ffffff"},
     }
 
@@ -150,7 +150,7 @@ def generate_policy_comparison_html(
 
     plot_layout = {
         "title": {
-            "text": "3D Kinematic Space: Policy (Pink) vs. Expert Ground Truth (Cyan)",
+            "text": "3D Kinematics: Arm (Green), Policy Trail (Pink) vs. Expert (Cyan)",
             "font": {"size": 16, "color": "#f8fafc", "family": "system-ui, sans-serif"},
             "x": 0.05,
             "y": 0.95,
@@ -251,6 +251,11 @@ def generate_policy_comparison_html(
       background: rgba(236, 72, 153, 0.2);
       color: var(--accent-policy);
       border: 1px solid var(--accent-policy);
+    }}
+    .badge-arm {{
+      background: rgba(16, 185, 129, 0.2);
+      color: #10b981;
+      border: 1px solid #10b981;
     }}
     .badge-expert {{
       background: rgba(0, 240, 255, 0.2);
@@ -355,8 +360,9 @@ def generate_policy_comparison_html(
   <div class="header">
     <div>
       <h1>Policy vs. Privileged Expert 3D Evaluation
-        <span class="badge badge-policy">Policy (BC-MLP)</span>
-        <span class="badge badge-expert">Expert (IK-FSM)</span>
+        <span class="badge badge-arm">Robot Arm (Green)</span>
+        <span class="badge badge-policy">Policy Trail (Pink)</span>
+        <span class="badge badge-expert">Expert Ref (Cyan)</span>
       </h1>
       <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem;">
         Synchronized closed-loop execution in native physics (seed={comparison_data.seed})
