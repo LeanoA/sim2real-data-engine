@@ -13,6 +13,9 @@ from sim2real_engine.visualization.data import (
     collect_sim2sim_comparison_data,
     collect_trajectory_data,
 )
+from sim2real_engine.visualization.policy_dashboard import generate_policy_comparison_html
+
+__all__ = ["generate_html_dashboard", "generate_policy_comparison_html"]
 
 
 def generate_html_dashboard(

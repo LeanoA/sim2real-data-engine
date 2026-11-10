@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from pathlib import Path
 
 import numpy as np
 from numpy.typing import NDArray
@@ -15,6 +16,7 @@ from sim2real_engine.benchmarks.sim2sim_eval import (
 )
 from sim2real_engine.core.contracts import BackendName
 from sim2real_engine.core.kinematics import DampedLeastSquaresIK
+from sim2real_engine.server.bridge import LatencySummary
 from sim2real_engine.simulators.base import PrivilegedPickPlaceExpert
 from sim2real_engine.simulators.cloud_adapters import GenesisAdapter, IsaacLabAdapter
 from sim2real_engine.simulators.mujoco_adapter import (
@@ -232,4 +234,133 @@ def collect_sim2sim_comparison_data(seed: int = 42, max_steps: int = 120) -> Sim
         cartesian_errors_m=cartesian_errors,
         joint_rmses_rad=joint_rmses,
         metrics={"genesis": metric_gen, "isaac_lab": metric_isa},
+    )
+
+
+class PolicyVsExpertComparisonData(BaseModel):
+    """Synchronized rollout comparison between trained policy and privileged expert."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    seed: int
+    backend: BackendName
+    expert: EpisodeVisualizationData
+    policy: EpisodeVisualizationData
+    mean_tracking_error_mm: float
+    max_tracking_error_mm: float
+    policy_ee_displacement_mm: float
+    inference_p50_latency_ms: float
+    inference_p99_latency_ms: float
+
+
+def collect_policy_trajectory_data(
+    model_path: Path | str,
+    seed: int = 42,
+    max_steps: int = 120,
+    backend: BackendName = "mujoco_native",
+) -> tuple[EpisodeVisualizationData, LatencySummary]:
+    """Execute a closed-loop policy rollout and capture full 3D spatial telemetry."""
+    from sim2real_engine.learning.policy import BehaviorCloningMLP
+    from sim2real_engine.server.bridge import PolicyInferenceBridge
+    from sim2real_engine.server.chunk_buffer import TemporalEnsembleBuffer
+
+    model, metadata = BehaviorCloningMLP.load_checkpoint(model_path)
+    adapter = create_simulator_backend(backend)
+    buffer = TemporalEnsembleBuffer(action_dim=adapter.dof, horizon=model.horizon)
+    policy_fn = model.to_policy_fn(metadata)
+    bridge = PolicyInferenceBridge(buffer=buffer, policy_fn=policy_fn)
+
+    joints, initial_ee, initial_obj = adapter.reset(seed=seed)
+    bridge.reset()
+
+    timesteps: list[float] = [0.0]
+    ee_traj: list[tuple[float, float, float]] = [initial_ee.position]
+    obj_traj: list[tuple[float, float, float]] = [initial_obj.position]
+    arm_traj: list[ArmLinkPoints] = [compute_arm_links(joints.positions_rad)]
+    joints_deg: list[list[float]] = [
+        [round(float(np.degrees(val)), 1) for val in joints.positions_rad]
+    ]
+
+    current_joints = joints
+    for step_idx in range(max_steps):
+        act_chunk = bridge.infer_step(current_joints, step_idx)
+        act_step = tuple(float(x) for x in act_chunk)
+        step_record = adapter.step(act_step)
+        current_joints = step_record.joint_state
+
+        timesteps.append(step_record.timestamp_s)
+        ee_traj.append(step_record.end_effector_pose.position)
+        obj_traj.append(step_record.privileged_object_pose.position)
+        arm_traj.append(compute_arm_links(step_record.joint_state.positions_rad))
+        joints_deg.append(
+            [round(float(np.degrees(val)), 1) for val in step_record.joint_state.positions_rad]
+        )
+        if step_record.is_terminal:
+            break
+
+    key_poses: dict[str, ArmLinkPoints] = {
+        "Initial Home": arm_traj[0],
+        "Midway Rollout": arm_traj[len(arm_traj) // 2],
+        "Final Pose": arm_traj[-1],
+    }
+
+    place_target = (0.38, -0.10, initial_obj.position[2])
+    waypoints: list[tuple[str, tuple[float, float, float]]] = [
+        ("Home Pose", initial_ee.position),
+        ("Object Target", initial_obj.position),
+        ("Place Target", place_target),
+    ]
+
+    vis_data = EpisodeVisualizationData(
+        episode_id=seed,
+        timesteps_s=timesteps,
+        ee_trajectory=ee_traj,
+        object_initial_pose=initial_obj.position,
+        object_final_pose=obj_traj[-1],
+        object_trajectory=obj_traj,
+        arm_trajectory=arm_traj,
+        joint_trajectory_deg=joints_deg,
+        waypoints=waypoints,
+        key_arm_poses=key_poses,
+    )
+    return vis_data, bridge.get_latency_metrics()
+
+
+def collect_policy_vs_expert_comparison(
+    model_path: Path | str,
+    seed: int = 42,
+    max_steps: int = 120,
+    backend: BackendName = "mujoco_native",
+) -> PolicyVsExpertComparisonData:
+    """Execute both expert and policy rollouts and compute spatial tracking divergence."""
+    expert_data = collect_trajectory_data(seed=seed, max_steps=max_steps, backend=backend)
+    policy_data, latency_metrics = collect_policy_trajectory_data(
+        model_path=model_path, seed=seed, max_steps=max_steps, backend=backend
+    )
+
+    comp_steps = min(len(expert_data.ee_trajectory), len(policy_data.ee_trajectory))
+    spatial_errors_mm = [
+        float(
+            np.linalg.norm(
+                np.asarray(policy_data.ee_trajectory[i]) - np.asarray(expert_data.ee_trajectory[i])
+            )
+            * 1000.0
+        )
+        for i in range(comp_steps)
+    ]
+
+    p_init = np.asarray(policy_data.ee_trajectory[0])
+    p_final = np.asarray(policy_data.ee_trajectory[-1])
+    policy_disp_mm = float(np.linalg.norm(p_final - p_init) * 1000.0)
+
+    return PolicyVsExpertComparisonData(
+        seed=seed,
+        backend=backend,
+        expert=expert_data,
+        policy=policy_data,
+        mean_tracking_error_mm=round(float(np.mean(spatial_errors_mm)), 2),
+        max_tracking_error_mm=round(float(np.max(spatial_errors_mm)), 2),
+        policy_ee_displacement_mm=round(policy_disp_mm, 2),
+        inference_p50_latency_ms=latency_metrics.p50_ms,
+        inference_p99_latency_ms=latency_metrics.p99_ms,
     )

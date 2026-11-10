@@ -239,6 +239,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Path for generated HTML dashboard file.",
     )
     vis_parser.add_argument(
+        "--model-path",
+        type=str,
+        default=None,
+        help="Optional trained policy checkpoint (.pt) to compare against expert in 3D.",
+    )
+    vis_parser.add_argument(
         "--seed",
         type=int,
         default=42,
@@ -572,8 +578,23 @@ def _run_visualize(
     backend: BackendName,
     open_browser: bool,
     emit_json: bool,
+    model_path: str | None = None,
 ) -> int:
-    file_path = generate_html_dashboard(seed=seed, output_path=output_path, backend=backend)
+    if model_path is not None:
+        from sim2real_engine.visualization.dashboard import generate_policy_comparison_html
+        from sim2real_engine.visualization.data import collect_policy_vs_expert_comparison
+
+        comp_data = collect_policy_vs_expert_comparison(
+            model_path=model_path,
+            seed=seed,
+            backend=backend,
+        )
+        file_path = generate_policy_comparison_html(
+            comparison_data=comp_data,
+            output_path=output_path,
+        )
+    else:
+        file_path = generate_html_dashboard(seed=seed, output_path=output_path, backend=backend)
     if open_browser:
         webbrowser.open(file_path.as_uri())
 
@@ -864,6 +885,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             backend=cast(BackendName, args.backend),
             open_browser=bool(args.open),
             emit_json=bool(args.json),
+            model_path=str(args.model_path) if args.model_path else None,
         )
 
     if args.command == "view-physics":

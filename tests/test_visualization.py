@@ -131,3 +131,33 @@ def test_cli_view_physics_dispatches(monkeypatch: pytest.MonkeyPatch) -> None:
     assert code == 0
     assert called_with == {"seed": 123, "episodes": 5}
 
+
+def test_policy_vs_expert_visualization_and_cli(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    ckpt_path = Path("checkpoints/bc_pick_place.pt")
+    if not ckpt_path.is_file():
+        pytest.skip("Checkpoint 'checkpoints/bc_pick_place.pt' not found.")
+
+    out_file = tmp_path / "policy_vis.html"
+    code = main([
+        "visualize",
+        "--model-path",
+        str(ckpt_path),
+        "--backend",
+        "mujoco_native",
+        "--seed",
+        "42",
+        "--output",
+        str(out_file),
+        "--json",
+    ])
+    assert code == 0
+    assert out_file.is_file()
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "success"
+    html_text = out_file.read_text(encoding="utf-8")
+    assert "Policy vs. Privileged Expert 3D Evaluation" in html_text
+
+
