@@ -180,7 +180,11 @@ class BehaviorCloningMLP(nn.Module):
             if object_pose is not None:
                 op = np.asarray(object_pose.position, dtype=np.float32)
                 oq = np.asarray(object_pose.quaternion_wxyz, dtype=np.float32)
-                parts.extend([op, oq])
+                if ee_pose is not None:
+                    p = np.asarray(ee_pose.position, dtype=np.float32)
+                    parts.extend([op, oq, op - p])
+                else:
+                    parts.extend([op, oq])
                 if gripper_state is not None:
                     parts.append(np.array([float(gripper_state)], dtype=np.float32))
 

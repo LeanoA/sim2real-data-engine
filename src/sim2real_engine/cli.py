@@ -862,6 +862,7 @@ def _run_eval_policy(
         print(f"Policy evaluation complete ({summary.backend}):")
         print(f"Episodes: {summary.num_episodes}, Mean Steps: {summary.mean_steps}")
         print(f"Mean EE Displacement: {summary.mean_ee_displacement_m * 1000.0:.1f} mm")
+        print(f"Mean Payload Displacement: {summary.mean_payload_displacement_m * 1000.0:.1f} mm")
         print(
             f"Inference Latency: P50={summary.inference_latency_p50_ms} ms, "
             f"P99={summary.inference_latency_p99_ms} ms"

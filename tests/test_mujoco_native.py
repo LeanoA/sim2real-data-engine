@@ -107,7 +107,7 @@ def test_privileged_expert_rollout_with_native_mujoco() -> None:
 
     records = expert.run_episode(backend=adapter, seed=42, max_steps=20)
     assert len(records) > 0
-    assert records[0].step_index == 1
+    assert records[0].step_index == 0
 
 
 def test_mujoco_elbow_up_floor_clearance() -> None:

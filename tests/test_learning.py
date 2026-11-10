@@ -66,10 +66,10 @@ def test_dataset_vision_conditioned_with_object_pose(dataset_path: Path) -> None
     ds = LeRobotParquetDataset(
         dataset_path, horizon=1, include_ee_pose=True, include_object_pose=True
     )
-    # 6 q + 6 v + 3 ee_pos + 4 ee_quat + 3 obj_pos + 4 obj_quat + 1 gripper = 27
-    assert ds.obs_dim == 27
+    # 6 q + 6 v + 3 ee_pos + 4 ee_quat + 3 obj_pos + 4 obj_quat + 3 rel_pos + 1 gripper = 30
+    assert ds.obs_dim == 30
     obs, act = ds[0]
-    assert obs.shape == torch.Size([27])
+    assert obs.shape == torch.Size([30])
     assert act.shape == torch.Size([1, 7])
 
 

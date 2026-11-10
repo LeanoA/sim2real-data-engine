@@ -105,7 +105,11 @@ class LeRobotParquetDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
             if self.include_object_pose and "observation.object_position" in d:
                 obj_pos = np.array(d["observation.object_position"], dtype=np.float32)
                 obj_quat = np.array(d["observation.object_quaternion"], dtype=np.float32)
-                obs_parts.extend([obj_pos, obj_quat])
+                if self.include_ee_pose and "observation.ee_position" in d:
+                    rel_pos = obj_pos - np.array(d["observation.ee_position"], dtype=np.float32)
+                    obs_parts.extend([obj_pos, obj_quat, rel_pos])
+                else:
+                    obs_parts.extend([obj_pos, obj_quat])
                 if "observation.gripper_state" in d:
                     grip_state = np.array(d["observation.gripper_state"], dtype=np.float32)
                     obs_parts.append(grip_state)

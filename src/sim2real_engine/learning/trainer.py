@@ -128,7 +128,16 @@ def train_policy(
 
             optimizer.zero_grad()
             preds = model(obs_batch)
-            loss = criterion(preds, act_batch)
+            if act_batch.shape[-1] > 6:
+                arm_pred = preds[..., :6].contiguous()
+                arm_tgt = act_batch[..., :6].contiguous()
+                grip_pred = preds[..., 6:].contiguous()
+                grip_tgt = act_batch[..., 6:].contiguous()
+                arm_loss = criterion(arm_pred, arm_tgt)
+                grip_loss = criterion(grip_pred, grip_tgt)
+                loss = arm_loss + 5.0 * grip_loss
+            else:
+                loss = criterion(preds, act_batch)
             loss.backward()
             optimizer.step()
 
@@ -150,7 +159,16 @@ def train_policy(
                 obs_batch = obs_batch.to(device)
                 act_batch = act_batch.to(device)
                 preds = model(obs_batch)
-                val_losses.append(float(criterion(preds, act_batch).item()))
+                if act_batch.shape[-1] > 6:
+                    arm_pred = preds[..., :6].contiguous()
+                    arm_tgt = act_batch[..., :6].contiguous()
+                    grip_pred = preds[..., 6:].contiguous()
+                    grip_tgt = act_batch[..., 6:].contiguous()
+                    arm_vloss = criterion(arm_pred, arm_tgt)
+                    grip_vloss = criterion(grip_pred, grip_tgt)
+                    val_losses.append(float((arm_vloss + 5.0 * grip_vloss).item()))
+                else:
+                    val_losses.append(float(criterion(preds, act_batch).item()))
         final_val_loss = float(np.mean(val_losses)) if val_losses else final_train_loss
 
     elapsed = max(1e-4, time.perf_counter() - start_time)
