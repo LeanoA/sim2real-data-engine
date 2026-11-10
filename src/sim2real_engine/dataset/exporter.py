@@ -56,7 +56,7 @@ class LeRobotEpisodeExporter:
                     list(s.privileged_object_pose.quaternion_wxyz) for s in steps
                 ],
                 "observation.gripper_state": [
-                    [1.0 if s.gripper_action and s.gripper_action > 0.5 else 0.0]
+                    [float(s.gripper_state) if s.gripper_state is not None else 0.0]
                     for s in steps
                 ],
                 "action": [list(s.action) for s in steps],
@@ -100,7 +100,7 @@ class LeRobotEpisodeExporter:
             ),
             "observation.gripper_state": self._compute_stats(
                 [
-                    [1.0 if s.gripper_action and s.gripper_action > 0.5 else 0.0]
+                    [float(s.gripper_state) if s.gripper_state is not None else 0.0]
                     for s in self._all_steps
                 ]
             ),

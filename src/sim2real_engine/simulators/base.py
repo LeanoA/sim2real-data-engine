@@ -222,7 +222,7 @@ class PrivilegedPickPlaceExpert:
         q_home = backend.home_configuration
         records: list[EpisodeStepRecord] = []
 
-        for _ in range(max_steps):
+        for step_idx in range(max_steps):
             q_cur = np.asarray(joint_state.positions_rad, dtype=np.float64)
             jacobian = backend.get_jacobian()
             action_targets = self.compute_action(
@@ -233,18 +233,57 @@ class PrivilegedPickPlaceExpert:
                 emit_gripper=True,
             )
 
+            # Store pre-step observation (s_t) with action (a_t)
+            pre_joint_state = joint_state
+            pre_ee_pose = ee_pose
+            pre_obj_pose = obj_pose
+            pre_gripper_state = (
+                backend.gripper_state if hasattr(backend, "gripper_state") else 0.0
+            )
+
             step_record = backend.step(action_targets)
+            aligned_record = EpisodeStepRecord(
+                episode_id=step_record.episode_id,
+                step_index=step_idx,
+                timestamp_s=round(step_idx * 0.02, 6),
+                joint_state=pre_joint_state,
+                end_effector_pose=pre_ee_pose,
+                privileged_object_pose=pre_obj_pose,
+                action_joint_targets_rad=action_targets,
+                is_terminal=False,
+                gripper_state=pre_gripper_state,
+            )
+
             if self._stage == "COMPLETED":
+                records.append(aligned_record)
                 # Detach object and allow physical settling ticks
                 release_action = (*action_targets[: len(q_home)], 0.0)
-                for _ in range(5):
+                for settle_idx in range(5):
+                    settle_pre_joints = step_record.joint_state
+                    settle_pre_ee = step_record.end_effector_pose
+                    settle_pre_obj = step_record.privileged_object_pose
+                    settle_pre_grip = (
+                        backend.gripper_state if hasattr(backend, "gripper_state") else 0.0
+                    )
                     step_record = backend.step(release_action)
-                    records.append(step_record)
-                step_record = step_record.model_copy(update={"is_terminal": True})
-                records[-1] = step_record
+                    curr_step = step_idx + 1 + settle_idx
+                    settle_rec = EpisodeStepRecord(
+                        episode_id=step_record.episode_id,
+                        step_index=curr_step,
+                        timestamp_s=round(curr_step * 0.02, 6),
+                        joint_state=settle_pre_joints,
+                        end_effector_pose=settle_pre_ee,
+                        privileged_object_pose=settle_pre_obj,
+                        action_joint_targets_rad=release_action,
+                        is_terminal=(settle_idx == 4),
+                        gripper_state=settle_pre_grip,
+                    )
+                    records.append(settle_rec)
                 break
-            records.append(step_record)
+
+            records.append(aligned_record)
             joint_state = step_record.joint_state
             ee_pose = step_record.end_effector_pose
+            obj_pose = step_record.privileged_object_pose
 
         return records
