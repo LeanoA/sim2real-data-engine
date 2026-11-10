@@ -173,6 +173,9 @@ To verify policy resilience against physical hardware parameter shifts, we bench
 
 **Key Finding:** Under identical OOD physical perturbations, **temporal ensembling preserves 55.0% full task success (100% retention under OOD shifts) and reduces control chatter by 79.6% (`0.1409 → 0.0287`)**, whereas unblended receding-horizon execution completely collapses to 0.0% success with severe control chatter (`0.1409` jerk).
 
+![Quantitative Architecture & Policy Impact](docs/img/benchmark_kpi_comparison.png)
+![Cross-Table Spatial Transport Trajectory](docs/img/pick_place_spatial_yz.png)
+
 ---
 
 ## 5. Engineering Evolution & Lessons Learned
