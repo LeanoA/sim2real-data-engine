@@ -316,8 +316,16 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     train_parser.add_argument(
         "--include-ee-pose",
+        dest="include_ee_pose",
         action="store_true",
-        help="Include Cartesian EE position and quaternion in observations.",
+        default=True,
+        help="Include Cartesian EE pose in observations (default: True, 30D state).",
+    )
+    train_parser.add_argument(
+        "--no-ee-pose",
+        dest="include_ee_pose",
+        action="store_false",
+        help="Exclude Cartesian EE pose from observations (20D state).",
     )
     train_parser.add_argument(
         "--output-model",
