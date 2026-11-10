@@ -62,6 +62,21 @@ def test_joint_state_and_episode_step_dimension_validation() -> None:
         action_joint_targets_rad=(0.15, -0.15, 0.35),
     )
     assert record.joint_state.dof == 3
+    assert record.gripper_action is None
+    assert record.action == (0.15, -0.15, 0.35)
+
+    # 7D reactive action (dof + 1)
+    record_7d = EpisodeStepRecord(
+        episode_id=0,
+        step_index=1,
+        timestamp_s=0.02,
+        joint_state=joint_state,
+        end_effector_pose=SE3Pose(),
+        privileged_object_pose=SE3Pose(position=(0.5, 0.0, 0.05)),
+        action_joint_targets_rad=(0.15, -0.15, 0.35, 1.0),
+    )
+    assert record_7d.gripper_action == 1.0
+    assert len(record_7d.action) == 4
 
     with pytest.raises(ValidationError, match="Action target length"):
         EpisodeStepRecord(
@@ -72,6 +87,17 @@ def test_joint_state_and_episode_step_dimension_validation() -> None:
             end_effector_pose=SE3Pose(),
             privileged_object_pose=SE3Pose(),
             action_joint_targets_rad=(0.15, -0.15),
+        )
+
+    with pytest.raises(ValidationError, match="Action target length"):
+        EpisodeStepRecord(
+            episode_id=0,
+            step_index=1,
+            timestamp_s=0.02,
+            joint_state=joint_state,
+            end_effector_pose=SE3Pose(),
+            privileged_object_pose=SE3Pose(),
+            action_joint_targets_rad=(0.15, -0.15, 0.35, 1.0, 2.0),
         )
 
 

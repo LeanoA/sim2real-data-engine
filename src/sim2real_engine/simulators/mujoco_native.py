@@ -120,12 +120,25 @@ class MuJoCoPhysicsAdapter:
         return jac
 
     def step(self, joint_targets_rad: tuple[float, ...]) -> EpisodeStepRecord:
-        """Advance physical simulation through multiple substeps with collision solving."""
-        if len(joint_targets_rad) != self._dof:
-            msg = f"Expected {self._dof} joint targets; got {len(joint_targets_rad)}"
+        """Advance physical simulation through multiple substeps with collision solving.
+
+        Supports 6-DOF arm targets and 7-DOF reactive action targets (arm + gripper).
+        When 7 targets are provided, index 6 commands gripper closure (> 0.5 activates weld).
+        """
+        if len(joint_targets_rad) == self._dof:
+            arm_targets = joint_targets_rad
+        elif len(joint_targets_rad) == self._dof + 1:
+            arm_targets = joint_targets_rad[: self._dof]
+            gripper_cmd = float(joint_targets_rad[self._dof])
+            self.set_gripper(gripper_cmd > 0.5)
+        else:
+            msg = (
+                f"Expected {self._dof} (arm only) or {self._dof + 1} (arm + gripper) "
+                f"action targets; got {len(joint_targets_rad)}"
+            )
             raise ValueError(msg)
 
-        self.data.ctrl[:6] = np.asarray(joint_targets_rad, dtype=np.float64)
+        self.data.ctrl[:6] = np.asarray(arm_targets, dtype=np.float64)
 
         for _ in range(self._physics_substeps):
             # Feedforward gravity compensation for high-precision articulated trajectory tracking

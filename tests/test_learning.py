@@ -90,7 +90,7 @@ def test_policy_to_policy_fn_bridge_integration(dataset_path: Path) -> None:
         velocities_rad_s=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
         torques_nm=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
     )
-    predicted_chunk = policy_fn(js, step=0)
+    predicted_chunk = policy_fn(js, 0)
     assert predicted_chunk.shape == (4, 6)
 
     buffer = TemporalEnsembleBuffer(action_dim=6, horizon=4)

@@ -181,12 +181,25 @@ class MuJoCoKinematicAdapter:
         return jac
 
     def step(self, joint_targets_rad: tuple[float, ...]) -> EpisodeStepRecord:
-        """Advance damped actuator dynamics by one control step."""
-        if len(joint_targets_rad) != self._dof:
-            msg = f"Expected {self._dof} joint targets; got {len(joint_targets_rad)}"
+        """Advance damped actuator dynamics by one control step.
+
+        Supports both 6-DOF arm targets and 7-DOF reactive action targets (arm + gripper).
+        When 7 targets are provided, index 6 commands gripper closure (> 0.5 activates grasp).
+        """
+        if len(joint_targets_rad) == self._dof:
+            arm_targets = joint_targets_rad
+        elif len(joint_targets_rad) == self._dof + 1:
+            arm_targets = joint_targets_rad[: self._dof]
+            gripper_cmd = float(joint_targets_rad[self._dof])
+            self.set_gripper(gripper_cmd > 0.5)
+        else:
+            msg = (
+                f"Expected {self._dof} (arm only) or {self._dof + 1} (arm + gripper) "
+                f"action targets; got {len(joint_targets_rad)}"
+            )
             raise ValueError(msg)
 
-        q_des = np.asarray(joint_targets_rad, dtype=np.float64)
+        q_des = np.asarray(arm_targets, dtype=np.float64)
         q_err = q_des - self._q
         self._torques = self._kp * q_err - self._kd * self._dq
         q_next = self._q + self._tracking_alpha * q_err
@@ -216,6 +229,6 @@ class MuJoCoKinematicAdapter:
             joint_state=joint_state,
             end_effector_pose=ee_pose,
             privileged_object_pose=self._object_pose,
-            action_joint_targets_rad=tuple(float(v) for v in q_des),
+            action_joint_targets_rad=joint_targets_rad,
             is_terminal=False,
         )

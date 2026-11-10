@@ -72,6 +72,23 @@ def test_mujoco_physics_adapter_step_advances_simulation() -> None:
     assert record.step_index == 1
     assert pytest.approx(record.timestamp_s, abs=1e-4) == 0.02
     assert len(record.joint_state.torques_nm) == 6
+    assert record.gripper_action is None
+
+    # Test 7D action: close gripper / activate weld (g = 1.0)
+    target_7d_close = (*target_q, 1.0)
+    rec_close = adapter.step(joint_targets_rad=target_7d_close)
+    assert rec_close.gripper_action == 1.0
+    assert adapter.data.eq_active[adapter._weld_id] == 1
+
+    # Test 7D action: open gripper / deactivate weld (g = 0.0)
+    target_7d_open = (*target_q, 0.0)
+    rec_open = adapter.step(joint_targets_rad=target_7d_open)
+    assert rec_open.gripper_action == 0.0
+    assert adapter.data.eq_active[adapter._weld_id] == 0
+
+    # Invalid dimension
+    with pytest.raises(ValueError, match="action targets"):
+        adapter.step(joint_targets_rad=(*target_q, 1.0, 2.0))
 
 
 def test_privileged_expert_rollout_with_native_mujoco() -> None:

@@ -172,13 +172,27 @@ class EpisodeStepRecord(BaseModel):
 
     @model_validator(mode="after")
     def _validate_action_dimension(self) -> Self:
-        if len(self.action_joint_targets_rad) != self.joint_state.dof:
+        valid_dims = (self.joint_state.dof, self.joint_state.dof + 1)
+        if len(self.action_joint_targets_rad) not in valid_dims:
+            dof = self.joint_state.dof
             msg = (
                 f"Action target length ({len(self.action_joint_targets_rad)}) "
-                f"must match JointState DOF ({self.joint_state.dof})"
+                f"must match JointState DOF ({dof}) or 7D reactive action ({dof + 1})"
             )
             raise ValueError(msg)
         return self
+
+    @property
+    def action(self) -> tuple[float, ...]:
+        """Return the full action vector."""
+        return self.action_joint_targets_rad
+
+    @property
+    def gripper_action(self) -> float | None:
+        """Return the gripper action command if 7-DOF action is provided, else None."""
+        if len(self.action_joint_targets_rad) > self.joint_state.dof:
+            return self.action_joint_targets_rad[self.joint_state.dof]
+        return None
 
 
 class SimulatorBackendSpec(BaseModel):
