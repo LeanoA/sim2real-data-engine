@@ -3,7 +3,7 @@
 [![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/downloads/)
 [![Typed: mypy strict](https://img.shields.io/badge/typing-mypy%20strict-1f6feb.svg)](https://mypy-lang.org/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-261230.svg)](https://docs.astral.sh/ruff/)
-[![Tests: 87 passing](https://img.shields.io/badge/tests-87%20passing-success.svg)](tests/)
+[![Tests: 97 passing](https://img.shields.io/badge/tests-97%20passing-success.svg)](tests/)
 [![Live 3D WebGL Demo](https://img.shields.io/badge/Live%203D%20Demo-WebGL%20Dashboard-ec4899.svg)](https://leanoa.github.io/sim2real-data-engine/)
 [![AWS EC2 Ready](https://img.shields.io/badge/AWS%20EC2-g5.2xlarge%20(A10G)-orange.svg)](docker/run_cloud_training.py)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -136,7 +136,7 @@ All metrics empirically benchmarked on Apple Silicon (M-series, unified memory):
 | **Physics Stepping Frequency** | **500 Hz** (10 substeps @ `dt = 2 ms`) | `>= 500 Hz` | **PASSED** |
 | **Grasp Physical Realism** | **`<= 40 mm` proximity-gated `weld` constraint** (Phase 1) | Physical collision adjacency | **PASSED** |
 | **Net Cross-Table Payload Transport** | **14.2 cm** (`y = +0.044 m → -0.098 m`) | Complete macro-task delivery | **PASSED** |
-| **Unit & Integration Test Suite** | **87 / 87 tests passing (100%)** | 100% pass rate in CI | **PASSED** |
+| **Unit & Integration Test Suite** | **97 / 97 tests passing (100%)** | 100% pass rate in CI | **PASSED** |
 | **Static Analysis & Typing** | **`mypy --strict` & `ruff` clean** | 0 warnings across 43 files | **PASSED** |
 | **Dataset Export Rate (500 episodes)** | **50,213 steps in 9.1 s** (`> 5,500 steps/s`) | `< 15 s` | **PASSED** |
 | **Cryptographic Data Integrity** | **SHA-256 Digest per Parquet Chunk** | Tamper-proof manifest seal | **PASSED** |
@@ -144,7 +144,9 @@ All metrics empirically benchmarked on Apple Silicon (M-series, unified memory):
 | **Validation Loss Reduction** | **-99.8%** (`3.5266 → 0.0087`) | `> 95%` on 50k samples | **PASSED** |
 | **Policy Inference Latency (P99)** | **0.11 ms MLP / 8.11 ms Bridge** (w/ 8.0 ms IPC budget) | `< 20.0 ms` (50 Hz budget) | **PASSED** |
 | **OOD Ensembling Chatter Reduction** | **-79.6% Action Jerk** (`0.1409 → 0.0287`) | Continuous smooth torques | **PASSED** |
-| **OOD Task Success Retention** | **55.0% success rate** (vs 0.0% unensembled) | Retain control under noise | **PASSED** |
+| **OOD Task Success Retention** | **80.0% chained task success** (vs 0.0% unensembled) | Retain control under noise | **PASSED** |
+| **TCP-Frame Spatial Equivariance** | **81.3 mm payload disp** ($H=8$ synchronized) | Spatial coordinate transfer | **PASSED** |
+| **Perception Noise Robustness** | **90% grasp at $\sigma \le 2.5\text{ mm}$** ($\sigma^* = 7.5\text{ mm}$ vs $3.0\text{ mm}$ clearance) | Tolerance-bounded breakdown | **PASSED** |
 
 ---
 
@@ -188,10 +190,11 @@ We packaged and empirically verified the turnkey cloud orchestrator in [`docker/
 | Command | Description | Example |
 | :--- | :--- | :--- |
 | `sim2real view-physics` | Launch official MuJoCo 4.0 native 3D desktop viewer. | `uv run sim2real view-physics --model-path checkpoints/bc_pick_place.pt --episodes 10` |
-| `sim2real visualize` | Generate interactive 3D WebGL comparative dashboard. | `uv run sim2real visualize --model-path checkpoints/bc_pick_place.pt --open` |
+| `sim2real visualize` | Generate interactive 3D WebGL comparative dashboard (single or multi-model). | `uv run sim2real visualize --multi-model --output docs/index.html` |
+| `sim2real sweep-perception-noise` | Sweep Gaussian perception noise ($\sigma \in [0, 20]\text{ mm}$) to map grasp breakdown threshold. | `uv run sim2real sweep-perception-noise --model-path checkpoints/bc_pick_place.pt --num-points 9` |
+| `sim2real eval-policy` | Benchmark policy in closed loop with decoupled surgical telemetry and OOD DR. | `uv run sim2real eval-policy --model-path checkpoints/bc_pick_place.pt --dr --compare-ensembling` |
+| `sim2real train-policy` | Train 30D Behavioral Cloning MLP with action chunking on MPS (supports `--tcp-frame`). | `uv run sim2real train-policy --dataset-dir datasets/sim2real_pick_place --epochs 45 --horizon 8` |
 | `sim2real export-dataset` | Export synthetic demonstrations to LeRobot v2 Parquet. | `uv run sim2real export-dataset --backend mujoco_native --episodes 200` |
-| `sim2real train-policy` | Train 30D Behavioral Cloning MLP with action chunking on MPS. | `uv run sim2real train-policy --dataset-dir datasets/sim2real_pick_place --epochs 45` |
-| `sim2real eval-policy` | Benchmark policy in closed loop with OOD Domain Randomization. | `uv run sim2real eval-policy --model-path checkpoints/bc_pick_place.pt --dr --compare-ensembling` |
 | `sim2real sim2sim-eval` | Evaluate Sim-to-Sim tracking drift against analytical reference adapters. | `uv run sim2real sim2sim-eval --ref mujoco_native --target isaac_lab --episodes 10` |
 | `sim2real benchmark-bridge`| Profile real-time action chunking buffer and inference latency. | `uv run sim2real benchmark-bridge --horizon 8 --steps 200` |
 | `sim2real sample-dr` | Sample deterministic PCG64 physical perturbation manifests. | `uv run sim2real sample-dr --seed 42 --episodes 5 --json` |

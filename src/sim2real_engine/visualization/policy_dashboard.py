@@ -114,10 +114,10 @@ def _build_model_bundle(
             "tabLabel": "TCP Equivariant (45 ép &bull; MPS)",
             "deviceTag": "Apple Silicon MPS (Metal)",
             "epochs": 45,
-            "throughput": "18,906 samples/s",
-            "loss": "0.0079 (-99.77%)",
-            "taskStatus": "Nominal Trajectory (Descent Offset 17 mm)",
-            "taskStatusClass": "badge-warning",
+            "throughput": "10,998 samples/s",
+            "loss": "0.0087 (-99.8%)",
+            "taskStatus": "100% Grasp & Place Exitoso (H=8 Aligned)",
+            "taskStatusClass": "badge-success",
             "colorArm": "#06b6d4",
             "colorTrail": "#38bdf8",
         }
@@ -225,7 +225,7 @@ def generate_policy_comparison_html(
     policy_arm_trace = {
         "type": "scatter3d",
         "mode": "lines+markers",
-        "name": "Canónico 6-DOF Arm (Green)",
+        "name": "World Baseline 6-DOF Arm (Green)",
         "x": init_arm["xs"],
         "y": init_arm["ys"],
         "z": init_arm["zs"],
@@ -248,7 +248,7 @@ def generate_policy_comparison_html(
     policy_trail_trace = {
         "type": "scatter3d",
         "mode": "lines",
-        "name": "Canónico Executed Trail (Pink)",
+        "name": "World Baseline Executed Trail (Pink)",
         "x": [pol_ee_0[0]],
         "y": [pol_ee_0[1]],
         "z": [pol_ee_0[2]],
@@ -375,7 +375,7 @@ def generate_policy_comparison_html(
         {
             "type": "scatter",
             "mode": "lines",
-            "name": "Canónico Error (mm)",
+            "name": f"{primary_bundle.get('shortName', 'World Baseline')} Error (mm)",
             "x": step_indices,
             "y": primary_bundle["spatialErrorsMm"],
             "yaxis": "y1",
@@ -385,7 +385,7 @@ def generate_policy_comparison_html(
         {
             "type": "scatter",
             "mode": "lines",
-            "name": "Canónico Payload Z (cm)",
+            "name": f"{primary_bundle.get('shortName', 'World Baseline')} Payload Z (cm)",
             "x": step_indices,
             "y": primary_bundle["payloadZCm"],
             "yaxis": "y2",
