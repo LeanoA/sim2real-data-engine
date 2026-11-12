@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pyarrow.parquet as pq
@@ -13,6 +13,69 @@ import torch
 from torch.utils.data import Dataset
 
 from sim2real_engine.dataset.manifest import DatasetManifest
+
+
+def quat_to_rot_matrix(quat: np.ndarray) -> np.ndarray:
+    """Convert scalar-first unit quaternion (w, x, y, z) to 3x3 SO(3) rotation matrix.
+
+    Supports single quaternion of shape (4,) returning (3, 3), or
+    batched quaternions of shape (N, 4) returning (N, 3, 3).
+    """
+    q = np.asarray(quat, dtype=np.float32)
+    single = q.ndim == 1
+    if single:
+        q = q[np.newaxis, :]
+
+    norm = np.linalg.norm(q, axis=-1, keepdims=True)
+    norm = np.where(norm < 1e-8, 1.0, norm)
+    q = q / norm
+
+    w, x, y, z = q[:, 0], q[:, 1], q[:, 2], q[:, 3]
+
+    r00 = 1.0 - 2.0 * (y**2 + z**2)
+    r01 = 2.0 * (x * y - w * z)
+    r02 = 2.0 * (x * z + w * y)
+
+    r10 = 2.0 * (x * y + w * z)
+    r11 = 1.0 - 2.0 * (x**2 + z**2)
+    r12 = 2.0 * (y * z - w * x)
+
+    r20 = 2.0 * (x * z - w * y)
+    r21 = 2.0 * (y * z + w * x)
+    r22 = 1.0 - 2.0 * (x**2 + y**2)
+
+    r = np.stack(
+        [
+            np.stack([r00, r01, r02], axis=-1),
+            np.stack([r10, r11, r12], axis=-1),
+            np.stack([r20, r21, r22], axis=-1),
+        ],
+        axis=-2,
+    )
+
+    return r[0] if single else r
+
+
+def transform_to_tcp_frame(
+    obj_pos: np.ndarray,
+    ee_pos: np.ndarray,
+    ee_quat: np.ndarray,
+) -> np.ndarray:
+    """Transform Cartesian coordinates from world frame to local TCP (end-effector) frame.
+
+    Computes p_obj_tcp = R_ee.T @ (p_obj - p_ee).
+    Supports either single vectors ((3,), (3,), (4,)) -> (3,)
+    or batched arrays ((N, 3), (N, 3), (N, 4)) -> (N, 3).
+    """
+    op = np.asarray(obj_pos, dtype=np.float32)
+    ep = np.asarray(ee_pos, dtype=np.float32)
+    diff = op - ep
+    r_ee = quat_to_rot_matrix(ee_quat)
+
+    if diff.ndim == 1:
+        return cast(np.ndarray, r_ee.T @ diff)
+
+    return cast(np.ndarray, np.einsum("nji,nj->ni", r_ee, diff))
 
 
 class LeRobotParquetDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
@@ -30,12 +93,14 @@ class LeRobotParquetDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
         horizon: int = 1,
         include_ee_pose: bool = True,
         include_object_pose: bool = True,
+        use_tcp_frame: bool = False,
         device: str = "cpu",
     ) -> None:
         self.root_dir = Path(root_dir)
         self.horizon = max(1, int(horizon))
         self.include_ee_pose = include_ee_pose
         self.include_object_pose = include_object_pose
+        self.use_tcp_frame = use_tcp_frame
         self.device = torch.device(device)
 
         manifest_path = self.root_dir / "meta" / "manifest.json"
@@ -106,7 +171,12 @@ class LeRobotParquetDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
                 obj_pos = np.array(d["observation.object_position"], dtype=np.float32)
                 obj_quat = np.array(d["observation.object_quaternion"], dtype=np.float32)
                 if self.include_ee_pose and "observation.ee_position" in d:
-                    rel_pos = obj_pos - np.array(d["observation.ee_position"], dtype=np.float32)
+                    ee_pos = np.array(d["observation.ee_position"], dtype=np.float32)
+                    if self.use_tcp_frame and "observation.ee_quaternion" in d:
+                        ee_quat = np.array(d["observation.ee_quaternion"], dtype=np.float32)
+                        rel_pos = transform_to_tcp_frame(obj_pos, ee_pos, ee_quat)
+                    else:
+                        rel_pos = obj_pos - ee_pos
                     obs_parts.extend([obj_pos, obj_quat, rel_pos])
                 else:
                     obs_parts.extend([obj_pos, obj_quat])
@@ -170,10 +240,17 @@ class LeRobotParquetDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
             ])
 
         if self.include_object_pose and obj_pos is not None and obj_quat is not None:
-            parts.extend([
-                np.asarray(obj_pos, dtype=np.float32),
-                np.asarray(obj_quat, dtype=np.float32),
-            ])
+            op_arr = np.asarray(obj_pos, dtype=np.float32)
+            oq_arr = np.asarray(obj_quat, dtype=np.float32)
+            parts.extend([op_arr, oq_arr])
+            if self.include_ee_pose and ee_pos is not None:
+                ep_arr = np.asarray(ee_pos, dtype=np.float32)
+                if self.use_tcp_frame and ee_quat is not None:
+                    eq_arr = np.asarray(ee_quat, dtype=np.float32)
+                    rel_pos = transform_to_tcp_frame(op_arr, ep_arr, eq_arr)
+                else:
+                    rel_pos = op_arr - ep_arr
+                parts.append(rel_pos)
             if gripper_state is not None:
                 grip_arr = np.atleast_1d(np.asarray(gripper_state, dtype=np.float32))
                 parts.append(grip_arr)
@@ -194,4 +271,5 @@ class LeRobotParquetDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
             "horizon": self.horizon,
             "include_ee_pose": self.include_ee_pose,
             "include_object_pose": self.include_object_pose,
+            "use_tcp_frame": self.use_tcp_frame,
         }

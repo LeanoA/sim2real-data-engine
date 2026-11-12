@@ -339,6 +339,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Exclude Cartesian EE pose from observations (20D state).",
     )
     train_parser.add_argument(
+        "--tcp-frame",
+        action="store_true",
+        default=False,
+        help="Transform relative object observations into local TCP frame (R_ee^T (p_obj - p_ee)).",
+    )
+    train_parser.add_argument(
         "--output-model",
         type=str,
         default="./checkpoints/bc_policy.pt",
@@ -737,6 +743,7 @@ def _run_train_policy(
     device: str,
     seed: int,
     emit_json: bool,
+    use_tcp_frame: bool = False,
 ) -> int:
     from typing import Any
 
@@ -756,6 +763,7 @@ def _run_train_policy(
             root_dir=ds_path,
             horizon=horizon,
             include_ee_pose=include_ee_pose,
+            use_tcp_frame=use_tcp_frame,
         )
     except Exception as exc:
         print(f"Failed to load dataset: {exc}", file=sys.stderr)
@@ -1091,6 +1099,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             device=str(args.device),
             seed=int(args.seed),
             emit_json=bool(args.json),
+            use_tcp_frame=bool(args.tcp_frame),
         )
 
     if args.command == "eval-policy":

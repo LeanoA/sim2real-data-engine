@@ -11,6 +11,7 @@ from numpy.typing import NDArray
 from torch import nn
 
 from sim2real_engine.core.contracts import JointState, SE3Pose
+from sim2real_engine.learning.dataset import transform_to_tcp_frame
 from sim2real_engine.server.bridge import PolicyFn
 
 
@@ -151,6 +152,7 @@ class BehaviorCloningMLP(nn.Module):
         dev = torch.device(device)
         self.to(dev)
 
+        use_tcp_frame = bool(stats.get("use_tcp_frame", False))
         q_mean = np.array(stats["q_mean"], dtype=np.float32)
         q_std = np.array(stats["q_std"], dtype=np.float32)
         v_mean = np.array(stats["v_mean"], dtype=np.float32)
@@ -182,7 +184,12 @@ class BehaviorCloningMLP(nn.Module):
                 oq = np.asarray(object_pose.quaternion_wxyz, dtype=np.float32)
                 if ee_pose is not None:
                     p = np.asarray(ee_pose.position, dtype=np.float32)
-                    parts.extend([op, oq, op - p])
+                    if use_tcp_frame:
+                        q_rot = np.asarray(ee_pose.quaternion_wxyz, dtype=np.float32)
+                        rel_pos = transform_to_tcp_frame(op, p, q_rot)
+                    else:
+                        rel_pos = op - p
+                    parts.extend([op, oq, rel_pos])
                 else:
                     parts.extend([op, oq])
                 if gripper_state is not None:
