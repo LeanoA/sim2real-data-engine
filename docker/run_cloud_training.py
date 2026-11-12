@@ -83,7 +83,8 @@ uv run sim2real sim2sim-eval \\
 echo "Executing policy training on NVIDIA A10G (CUDA)..."
 uv run sim2real train-policy \\
   --dataset-dir ./datasets/sim2real_pick_place \\
-  --epochs 15 \\
+  --epochs 45 \\
+  --horizon 8 \\
   --batch-size 64 \\
   --device cuda \\
   --output-model /tmp/bc_cloud_policy.pt \\
