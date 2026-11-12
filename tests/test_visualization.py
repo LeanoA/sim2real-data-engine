@@ -186,3 +186,42 @@ def test_policy_vs_expert_visualization_and_cli(
     assert "https://github.com/LeanoA/sim2real-data-engine" in html_text
 
 
+def test_multi_model_visualization_and_cli(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    c1 = Path("checkpoints/bc_pick_place.pt")
+    c2 = Path("results/bc_cloud_policy.pt")
+    if not c1.is_file() or not c2.is_file():
+        pytest.skip("Both checkpoints are required for multi-model verification.")
+
+    out_file = tmp_path / "multi_vis.html"
+    code = main([
+        "visualize",
+        "--model-path",
+        str(c1),
+        "--compare-model-path",
+        str(c2),
+        "--backend",
+        "mujoco_native",
+        "--seed",
+        "42",
+        "--output",
+        str(out_file),
+        "--json",
+    ])
+    assert code == 0
+    assert out_file.is_file()
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "success"
+    html_text = out_file.read_text(encoding="utf-8")
+    assert "model-switcher-bar" in html_text
+    assert "tab-canonical" in html_text
+    assert "tab-cloud" in html_text
+    assert "tab-compare" in html_text
+    assert "canonical_45ep" in html_text
+    assert "cloud_15ep" in html_text
+    assert "Client-Side Static Store" in html_text
+
+
+

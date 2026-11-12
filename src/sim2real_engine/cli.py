@@ -245,6 +245,17 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Optional trained policy checkpoint (.pt) to compare against expert in 3D.",
     )
     vis_parser.add_argument(
+        "--compare-model-path",
+        type=str,
+        default=None,
+        help="Optional secondary policy checkpoint (.pt) for side-by-side multi-model comparison.",
+    )
+    vis_parser.add_argument(
+        "--multi-model",
+        action="store_true",
+        help="Automatically bundle available canonical and cloud checkpoints into dashboard.",
+    )
+    vis_parser.add_argument(
         "--seed",
         type=int,
         default=42,
@@ -605,8 +616,57 @@ def _run_visualize(
     open_browser: bool,
     emit_json: bool,
     model_path: str | None = None,
+    compare_model_path: str | None = None,
+    multi_model: bool = False,
 ) -> int:
-    if model_path is not None:
+    if multi_model or compare_model_path is not None:
+        from sim2real_engine.visualization.dashboard import generate_policy_comparison_html
+        from sim2real_engine.visualization.data import (
+            collect_multi_model_comparison,
+            collect_policy_vs_expert_comparison,
+        )
+
+        canonical_path = Path("checkpoints/bc_pick_place.pt")
+        cloud_path = Path("results/bc_cloud_policy.pt")
+
+        models_to_load: dict[str, Path | str] = {}
+        primary_p = Path(model_path) if model_path else canonical_path
+        secondary_p = Path(compare_model_path) if compare_model_path else cloud_path
+
+        if primary_p.is_file():
+            models_to_load["canonical_45ep"] = primary_p
+        if secondary_p.is_file():
+            models_to_load["cloud_15ep"] = secondary_p
+
+        if len(models_to_load) > 1:
+            comps = collect_multi_model_comparison(
+                model_paths=models_to_load, seed=seed, backend=backend
+            )
+            prim_comp = comps["canonical_45ep"]
+            add_comps = {k: v for k, v in comps.items() if k != "canonical_45ep"}
+            file_path = generate_policy_comparison_html(
+                comparison_data=prim_comp,
+                output_path=output_path,
+                additional_models=add_comps,
+            )
+        elif models_to_load:
+            single_key = next(iter(models_to_load))
+            single_comp = collect_policy_vs_expert_comparison(
+                model_path=models_to_load[single_key], seed=seed, backend=backend
+            )
+            file_path = generate_policy_comparison_html(
+                comparison_data=single_comp,
+                output_path=output_path,
+            )
+        else:
+            comp_data = collect_policy_vs_expert_comparison(
+                model_path=model_path or str(canonical_path), seed=seed, backend=backend
+            )
+            file_path = generate_policy_comparison_html(
+                comparison_data=comp_data,
+                output_path=output_path,
+            )
+    elif model_path is not None:
         from sim2real_engine.visualization.dashboard import generate_policy_comparison_html
         from sim2real_engine.visualization.data import collect_policy_vs_expert_comparison
 
@@ -989,6 +1049,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             open_browser=bool(args.open),
             emit_json=bool(args.json),
             model_path=str(args.model_path) if args.model_path else None,
+            compare_model_path=str(args.compare_model_path) if args.compare_model_path else None,
+            multi_model=bool(args.multi_model),
         )
 
     if args.command == "view-physics":

@@ -381,3 +381,48 @@ def collect_policy_vs_expert_comparison(
         inference_p50_latency_ms=latency_metrics.p50_ms,
         inference_p99_latency_ms=latency_metrics.p99_ms,
     )
+
+
+def collect_multi_model_comparison(
+    model_paths: dict[str, Path | str],
+    seed: int = 42,
+    max_steps: int = 120,
+    backend: BackendName = "mujoco_native",
+) -> dict[str, PolicyVsExpertComparisonData]:
+    """Execute rollouts for multiple trained policies against a single shared expert rollout."""
+    expert_data = collect_trajectory_data(seed=seed, max_steps=max_steps, backend=backend)
+    results: dict[str, PolicyVsExpertComparisonData] = {}
+
+    for key, path in model_paths.items():
+        policy_data, latency_metrics = collect_policy_trajectory_data(
+            model_path=path, seed=seed, max_steps=max_steps, backend=backend
+        )
+        comp_steps = min(len(expert_data.ee_trajectory), len(policy_data.ee_trajectory))
+        spatial_errors_mm = [
+            float(
+                np.linalg.norm(
+                    np.asarray(policy_data.ee_trajectory[i])
+                    - np.asarray(expert_data.ee_trajectory[i])
+                )
+                * 1000.0
+            )
+            for i in range(comp_steps)
+        ]
+        p_init = np.asarray(policy_data.ee_trajectory[0])
+        p_final = np.asarray(policy_data.ee_trajectory[-1])
+        policy_disp_mm = float(np.linalg.norm(p_final - p_init) * 1000.0)
+
+        results[key] = PolicyVsExpertComparisonData(
+            seed=seed,
+            backend=backend,
+            expert=expert_data,
+            policy=policy_data,
+            mean_tracking_error_mm=round(float(np.mean(spatial_errors_mm)), 2),
+            max_tracking_error_mm=round(float(np.max(spatial_errors_mm)), 2),
+            policy_ee_displacement_mm=round(policy_disp_mm, 2),
+            inference_p50_latency_ms=latency_metrics.p50_ms,
+            inference_p99_latency_ms=latency_metrics.p99_ms,
+        )
+
+    return results
+

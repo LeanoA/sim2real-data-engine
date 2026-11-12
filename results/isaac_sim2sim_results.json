@@ -1,0 +1,9 @@
+{
+  "reference_backend": "mujoco_native",
+  "target_backend": "isaac_lab",
+  "num_episodes": 20,
+  "mean_trajectory_rmse": 0.694982,
+  "mean_ee_divergence_m": 0.00213,
+  "success_rate_reference": 1.0,
+  "success_rate_target": 1.0
+}
