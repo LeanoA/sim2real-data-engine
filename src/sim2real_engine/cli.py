@@ -8,7 +8,7 @@ import sys
 import webbrowser
 from collections.abc import Sequence
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, ValidationError
@@ -409,7 +409,81 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Compare performance with vs without temporal ensembling under identical OOD physics.",
     )
+    eval_parser.add_argument(
+        "--perception-noise-mm",
+        type=float,
+        default=0.0,
+        help="Injected Gaussian perception position noise std in mm (default: 0.0).",
+    )
+    eval_parser.add_argument(
+        "--perception-noise-mode",
+        type=str,
+        choices=["per_episode", "per_step"],
+        default="per_episode",
+        help="Noise temporal mode: per-episode static offset vs per-step jitter.",
+    )
     eval_parser.add_argument("--json", action="store_true", help="Emit JSON output.")
+
+    sweep_parser = subparsers.add_parser(
+        "sweep-perception-noise",
+        help="Run perception noise sensitivity sweep (sigma in [0, 20] mm) to map breakdown.",
+    )
+    sweep_parser.add_argument(
+        "--model-path",
+        type=str,
+        default="./checkpoints/bc_pick_place.pt",
+        help="Path to saved policy checkpoint file (.pt).",
+    )
+    sweep_parser.add_argument(
+        "--backend",
+        choices=list(DEFAULT_BACKENDS.keys()),
+        default="mujoco_native",
+        help="Simulator backend for evaluation rollouts.",
+    )
+    sweep_parser.add_argument(
+        "--sigma-min-mm",
+        type=float,
+        default=0.0,
+        help="Minimum noise standard deviation in mm (default: 0.0).",
+    )
+    sweep_parser.add_argument(
+        "--sigma-max-mm",
+        type=float,
+        default=20.0,
+        help="Maximum noise standard deviation in mm (default: 20.0).",
+    )
+    sweep_parser.add_argument(
+        "--num-points",
+        type=int,
+        default=9,
+        help="Number of discrete noise sweep points (default: 9).",
+    )
+    sweep_parser.add_argument(
+        "--episodes",
+        type=int,
+        default=10,
+        help="Evaluation episodes per noise level (default: 10).",
+    )
+    sweep_parser.add_argument(
+        "--noise-mode",
+        type=str,
+        choices=["per_episode", "per_step"],
+        default="per_episode",
+        help="Temporal noise mode: per_episode (static offset) or per_step (sensor jitter).",
+    )
+    sweep_parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Base deterministic evaluation RNG seed.",
+    )
+    sweep_parser.add_argument(
+        "--max-steps",
+        type=int,
+        default=120,
+        help="Maximum simulation steps allowed per episode.",
+    )
+    sweep_parser.add_argument("--json", action="store_true", help="Emit JSON output.")
 
     return parser
 
@@ -832,6 +906,8 @@ def _run_eval_policy(
     emit_json: bool,
     dr: bool = False,
     compare_ensembling: bool = False,
+    perception_noise_mm: float = 0.0,
+    perception_noise_mode: str = "per_episode",
 ) -> int:
     from sim2real_engine.learning import BehaviorCloningMLP
 
@@ -840,8 +916,17 @@ def _run_eval_policy(
         print(f"Model checkpoint not found: {ckpt_path}", file=sys.stderr)
         return 1
 
-    if dr:
-        from sim2real_engine.benchmarks import evaluate_ood_robustness
+    if dr or perception_noise_mm > 0.0:
+        from sim2real_engine.benchmarks import PerceptionNoiseConfig, evaluate_ood_robustness
+
+        p_noise = (
+            PerceptionNoiseConfig(
+                pos_noise_std_m=perception_noise_mm / 1000.0,
+                noise_mode=cast(Any, perception_noise_mode),
+            )
+            if perception_noise_mm > 0.0
+            else None
+        )
 
         report = evaluate_ood_robustness(
             model_path=ckpt_path,
@@ -850,6 +935,7 @@ def _run_eval_policy(
             base_seed=seed,
             max_steps=max_steps,
             compare_ensembling=compare_ensembling,
+            perception_noise=p_noise,
         )
         if emit_json:
             print(json.dumps(report.model_dump(), indent=2))
@@ -984,6 +1070,72 @@ def _run_eval_policy(
             f"Inference Latency: P50={summary.inference_latency_p50_ms} ms, "
             f"P99={summary.inference_latency_p99_ms} ms"
         )
+    return 0
+
+
+def _run_sweep_perception_noise(
+    model_path: str,
+    backend_name: str,
+    sigma_min_mm: float,
+    sigma_max_mm: float,
+    num_points: int,
+    episodes: int,
+    noise_mode: str,
+    seed: int,
+    emit_json: bool,
+    max_steps: int = 120,
+) -> int:
+    from sim2real_engine.benchmarks import run_perception_sensitivity_sweep
+
+    ckpt_path = Path(model_path)
+    if not ckpt_path.is_file():
+        print(f"Model checkpoint not found: {ckpt_path}", file=sys.stderr)
+        return 1
+
+    curve = run_perception_sensitivity_sweep(
+        model_path=ckpt_path,
+        backend_name=cast(BackendName, backend_name),
+        sigma_min_mm=sigma_min_mm,
+        sigma_max_mm=sigma_max_mm,
+        num_points=num_points,
+        episodes_per_point=episodes,
+        base_seed=seed,
+        max_steps=max_steps,
+        noise_mode=cast(Any, noise_mode),
+    )
+
+    if emit_json:
+        print(json.dumps(curve.model_dump(), indent=2))
+    else:
+        print(f"Perception Noise Sensitivity Sweep ({curve.backend}):")
+        print(f"Model: {curve.model_path}")
+        print(
+            f"Noise Mode: {curve.noise_mode} | "
+            f"Episodes/point: {curve.num_episodes_per_point} | "
+            f"Clearance: {curve.mechanical_clearance_mm:.1f} mm\n"
+        )
+        print("  Sigma (mm) | Grasp (%) | Place (%) | Chained (%) | Reach Err (mm) | Hunting (rev)")
+        print("  -----------+-----------+-----------+-------------+----------------+--------------")
+        for pt in curve.noise_points:
+            print(
+                f"  {pt.sigma_mm:10.1f} | "
+                f"{pt.grasp_success_rate * 100.0:9.1f} | "
+                f"{pt.placement_success_rate * 100.0:9.1f} | "
+                f"{pt.chained_success_rate * 100.0:11.1f} | "
+                f"{pt.mean_min_reach_error_mm:14.1f} | "
+                f"{pt.mean_hunting_oscillations:14.1f}"
+            )
+        print("  -----------+-----------+-----------+-------------+----------------+--------------")
+        if curve.breakdown_threshold_mm is not None:
+            print(
+                f"\nEmpirical Breakdown Threshold: sigma* = {curve.breakdown_threshold_mm:.1f} mm "
+                f"(Grasp collapsed below 50% vs {curve.mechanical_clearance_mm:.1f} mm tolerance)"
+            )
+        else:
+            print(
+                "\nEmpirical Breakdown Threshold: None detected up to "
+                f"sigma = {sigma_max_mm:.1f} mm"
+            )
     return 0
 
 
@@ -1132,6 +1284,22 @@ def main(argv: Sequence[str] | None = None) -> int:
             emit_json=bool(args.json),
             dr=bool(args.dr),
             compare_ensembling=bool(args.compare_ensembling),
+            perception_noise_mm=float(getattr(args, "perception_noise_mm", 0.0)),
+            perception_noise_mode=str(getattr(args, "perception_noise_mode", "per_episode")),
+        )
+
+    if args.command == "sweep-perception-noise":
+        return _run_sweep_perception_noise(
+            model_path=str(args.model_path),
+            backend_name=str(args.backend),
+            sigma_min_mm=float(args.sigma_min_mm),
+            sigma_max_mm=float(args.sigma_max_mm),
+            num_points=int(args.num_points),
+            episodes=int(args.episodes),
+            noise_mode=str(args.noise_mode),
+            seed=int(args.seed),
+            emit_json=bool(args.json),
+            max_steps=int(args.max_steps),
         )
 
     return 1

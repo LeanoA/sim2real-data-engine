@@ -8,6 +8,12 @@ import math
 import numpy as np
 import pytest
 
+from sim2real_engine.benchmarks import (
+    PerceptionNoiseConfig,
+    PerceptionNoisePoint,
+    PerceptionSensitivityCurve,
+    run_perception_sensitivity_sweep,
+)
 from sim2real_engine.benchmarks.sim2sim_eval import (
     Sim2SimMetrics,
     create_simulator_backend,
@@ -190,3 +196,112 @@ def test_cli_eval_policy_dr_and_compare_ensembling(capsys: pytest.CaptureFixture
     captured_plain = capsys.readouterr()
     assert "OOD Robustness Benchmark (mujoco_native)" in captured_plain.out
     assert "Ensembling Robustness Benefit:" in captured_plain.out
+
+
+def test_perception_noise_config_and_curve() -> None:
+    """PerceptionNoiseConfig and PerceptionSensitivityCurve validate mechanical clearance."""
+    cfg = PerceptionNoiseConfig(pos_noise_std_m=0.005, noise_mode="per_episode")
+    assert cfg.pos_noise_std_m == 0.005
+    assert cfg.noise_mode == "per_episode"
+
+    pt = PerceptionNoisePoint(
+        sigma_mm=3.0,
+        sigma_m=0.003,
+        num_episodes=5,
+        grasp_success_rate=0.4,
+        placement_success_rate=0.2,
+        chained_success_rate=0.08,
+        mean_min_reach_error_mm=12.5,
+        mean_placement_error_mm=25.0,
+        mean_hunting_oscillations=1.2,
+    )
+    assert pt.sigma_mm == 3.0
+
+    curve = PerceptionSensitivityCurve(
+        model_path="checkpoints/bc_pick_place.pt",
+        backend="mujoco_native",
+        noise_mode="per_episode",
+        num_episodes_per_point=5,
+        noise_points=[pt],
+        breakdown_threshold_mm=3.0,
+        zero_noise_grasp_rate=1.0,
+        mechanical_clearance_mm=3.0,
+    )
+    assert curve.mechanical_clearance_mm == 3.0
+    assert curve.breakdown_threshold_mm == 3.0
+    assert len(curve.noise_points) == 1
+
+
+def test_run_perception_sensitivity_sweep_execution() -> None:
+    """`run_perception_sensitivity_sweep` executes over discrete sigmas and computes breakdown."""
+    curve = run_perception_sensitivity_sweep(
+        model_path="checkpoints/bc_pick_place.pt",
+        backend_name="mujoco_native",
+        sigma_min_mm=0.0,
+        sigma_max_mm=4.0,
+        num_points=2,
+        episodes_per_point=1,
+        max_steps=10,
+        noise_mode="per_episode",
+    )
+    assert isinstance(curve, PerceptionSensitivityCurve)
+    assert len(curve.noise_points) == 2
+    assert curve.noise_points[0].sigma_mm == 0.0
+    assert curve.noise_points[1].sigma_mm == 4.0
+    assert 0.0 <= curve.noise_points[0].grasp_success_rate <= 1.0
+
+
+def test_cli_eval_policy_with_perception_noise(capsys: pytest.CaptureFixture[str]) -> None:
+    """`sim2real eval-policy --perception-noise-mm` injects noise into rollout evaluation."""
+    ret = main([
+        "eval-policy",
+        "--model-path", "checkpoints/bc_pick_place.pt",
+        "--perception-noise-mm", "2.5",
+        "--perception-noise-mode", "per_episode",
+        "--episodes", "1",
+        "--max-steps", "10",
+        "--json",
+    ])
+    assert ret == 0
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["backend"] == "mujoco_native"
+    assert "nominal" in payload
+
+
+def test_cli_sweep_perception_noise(capsys: pytest.CaptureFixture[str]) -> None:
+    """`sim2real sweep-perception-noise` outputs ASCII table and JSON format."""
+    # JSON output check
+    ret_json = main([
+        "sweep-perception-noise",
+        "--model-path", "checkpoints/bc_pick_place.pt",
+        "--sigma-min-mm", "0.0",
+        "--sigma-max-mm", "3.0",
+        "--num-points", "2",
+        "--episodes", "1",
+        "--max-steps", "10",
+        "--json",
+    ])
+    assert ret_json == 0
+    captured_json = capsys.readouterr()
+    payload = json.loads(captured_json.out)
+    assert "mechanical_clearance_mm" in payload
+    assert payload["mechanical_clearance_mm"] == 3.0
+    assert len(payload["noise_points"]) == 2
+
+    # Plain text ASCII table output check
+    ret_plain = main([
+        "sweep-perception-noise",
+        "--model-path", "checkpoints/bc_pick_place.pt",
+        "--sigma-min-mm", "0.0",
+        "--sigma-max-mm", "3.0",
+        "--num-points", "2",
+        "--episodes", "1",
+        "--max-steps", "10",
+    ])
+    assert ret_plain == 0
+    captured_plain = capsys.readouterr()
+    assert "Perception Noise Sensitivity Sweep" in captured_plain.out
+    assert "Clearance: 3.0 mm" in captured_plain.out
+    assert "Empirical Breakdown Threshold" in captured_plain.out
+

@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
 from sim2real_engine.benchmarks.sim2sim_eval import create_simulator_backend
-from sim2real_engine.core.contracts import BackendName, DomainRandomizationConfig
+from sim2real_engine.core.contracts import BackendName, DomainRandomizationConfig, SE3Pose
 from sim2real_engine.learning.policy import BehaviorCloningMLP
 from sim2real_engine.randomization.samplers import DomainRandomizer, EpisodePerturbation
 from sim2real_engine.server.bridge import PolicyInferenceBridge
@@ -132,6 +133,80 @@ class OODBenchmarkReport(BaseModel):
     )
 
 
+class PerceptionNoiseConfig(BaseModel):
+    """Configuration for synthetic perception noise injected into object observations."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    pos_noise_std_m: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Gaussian standard deviation for Cartesian object position noise (m).",
+    )
+    rot_noise_std_rad: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Gaussian standard deviation for object orientation noise (rad).",
+    )
+    noise_mode: Literal["per_episode", "per_step"] = Field(
+        default="per_episode",
+        description="Temporal noise mode: static offset per episode vs per-step frame jitter.",
+    )
+
+
+class PerceptionNoisePoint(BaseModel):
+    """Evaluation metrics at a specific perception noise standard deviation."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    sigma_mm: float = Field(..., ge=0.0, description="Injected position noise std in mm.")
+    sigma_m: float = Field(..., ge=0.0, description="Injected position noise std in meters.")
+    num_episodes: int = Field(..., ge=1, description="Number of evaluated episodes.")
+    grasp_success_rate: float = Field(
+        ..., ge=0.0, le=1.0, description="Grasp latch success rate."
+    )
+    placement_success_rate: float = Field(
+        ..., ge=0.0, le=1.0, description="Placement delivery rate."
+    )
+    chained_success_rate: float = Field(
+        ..., ge=0.0, le=1.0, description="Chained task success rate."
+    )
+    mean_min_reach_error_mm: float = Field(
+        ..., ge=0.0, description="Mean closest reach proximity (mm)."
+    )
+    mean_placement_error_mm: float = Field(
+        ..., ge=0.0, description="Mean final placement error (mm)."
+    )
+    mean_hunting_oscillations: float = Field(
+        ..., ge=0.0, description="Mean velocity sign reversals."
+    )
+
+
+class PerceptionSensitivityCurve(BaseModel):
+    """Empirical sensitivity curve mapping task and grasp success across perception noise levels."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    model_path: str = Field(..., description="Evaluated policy checkpoint.")
+    backend: BackendName = Field(..., description="Simulator backend.")
+    noise_mode: str = Field(..., description="Temporal noise mode (per_episode or per_step).")
+    num_episodes_per_point: int = Field(
+        ..., ge=1, description="Episodes evaluated per noise level."
+    )
+    noise_points: list[PerceptionNoisePoint] = Field(..., description="Sampled sweep points.")
+    breakdown_threshold_mm: float | None = Field(
+        None,
+        description="First noise sigma (mm) where grasp success drops strictly below 50%.",
+    )
+    zero_noise_grasp_rate: float = Field(
+        ..., ge=0.0, le=1.0, description="Grasp rate at sigma=0 mm."
+    )
+    mechanical_clearance_mm: float = Field(
+        default=3.0,
+        description="Physical gripper-payload clearance tolerance (mm) before finger collision.",
+    )
+
+
 def _evaluate_regime(
     model: BehaviorCloningMLP,
     metadata: dict[str, object],
@@ -144,6 +219,7 @@ def _evaluate_regime(
     regime_name: str,
     placement_tolerance_mm: float = 20.0,
     max_tilt_deg: float = 15.0,
+    perception_noise: PerceptionNoiseConfig | None = None,
 ) -> OODRegimeMetrics:
     """Run evaluation rollouts under a specific dynamics and ensembling regime."""
     adapter = create_simulator_backend(backend_name)
@@ -186,6 +262,16 @@ def _evaluate_regime(
         current_obj = initial_obj
         current_gripper = 0.0
 
+        # Seeded perception noise generator (isolated from physics perturbation seed)
+        noise_rng = np.random.default_rng(ep_seed + 10007)
+        ep_pos_offset = np.zeros(3, dtype=np.float64)
+        if (
+            perception_noise is not None
+            and perception_noise.pos_noise_std_m > 0.0
+            and perception_noise.noise_mode == "per_episode"
+        ):
+            ep_pos_offset = noise_rng.normal(0.0, perception_noise.pos_noise_std_m, size=3)
+
         initial_pos = np.asarray(initial_ee.position, dtype=np.float64)
         initial_obj_pos = np.asarray(initial_obj.position, dtype=np.float64)
         target_place = np.array([0.38, -0.10, initial_obj_pos[2]], dtype=np.float64)
@@ -204,11 +290,28 @@ def _evaluate_regime(
 
         step_idx = 0
         for step_idx in range(max_steps):
+            if perception_noise is not None and perception_noise.pos_noise_std_m > 0.0:
+                if perception_noise.noise_mode == "per_episode":
+                    offset = ep_pos_offset
+                else:
+                    offset = noise_rng.normal(0.0, perception_noise.pos_noise_std_m, size=3)
+                noisy_pos = (
+                    float(current_obj.position[0] + offset[0]),
+                    float(current_obj.position[1] + offset[1]),
+                    float(current_obj.position[2] + offset[2]),
+                )
+                perceived_obj = SE3Pose(
+                    position=noisy_pos,
+                    quaternion_wxyz=current_obj.quaternion_wxyz,
+                )
+            else:
+                perceived_obj = current_obj
+
             act_chunk = bridge.infer_step(
                 current_joints,
                 step_idx,
                 ee_pose=current_ee,
-                object_pose=current_obj,
+                object_pose=perceived_obj,
                 gripper_state=current_gripper,
             )
             act_step = tuple(float(x) for x in act_chunk)
@@ -337,6 +440,7 @@ def evaluate_ood_robustness(
     compare_ensembling: bool = False,
     dr_config: DomainRandomizationConfig | None = None,
     placement_tolerance_mm: float = 20.0,
+    perception_noise: PerceptionNoiseConfig | None = None,
 ) -> OODBenchmarkReport:
     """Benchmark policy robustness across nominal vs. OOD domain randomized dynamics."""
     ckpt_path = Path(model_path)
@@ -358,6 +462,7 @@ def evaluate_ood_robustness(
         enable_ensembling=True,
         regime_name="nominal",
         placement_tolerance_mm=placement_tolerance_mm,
+        perception_noise=perception_noise,
     )
 
     # Sample deterministic OOD domain perturbations
@@ -379,6 +484,7 @@ def evaluate_ood_robustness(
         enable_ensembling=True,
         regime_name="ood_dr_ensembled",
         placement_tolerance_mm=placement_tolerance_mm,
+        perception_noise=perception_noise,
     )
 
     # 3. Optionally evaluate under identical perturbations without temporal ensembling
@@ -397,6 +503,7 @@ def evaluate_ood_robustness(
             enable_ensembling=False,
             regime_name="ood_dr_no_ensemble",
             placement_tolerance_mm=placement_tolerance_mm,
+            perception_noise=perception_noise,
         )
         if ood_no_ens_metrics.mean_action_jerk > 0:
             diff = ood_no_ens_metrics.mean_action_jerk - ood_ens_metrics.mean_action_jerk
@@ -410,4 +517,83 @@ def evaluate_ood_robustness(
         ood_dr_ensembled=ood_ens_metrics,
         ood_dr_no_ensemble=ood_no_ens_metrics,
         action_jerk_reduction_pct=jerk_reduction,
+    )
+
+
+def run_perception_sensitivity_sweep(
+    model_path: str | Path,
+    backend_name: BackendName = "mujoco_native",
+    sigma_min_mm: float = 0.0,
+    sigma_max_mm: float = 20.0,
+    num_points: int = 9,
+    episodes_per_point: int = 10,
+    base_seed: int = 42,
+    max_steps: int = 120,
+    noise_mode: Literal["per_episode", "per_step"] = "per_episode",
+    enable_ensembling: bool = True,
+    placement_tolerance_mm: float = 20.0,
+) -> PerceptionSensitivityCurve:
+    """Evaluate policy across perception noise levels to map empirical sensitivity and breakdown."""
+    ckpt = Path(model_path)
+    if not ckpt.is_file():
+        msg = f"Policy checkpoint not found: {ckpt}"
+        raise FileNotFoundError(msg)
+
+    model, metadata = BehaviorCloningMLP.load_checkpoint(ckpt)
+
+    sigmas_mm = np.linspace(sigma_min_mm, sigma_max_mm, num_points).tolist()
+    points: list[PerceptionNoisePoint] = []
+    zero_grasp_rate: float = 0.0
+    breakdown_thresh: float | None = None
+
+    for idx, sigma_mm in enumerate(sigmas_mm):
+        sigma_m = float(sigma_mm / 1000.0)
+        p_cfg = PerceptionNoiseConfig(
+            pos_noise_std_m=sigma_m,
+            noise_mode=noise_mode,
+        )
+        sweep_seed = base_seed + (idx * 500)
+        regime = _evaluate_regime(
+            model=model,
+            metadata=metadata,
+            backend_name=backend_name,
+            num_episodes=episodes_per_point,
+            base_seed=sweep_seed,
+            max_steps=max_steps,
+            perturbations=None,
+            enable_ensembling=enable_ensembling,
+            regime_name=f"perception_sigma_{sigma_mm:.1f}mm",
+            placement_tolerance_mm=placement_tolerance_mm,
+            perception_noise=p_cfg,
+        )
+
+        pt = PerceptionNoisePoint(
+            sigma_mm=round(float(sigma_mm), 2),
+            sigma_m=round(sigma_m, 5),
+            num_episodes=episodes_per_point,
+            grasp_success_rate=regime.surgical.stages.grasp_rate,
+            placement_success_rate=regime.surgical.stages.place_rate,
+            chained_success_rate=regime.surgical.stages.chained_task_success_rate,
+            mean_min_reach_error_mm=regime.surgical.mean_min_reach_error_mm,
+            mean_placement_error_mm=regime.surgical.mean_placement_error_mm,
+            mean_hunting_oscillations=regime.surgical.mean_hunting_oscillations,
+        )
+        points.append(pt)
+
+        if idx == 0:
+            zero_grasp_rate = pt.grasp_success_rate
+
+        # Grasp breakdown occurs when grasp success drops strictly below 50%
+        if breakdown_thresh is None and pt.grasp_success_rate < 0.50:
+            breakdown_thresh = round(float(sigma_mm), 2)
+
+    return PerceptionSensitivityCurve(
+        model_path=str(ckpt),
+        backend=backend_name,
+        noise_mode=noise_mode,
+        num_episodes_per_point=episodes_per_point,
+        noise_points=points,
+        breakdown_threshold_mm=breakdown_thresh,
+        zero_noise_grasp_rate=zero_grasp_rate,
+        mechanical_clearance_mm=3.0,
     )
