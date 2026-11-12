@@ -107,11 +107,25 @@ def _build_model_bundle(
     mlp_forward_ms = max(0.05, round(comp.inference_p50_latency_ms - 8.0, 2))
 
     default_meta: dict[str, Any] = {}
-    if "cloud" in model_id.lower() or "cuda" in model_id.lower():
+    if "tcp" in model_id.lower() or "equivariant" in model_id.lower():
         default_meta = {
-            "name": "Cloud GPU (15 épocas · AWS A10G CUDA)",
+            "name": "BC-MLP TCP-Frame Equivariant (45 épocas · MPS)",
+            "shortName": "TCP Equivariant (MPS)",
+            "tabLabel": "TCP Equivariant (45 ép &bull; MPS)",
+            "deviceTag": "Apple Silicon MPS (Metal)",
+            "epochs": 45,
+            "throughput": "18,906 samples/s",
+            "loss": "0.0079 (-99.77%)",
+            "taskStatus": "Nominal Trajectory (Descent Offset 17 mm)",
+            "taskStatusClass": "badge-warning",
+            "colorArm": "#06b6d4",
+            "colorTrail": "#38bdf8",
+        }
+    elif "cloud" in model_id.lower() or "cuda" in model_id.lower():
+        default_meta = {
+            "name": "BC-MLP Cloud GPU Baseline (15 épocas · AWS A10G CUDA)",
             "shortName": "Cloud GPU (CUDA A10G)",
-            "tabLabel": "Cloud GPU (15 ép · CUDA A10G)",
+            "tabLabel": "Cloud GPU (15 ép &bull; CUDA A10G)",
             "deviceTag": "NVIDIA A10G (24GB CUDA)",
             "epochs": 15,
             "throughput": "23,407 samples/s (1.96x)",
@@ -123,9 +137,9 @@ def _build_model_bundle(
         }
     else:
         default_meta = {
-            "name": "Canónico (45 épocas · Apple Silicon MPS)",
-            "shortName": "Canónico (MPS)",
-            "tabLabel": "Canónico (45 ép · MPS)",
+            "name": "BC-MLP World-Frame Baseline (45 épocas · Apple Silicon MPS)",
+            "shortName": "World Baseline (MPS)",
+            "tabLabel": "World Baseline (45 ép &bull; MPS)",
             "deviceTag": "Apple Silicon MPS (Metal)",
             "epochs": 45,
             "throughput": "11,940 samples/s",
@@ -513,23 +527,39 @@ def generate_policy_comparison_html(
     # Model Switcher HTML block
     switcher_html = ""
     if has_multi_models:
-        switcher_html = """
+        tabs_list: list[str] = []
+        first = True
+        for mid, b in bundles.items():
+            sel = "true" if first else "false"
+            color = b.get("colorArm", "#10b981")
+            label = b.get("tabLabel", b.get("shortName", mid))
+            tab_id = f"tab-{mid}"
+            if "canonical" in mid or "world" in mid:
+                tab_id = "tab-canonical"
+            elif "cloud" in mid:
+                tab_id = "tab-cloud"
+            elif "tcp" in mid:
+                tab_id = "tab-tcp"
+            tabs_list.append(
+                f'        <button type="button" role="tab" class="tab-btn" id="{tab_id}"\n'
+                f'                aria-selected="{sel}" data-model="{mid}">\n'
+                f'          <span class="dot" style="background: {color}"></span> {label}\n'
+                f'        </button>'
+            )
+            first = False
+        tabs_list.append(
+            '        <button type="button" role="tab" class="tab-btn" id="tab-compare"\n'
+            '                aria-selected="false" data-model="comparison">\n'
+            '          <span class="dot dot-cyan"></span> Comparativo (Superpuesto)\n'
+            '        </button>'
+        )
+        tabs_code = "\n".join(tabs_list)
+        switcher_html = f"""
   <div class="model-switcher-bar">
     <div class="switcher-left">
       <span class="switcher-label">Modelo Activo:</span>
       <div class="tablist" role="tablist" aria-label="Selección de modelo de inferencia">
-        <button type="button" role="tab" class="tab-btn" id="tab-canonical"
-                aria-selected="true" data-model="canonical_45ep">
-          <span class="dot dot-green"></span> Canónico (45 ép &bull; MPS)
-        </button>
-        <button type="button" role="tab" class="tab-btn" id="tab-cloud"
-                aria-selected="false" data-model="cloud_15ep">
-          <span class="dot dot-purple"></span> Cloud GPU (15 ép &bull; CUDA A10G)
-        </button>
-        <button type="button" role="tab" class="tab-btn" id="tab-compare"
-                aria-selected="false" data-model="comparison">
-          <span class="dot dot-cyan"></span> Comparativo (Superpuesto)
-        </button>
+{tabs_code}
       </div>
     </div>
     <div class="switcher-right">
@@ -1214,26 +1244,33 @@ def generate_policy_comparison_html(
         '<span class="legend-chip"><span class="dot dot-amber"></span> Payload Z</span>';
     }}
 
+    function getComparisonPair() {{
+      const keys = Object.keys(BUNDLES);
+      const b1 = BUNDLES[keys[0]];
+      const b2 = BUNDLES[keys[1]] || b1;
+      return [b1, b2];
+    }}
+
     function renderComparisonMode() {{
-      const b1 = BUNDLES['canonical_45ep'] || Object.values(BUNDLES)[0];
-      const b2 = BUNDLES['cloud_15ep'] || Object.values(BUNDLES)[1] || b1;
+      const [b1, b2] = getComparisonPair();
 
       const elErr = document.getElementById('kpi-val-error');
       elErr.textContent =
         b1.meanTrackingErrorMm.toFixed(1) + ' vs ' + b2.meanTrackingErrorMm.toFixed(1) + ' mm';
       elErr.style.color = '#38bdf8';
       document.getElementById('kpi-sub-error').textContent =
-        'Canónico MPS (6.6 mm) vs Cloud A10G (44.9 mm)';
+        b1.shortName + ' (' + b1.meanTrackingErrorMm.toFixed(1) + ' mm) vs ' +
+        b2.shortName + ' (' + b2.meanTrackingErrorMm.toFixed(1) + ' mm)';
 
       document.getElementById('kpi-val-max-error').textContent =
         b1.maxTrackingErrorMm.toFixed(1) + ' vs ' + b2.maxTrackingErrorMm.toFixed(1) + ' mm';
       document.getElementById('kpi-sub-max-error').textContent =
-        'Cloud underfitted vertical descent by 11.8 cm';
+        'Max tracking deviation comparison across rollout';
 
       document.getElementById('kpi-val-transport').textContent =
         b1.payloadTransportCm.toFixed(1) + ' vs ' + b2.payloadTransportCm.toFixed(1) + ' cm';
       document.getElementById('kpi-sub-transport').innerHTML =
-        '100% Grasp Success (MPS) vs 0% (Cloud GPU 15 ép)';
+        b1.shortName + ': ' + b1.taskStatus + ' | ' + b2.shortName + ': ' + b2.taskStatus;
 
       const elDisp = document.getElementById('kpi-val-disp');
       elDisp.textContent =
@@ -1243,25 +1280,26 @@ def generate_policy_comparison_html(
         ' mm';
       elDisp.style.color = '#a855f7';
       document.getElementById('kpi-sub-disp').textContent =
-        'Both policies learn workstation macro traversal';
+        'Macro trajectory displacement traversal';
 
       document.getElementById('kpi-val-latency').innerHTML =
-        '1.96x <span style="font-size: 0.85rem; font-weight: 500; color: var(--text-muted);">' +
-        'Throughput</span>';
+        b1.mlpForwardMs.toFixed(2) + ' vs ' + b2.mlpForwardMs.toFixed(2) +
+        ' <span style="font-size: 0.85rem; font-weight: 500; color: var(--text-muted);">' +
+        'ms Forward</span>';
       document.getElementById('kpi-sub-latency').innerHTML =
-        'Cloud A10G (23.4k) vs MPS (11.9k samples/s)';
+        b1.shortName + ' (' + b1.deviceTag + ') vs ' + b2.shortName + ' (' + b2.deviceTag + ')';
 
       Plotly.restyle('plot-3d', {{
         'visible': [true, true, true, true, true, true, true],
-        'line.color': ['#10b981', null, '#ec4899', '#00f0ff', null, null, '#8b5cf6'],
+        'line.color': [b1.colorArm, null, b1.colorTrail, '#00f0ff', null, null, b2.colorTrail],
         'name': [
-          'Canónico Arm',
+          b1.shortName + ' Arm',
           'Payload Cube',
-          'Canónico Trail (Pink)',
+          b1.shortName + ' Trail',
           'Expert Ref (Cyan)',
           'Waypoints',
           'Table',
-          'Cloud GPU Trail (Purple)'
+          b2.shortName + ' Trail'
         ],
       }}, [0, 1, 2, 3, 4, 5, 6]);
 
@@ -1276,36 +1314,40 @@ def generate_policy_comparison_html(
           [b2.spatialErrorsMm[currentStep]],
           [b2.payloadZCm[currentStep]]
         ],
-        'line.color': ['#ec4899', '#f59e0b', null, null, '#8b5cf6', '#64748b', null, null],
+        'line.color': [b1.colorTrail, '#f59e0b', null, null, b2.colorTrail, '#64748b', null, null],
         'name': [
-          'Canónico Error (mm)',
-          'Canónico Payload Z (cm)',
-          'Cursor Canónico Err',
-          'Cursor Canónico Z',
-          'Cloud GPU Error (mm)',
-          'Cloud GPU Payload Z (cm)',
-          'Cursor Cloud Err',
-          'Cursor Cloud Z'
+          b1.shortName + ' Error (mm)',
+          b1.shortName + ' Payload Z (cm)',
+          'Cursor ' + b1.shortName + ' Err',
+          'Cursor ' + b1.shortName + ' Z',
+          b2.shortName + ' Error (mm)',
+          b2.shortName + ' Payload Z (cm)',
+          'Cursor ' + b2.shortName + ' Err',
+          'Cursor ' + b2.shortName + ' Z'
         ],
         'visible': [true, true, true, true, true, true, true, true],
       }}, [0, 1, 2, 3, 4, 5, 6, 7]);
 
       document.getElementById('plot-legend-3d').innerHTML =
-        '<span class="legend-chip"><span class="dot dot-arm"></span> Canónico Arm</span>' +
-        '<span class="legend-chip"><span class="dot dot-pink"></span> Canónico Trail</span>' +
-        '<span class="legend-chip"><span class="dot dot-purple-lg"></span> Cloud GPU Trail</span>' +
+        '<span class="legend-chip"><span class="dot" style="background: ' + b1.colorArm +
+        '"></span> ' + b1.shortName + '</span>' +
+        '<span class="legend-chip"><span class="dot" style="background: ' + b2.colorTrail +
+        '"></span> ' + b2.shortName + '</span>' +
         '<span class="legend-chip"><span class="dot dot-expert"></span> Privileged Expert</span>' +
         '<span class="legend-chip"><span class="dot dot-amber"></span> Payload Cube</span>';
       document.getElementById('plot-legend-2d').innerHTML =
-        '<span class="legend-chip"><span class="dot dot-pink"></span> Canónico Error</span>' +
-        '<span class="legend-chip"><span class="dot dot-purple-lg"></span> Cloud GPU Error</span>' +
-        '<span class="legend-chip"><span class="dot dot-amber"></span> Canónico Z</span>' +
+        '<span class="legend-chip"><span class="dot" style="background: ' + b1.colorTrail +
+        '"></span> ' + b1.shortName + ' Error</span>' +
+        '<span class="legend-chip"><span class="dot" style="background: ' + b2.colorTrail +
+        '"></span> ' + b2.shortName + ' Error</span>' +
+        '<span class="legend-chip"><span class="dot dot-amber"></span> ' +
+        b1.shortName + ' Z</span>' +
         '<span class="legend-chip"><span class="dot" style="background: #64748b"></span> ' +
-        'Cloud Z</span>';
+        b2.shortName + ' Z</span>';
     }}
 
     function renderStep(step) {{
-      const bPrimary = BUNDLES['canonical_45ep'] || Object.values(BUNDLES)[0];
+      const bPrimary = Object.values(BUNDLES)[0];
       const totalSteps = bPrimary.totalSteps;
       if (step < 0) step = 0;
       if (step >= totalSteps) step = totalSteps - 1;
@@ -1315,8 +1357,7 @@ def generate_policy_comparison_html(
       sliderLabel.textContent = 'Step ' + step + ' / ' + (totalSteps - 1);
 
       if (activeModelId === 'comparison') {{
-        const b1 = BUNDLES['canonical_45ep'] || Object.values(BUNDLES)[0];
-        const b2 = BUNDLES['cloud_15ep'] || Object.values(BUNDLES)[1] || b1;
+        const [b1, b2] = getComparisonPair();
 
         const arm1 = b1.armTrajectory[step];
         const polObj1 = b1.policyObjectTrajectory[step];
@@ -1344,20 +1385,21 @@ def generate_policy_comparison_html(
           ],
         }}, [2, 3, 6, 7]);
 
-        document.getElementById('hud-phase').textContent = b1.phaseLabels[step] + ' (MPS)';
+        document.getElementById('hud-phase').textContent =
+          b1.shortName + ': ' + (b1.phaseLabels[step] || 'Rollout');
         const g1 = b1.gripperStates[step];
         const g2 = b2.gripperStates[step];
-        hudGripper.textContent = 'MPS: ' + g1 + ' | CUDA: ' + g2;
+        hudGripper.textContent = b1.shortName + ': ' + g1 + ' | ' + b2.shortName + ': ' + g2;
         hudGripper.className = 'hud-value hud-badge ' +
           (g1.startsWith('LATCHED') ? 'gripper-latched' : 'gripper-open');
         document.getElementById('hud-step').textContent = step + ' / ' + (totalSteps - 1);
         document.getElementById('hud-time').textContent = b1.timesteps[step].toFixed(2) + ' s';
         document.getElementById('hud-error').textContent =
-          b1.spatialErrorsMm[step].toFixed(1) + ' mm (MPS) | ' +
-          b2.spatialErrorsMm[step].toFixed(1) + ' mm (CUDA)';
+          b1.spatialErrorsMm[step].toFixed(1) + ' mm (' + b1.shortName + ') | ' +
+          b2.spatialErrorsMm[step].toFixed(1) + ' mm (' + b2.shortName + ')';
         const fmtVec = (vec) => '[' + vec.map(v => v.toFixed(3)).join(', ') + '] m';
         document.getElementById('hud-policy-ee').textContent =
-          'MPS: ' + fmtVec(b1.policyEeTrajectory[step]);
+          b1.shortName + ': ' + fmtVec(b1.policyEeTrajectory[step]);
         const expIdx = Math.min(step, EXPERT.eeTrajectory.length - 1);
         document.getElementById('hud-expert-ee').textContent = fmtVec(EXPERT.eeTrajectory[expIdx]);
         document.getElementById('hud-policy-obj').textContent = fmtVec(polObj1);
@@ -1409,7 +1451,7 @@ def generate_policy_comparison_html(
       clearInterval(animTimer);
       const intervalMs = Math.round(50 / speeds[speedIdx]);
       animTimer = setInterval(() => {{
-        const b = BUNDLES['canonical_45ep'] || Object.values(BUNDLES)[0];
+        const b = Object.values(BUNDLES)[0];
         if (currentStep >= b.totalSteps - 1) {{
           if (loopEnabled) {{
             renderStep(0);
@@ -1423,7 +1465,7 @@ def generate_policy_comparison_html(
     }}
 
     function play() {{
-      const b = BUNDLES['canonical_45ep'] || Object.values(BUNDLES)[0];
+      const b = Object.values(BUNDLES)[0];
       if (currentStep >= b.totalSteps - 1) currentStep = 0;
       isPlaying = true;
       btnPlay.textContent = '⏸ Pause';

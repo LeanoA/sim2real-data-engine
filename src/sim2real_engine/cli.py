@@ -633,23 +633,43 @@ def _run_visualize(
         )
 
         canonical_path = Path("checkpoints/bc_pick_place.pt")
+        tcp_path = Path("checkpoints/bc_tcp_frame_45ep.pt")
         cloud_path = Path("results/bc_cloud_policy.pt")
+
+        def _key_for_path(p: Path) -> str:
+            name = str(p).lower()
+            if "tcp" in name or "equivariant" in name:
+                return "tcp_equivariant_45ep"
+            if "cloud" in name or "cuda" in name:
+                return "cloud_15ep"
+            return "canonical_45ep"
 
         models_to_load: dict[str, Path | str] = {}
         primary_p = Path(model_path) if model_path else canonical_path
-        secondary_p = Path(compare_model_path) if compare_model_path else cloud_path
-
         if primary_p.is_file():
-            models_to_load["canonical_45ep"] = primary_p
-        if secondary_p.is_file():
-            models_to_load["cloud_15ep"] = secondary_p
+            models_to_load[_key_for_path(primary_p)] = primary_p
+
+        if compare_model_path:
+            sec_p = Path(compare_model_path)
+            if sec_p.is_file():
+                models_to_load[_key_for_path(sec_p)] = sec_p
+        elif multi_model:
+            if tcp_path.is_file():
+                models_to_load["tcp_equivariant_45ep"] = tcp_path
+            if cloud_path.is_file():
+                models_to_load["cloud_15ep"] = cloud_path
+        elif tcp_path.is_file():
+            models_to_load["tcp_equivariant_45ep"] = tcp_path
+        elif cloud_path.is_file():
+            models_to_load["cloud_15ep"] = cloud_path
 
         if len(models_to_load) > 1:
             comps = collect_multi_model_comparison(
                 model_paths=models_to_load, seed=seed, backend=backend
             )
-            prim_comp = comps["canonical_45ep"]
-            add_comps = {k: v for k, v in comps.items() if k != "canonical_45ep"}
+            first_key = next(iter(models_to_load))
+            prim_comp = comps[first_key]
+            add_comps = {k: v for k, v in comps.items() if k != first_key}
             file_path = generate_policy_comparison_html(
                 comparison_data=prim_comp,
                 output_path=output_path,

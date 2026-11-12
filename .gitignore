@@ -12,6 +12,7 @@ checkpoints/*
 *.pt
 !checkpoints/
 !checkpoints/bc_pick_place.pt
+!checkpoints/bc_tcp_frame_45ep.pt
 outputs/
 dist/
 build/
