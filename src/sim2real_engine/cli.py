@@ -8,7 +8,7 @@ import sys
 import webbrowser
 from collections.abc import Sequence
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, ValidationError
@@ -245,6 +245,17 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Optional trained policy checkpoint (.pt) to compare against expert in 3D.",
     )
     vis_parser.add_argument(
+        "--compare-model-path",
+        type=str,
+        default=None,
+        help="Optional secondary policy checkpoint (.pt) for side-by-side multi-model comparison.",
+    )
+    vis_parser.add_argument(
+        "--multi-model",
+        action="store_true",
+        help="Automatically bundle available canonical and cloud checkpoints into dashboard.",
+    )
+    vis_parser.add_argument(
         "--seed",
         type=int,
         default=42,
@@ -328,6 +339,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Exclude Cartesian EE pose from observations (20D state).",
     )
     train_parser.add_argument(
+        "--tcp-frame",
+        action="store_true",
+        default=False,
+        help="Transform relative object observations into local TCP frame (R_ee^T (p_obj - p_ee)).",
+    )
+    train_parser.add_argument(
         "--output-model",
         type=str,
         default="./checkpoints/bc_policy.pt",
@@ -392,7 +409,81 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Compare performance with vs without temporal ensembling under identical OOD physics.",
     )
+    eval_parser.add_argument(
+        "--perception-noise-mm",
+        type=float,
+        default=0.0,
+        help="Injected Gaussian perception position noise std in mm (default: 0.0).",
+    )
+    eval_parser.add_argument(
+        "--perception-noise-mode",
+        type=str,
+        choices=["per_episode", "per_step"],
+        default="per_episode",
+        help="Noise temporal mode: per-episode static offset vs per-step jitter.",
+    )
     eval_parser.add_argument("--json", action="store_true", help="Emit JSON output.")
+
+    sweep_parser = subparsers.add_parser(
+        "sweep-perception-noise",
+        help="Run perception noise sensitivity sweep (sigma in [0, 20] mm) to map breakdown.",
+    )
+    sweep_parser.add_argument(
+        "--model-path",
+        type=str,
+        default="./checkpoints/bc_pick_place.pt",
+        help="Path to saved policy checkpoint file (.pt).",
+    )
+    sweep_parser.add_argument(
+        "--backend",
+        choices=list(DEFAULT_BACKENDS.keys()),
+        default="mujoco_native",
+        help="Simulator backend for evaluation rollouts.",
+    )
+    sweep_parser.add_argument(
+        "--sigma-min-mm",
+        type=float,
+        default=0.0,
+        help="Minimum noise standard deviation in mm (default: 0.0).",
+    )
+    sweep_parser.add_argument(
+        "--sigma-max-mm",
+        type=float,
+        default=20.0,
+        help="Maximum noise standard deviation in mm (default: 20.0).",
+    )
+    sweep_parser.add_argument(
+        "--num-points",
+        type=int,
+        default=9,
+        help="Number of discrete noise sweep points (default: 9).",
+    )
+    sweep_parser.add_argument(
+        "--episodes",
+        type=int,
+        default=10,
+        help="Evaluation episodes per noise level (default: 10).",
+    )
+    sweep_parser.add_argument(
+        "--noise-mode",
+        type=str,
+        choices=["per_episode", "per_step"],
+        default="per_episode",
+        help="Temporal noise mode: per_episode (static offset) or per_step (sensor jitter).",
+    )
+    sweep_parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Base deterministic evaluation RNG seed.",
+    )
+    sweep_parser.add_argument(
+        "--max-steps",
+        type=int,
+        default=120,
+        help="Maximum simulation steps allowed per episode.",
+    )
+    sweep_parser.add_argument("--json", action="store_true", help="Emit JSON output.")
 
     return parser
 
@@ -605,8 +696,77 @@ def _run_visualize(
     open_browser: bool,
     emit_json: bool,
     model_path: str | None = None,
+    compare_model_path: str | None = None,
+    multi_model: bool = False,
 ) -> int:
-    if model_path is not None:
+    if multi_model or compare_model_path is not None:
+        from sim2real_engine.visualization.dashboard import generate_policy_comparison_html
+        from sim2real_engine.visualization.data import (
+            collect_multi_model_comparison,
+            collect_policy_vs_expert_comparison,
+        )
+
+        canonical_path = Path("checkpoints/bc_pick_place.pt")
+        tcp_path = Path("checkpoints/bc_tcp_frame_45ep.pt")
+        cloud_path = Path("results/bc_cloud_policy.pt")
+
+        def _key_for_path(p: Path) -> str:
+            name = str(p).lower()
+            if "tcp" in name or "equivariant" in name:
+                return "tcp_equivariant_45ep"
+            if "cloud" in name or "cuda" in name:
+                return "cloud_15ep"
+            return "canonical_45ep"
+
+        models_to_load: dict[str, Path | str] = {}
+        primary_p = Path(model_path) if model_path else canonical_path
+        if primary_p.is_file():
+            models_to_load[_key_for_path(primary_p)] = primary_p
+
+        if compare_model_path:
+            sec_p = Path(compare_model_path)
+            if sec_p.is_file():
+                models_to_load[_key_for_path(sec_p)] = sec_p
+        elif multi_model:
+            if tcp_path.is_file():
+                models_to_load["tcp_equivariant_45ep"] = tcp_path
+            if cloud_path.is_file():
+                models_to_load["cloud_15ep"] = cloud_path
+        elif tcp_path.is_file():
+            models_to_load["tcp_equivariant_45ep"] = tcp_path
+        elif cloud_path.is_file():
+            models_to_load["cloud_15ep"] = cloud_path
+
+        if len(models_to_load) > 1:
+            comps = collect_multi_model_comparison(
+                model_paths=models_to_load, seed=seed, backend=backend
+            )
+            first_key = next(iter(models_to_load))
+            prim_comp = comps[first_key]
+            add_comps = {k: v for k, v in comps.items() if k != first_key}
+            file_path = generate_policy_comparison_html(
+                comparison_data=prim_comp,
+                output_path=output_path,
+                additional_models=add_comps,
+            )
+        elif models_to_load:
+            single_key = next(iter(models_to_load))
+            single_comp = collect_policy_vs_expert_comparison(
+                model_path=models_to_load[single_key], seed=seed, backend=backend
+            )
+            file_path = generate_policy_comparison_html(
+                comparison_data=single_comp,
+                output_path=output_path,
+            )
+        else:
+            comp_data = collect_policy_vs_expert_comparison(
+                model_path=model_path or str(canonical_path), seed=seed, backend=backend
+            )
+            file_path = generate_policy_comparison_html(
+                comparison_data=comp_data,
+                output_path=output_path,
+            )
+    elif model_path is not None:
         from sim2real_engine.visualization.dashboard import generate_policy_comparison_html
         from sim2real_engine.visualization.data import collect_policy_vs_expert_comparison
 
@@ -677,6 +837,7 @@ def _run_train_policy(
     device: str,
     seed: int,
     emit_json: bool,
+    use_tcp_frame: bool = False,
 ) -> int:
     from typing import Any
 
@@ -696,6 +857,7 @@ def _run_train_policy(
             root_dir=ds_path,
             horizon=horizon,
             include_ee_pose=include_ee_pose,
+            use_tcp_frame=use_tcp_frame,
         )
     except Exception as exc:
         print(f"Failed to load dataset: {exc}", file=sys.stderr)
@@ -744,6 +906,8 @@ def _run_eval_policy(
     emit_json: bool,
     dr: bool = False,
     compare_ensembling: bool = False,
+    perception_noise_mm: float = 0.0,
+    perception_noise_mode: str = "per_episode",
 ) -> int:
     from sim2real_engine.learning import BehaviorCloningMLP
 
@@ -752,8 +916,17 @@ def _run_eval_policy(
         print(f"Model checkpoint not found: {ckpt_path}", file=sys.stderr)
         return 1
 
-    if dr:
-        from sim2real_engine.benchmarks import evaluate_ood_robustness
+    if dr or perception_noise_mm > 0.0:
+        from sim2real_engine.benchmarks import PerceptionNoiseConfig, evaluate_ood_robustness
+
+        p_noise = (
+            PerceptionNoiseConfig(
+                pos_noise_std_m=perception_noise_mm / 1000.0,
+                noise_mode=cast(Any, perception_noise_mode),
+            )
+            if perception_noise_mm > 0.0
+            else None
+        )
 
         report = evaluate_ood_robustness(
             model_path=ckpt_path,
@@ -762,6 +935,7 @@ def _run_eval_policy(
             base_seed=seed,
             max_steps=max_steps,
             compare_ensembling=compare_ensembling,
+            perception_noise=p_noise,
         )
         if emit_json:
             print(json.dumps(report.model_dump(), indent=2))
@@ -769,25 +943,44 @@ def _run_eval_policy(
             print(f"OOD Robustness Benchmark ({report.backend}):")
             print(f"Model: {report.model_path}")
             print(f"Episodes: {report.num_episodes}")
-            print(
-                f"  Nominal: Success Rate={report.nominal.success_rate * 100.0:.1f}%, "
-                f"Payload Disp={report.nominal.mean_payload_displacement_m * 1000.0:.1f} mm, "
-                f"Action Jerk={report.nominal.mean_action_jerk:.4f}"
-            )
-            print(
-                f"  OOD DR (Ensembled): Success Rate="
-                f"{report.ood_dr_ensembled.success_rate * 100.0:.1f}%, "
-                f"Payload Disp="
-                f"{report.ood_dr_ensembled.mean_payload_displacement_m * 1000.0:.1f} mm, "
-                f"Action Jerk={report.ood_dr_ensembled.mean_action_jerk:.4f}"
-            )
-            if report.ood_dr_no_ensemble is not None:
+
+            for name, r in [
+                ("Nominal", report.nominal),
+                ("OOD DR (Ensembled)", report.ood_dr_ensembled),
+            ]:
+                s = r.surgical
+                st = s.stages
                 print(
-                    f"  OOD DR (No Ensemble): Success Rate="
-                    f"{report.ood_dr_no_ensemble.success_rate * 100.0:.1f}%, "
-                    f"Payload Disp="
-                    f"{report.ood_dr_no_ensemble.mean_payload_displacement_m * 1000.0:.1f} mm, "
-                    f"Action Jerk={report.ood_dr_no_ensemble.mean_action_jerk:.4f}"
+                    f"  {name}: Chained Task Success={st.chained_task_success_rate * 100.0:.1f}%\n"
+                    f"    Stages: Reach={st.reach_rate * 100.0:.0f}% | "
+                    f"Grasp={st.grasp_rate * 100.0:.0f}% | "
+                    f"Transport={st.transport_rate * 100.0:.0f}% | "
+                    f"Place={st.place_rate * 100.0:.0f}%\n"
+                    f"    Surgical: Proximity={s.mean_min_reach_error_mm:.1f} mm | "
+                    f"Place Err={s.mean_placement_error_mm:.1f} mm | "
+                    f"Duration={s.mean_execution_time_s:.2f}s | "
+                    f"Hunting={s.mean_hunting_oscillations:.1f} rev\n"
+                    f"    Dynamics: Payload Disp={r.mean_payload_displacement_m * 1000.0:.1f} mm | "
+                    f"Jerk={r.mean_action_jerk:.4f}"
+                )
+
+            if report.ood_dr_no_ensemble is not None:
+                r_no = report.ood_dr_no_ensemble
+                s_no = r_no.surgical
+                st_no = s_no.stages
+                print(
+                    f"  OOD DR (No Ensemble): Chained Success="
+                    f"{st_no.chained_task_success_rate * 100.0:.1f}%\n"
+                    f"    Stages: Reach={st_no.reach_rate * 100.0:.0f}% | "
+                    f"Grasp={st_no.grasp_rate * 100.0:.0f}% | "
+                    f"Transport={st_no.transport_rate * 100.0:.0f}% | "
+                    f"Place={st_no.place_rate * 100.0:.0f}%\n"
+                    f"    Surgical: Proximity={s_no.mean_min_reach_error_mm:.1f} mm | "
+                    f"Place Err={s_no.mean_placement_error_mm:.1f} mm | "
+                    f"Hunting={s_no.mean_hunting_oscillations:.1f} rev\n"
+                    f"    Dynamics: Payload Disp="
+                    f"{r_no.mean_payload_displacement_m * 1000.0:.1f} mm | "
+                    f"Jerk={r_no.mean_action_jerk:.4f}"
                 )
                 success_diff = (
                     report.ood_dr_ensembled.success_rate
@@ -877,6 +1070,72 @@ def _run_eval_policy(
             f"Inference Latency: P50={summary.inference_latency_p50_ms} ms, "
             f"P99={summary.inference_latency_p99_ms} ms"
         )
+    return 0
+
+
+def _run_sweep_perception_noise(
+    model_path: str,
+    backend_name: str,
+    sigma_min_mm: float,
+    sigma_max_mm: float,
+    num_points: int,
+    episodes: int,
+    noise_mode: str,
+    seed: int,
+    emit_json: bool,
+    max_steps: int = 120,
+) -> int:
+    from sim2real_engine.benchmarks import run_perception_sensitivity_sweep
+
+    ckpt_path = Path(model_path)
+    if not ckpt_path.is_file():
+        print(f"Model checkpoint not found: {ckpt_path}", file=sys.stderr)
+        return 1
+
+    curve = run_perception_sensitivity_sweep(
+        model_path=ckpt_path,
+        backend_name=cast(BackendName, backend_name),
+        sigma_min_mm=sigma_min_mm,
+        sigma_max_mm=sigma_max_mm,
+        num_points=num_points,
+        episodes_per_point=episodes,
+        base_seed=seed,
+        max_steps=max_steps,
+        noise_mode=cast(Any, noise_mode),
+    )
+
+    if emit_json:
+        print(json.dumps(curve.model_dump(), indent=2))
+    else:
+        print(f"Perception Noise Sensitivity Sweep ({curve.backend}):")
+        print(f"Model: {curve.model_path}")
+        print(
+            f"Noise Mode: {curve.noise_mode} | "
+            f"Episodes/point: {curve.num_episodes_per_point} | "
+            f"Clearance: {curve.mechanical_clearance_mm:.1f} mm\n"
+        )
+        print("  Sigma (mm) | Grasp (%) | Place (%) | Chained (%) | Reach Err (mm) | Hunting (rev)")
+        print("  -----------+-----------+-----------+-------------+----------------+--------------")
+        for pt in curve.noise_points:
+            print(
+                f"  {pt.sigma_mm:10.1f} | "
+                f"{pt.grasp_success_rate * 100.0:9.1f} | "
+                f"{pt.placement_success_rate * 100.0:9.1f} | "
+                f"{pt.chained_success_rate * 100.0:11.1f} | "
+                f"{pt.mean_min_reach_error_mm:14.1f} | "
+                f"{pt.mean_hunting_oscillations:14.1f}"
+            )
+        print("  -----------+-----------+-----------+-------------+----------------+--------------")
+        if curve.breakdown_threshold_mm is not None:
+            print(
+                f"\nEmpirical Breakdown Threshold: sigma* = {curve.breakdown_threshold_mm:.1f} mm "
+                f"(Grasp collapsed below 50% vs {curve.mechanical_clearance_mm:.1f} mm tolerance)"
+            )
+        else:
+            print(
+                "\nEmpirical Breakdown Threshold: None detected up to "
+                f"sigma = {sigma_max_mm:.1f} mm"
+            )
     return 0
 
 
@@ -989,6 +1248,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             open_browser=bool(args.open),
             emit_json=bool(args.json),
             model_path=str(args.model_path) if args.model_path else None,
+            compare_model_path=str(args.compare_model_path) if args.compare_model_path else None,
+            multi_model=bool(args.multi_model),
         )
 
     if args.command == "view-physics":
@@ -1010,6 +1271,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             device=str(args.device),
             seed=int(args.seed),
             emit_json=bool(args.json),
+            use_tcp_frame=bool(args.tcp_frame),
         )
 
     if args.command == "eval-policy":
@@ -1022,6 +1284,22 @@ def main(argv: Sequence[str] | None = None) -> int:
             emit_json=bool(args.json),
             dr=bool(args.dr),
             compare_ensembling=bool(args.compare_ensembling),
+            perception_noise_mm=float(getattr(args, "perception_noise_mm", 0.0)),
+            perception_noise_mode=str(getattr(args, "perception_noise_mode", "per_episode")),
+        )
+
+    if args.command == "sweep-perception-noise":
+        return _run_sweep_perception_noise(
+            model_path=str(args.model_path),
+            backend_name=str(args.backend),
+            sigma_min_mm=float(args.sigma_min_mm),
+            sigma_max_mm=float(args.sigma_max_mm),
+            num_points=int(args.num_points),
+            episodes=int(args.episodes),
+            noise_mode=str(args.noise_mode),
+            seed=int(args.seed),
+            emit_json=bool(args.json),
+            max_steps=int(args.max_steps),
         )
 
     return 1

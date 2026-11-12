@@ -18,11 +18,11 @@ import time
 from pathlib import Path
 
 REGION = os.environ.get("AWS_REGION", "us-east-2")
-ACCOUNT_ID = os.environ.get("AWS_ACCOUNT_ID", "<AWS_ACCOUNT_ID>")
-PROFILE = os.environ.get("AWS_PROFILE", "default")
+ACCOUNT_ID = os.environ.get("AWS_ACCOUNT_ID", "592033927220")
+PROFILE = os.environ.get("AWS_PROFILE", "xander-mac")
 BUCKET = os.environ.get("SIM2REAL_S3_BUCKET", f"sim2real-artifacts-{ACCOUNT_ID}-{REGION}")
-REQUEST_ID_ON_DEMAND = os.environ.get("AWS_QUOTA_REQ_ON_DEMAND", "<QUOTA_REQUEST_ID_ON_DEMAND>")
-REQUEST_ID_SPOT = os.environ.get("AWS_QUOTA_REQ_SPOT", "<QUOTA_REQUEST_ID_SPOT>")
+REQUEST_ID_ON_DEMAND = os.environ.get("AWS_QUOTA_REQ_ON_DEMAND", "7de4b3e954b94f61abb681416a5d4bc9tlC8PN1B")
+REQUEST_ID_SPOT = os.environ.get("AWS_QUOTA_REQ_SPOT", "4489870f3a2d46d49ada8976a4681286M7YGU5Ao")
 AMI_ID = "ami-032b37e4db407994d"  # Deep Learning OSS Nvidia Driver AMI GPU PyTorch 2.7
 INSTANCE_TYPE = "g5.2xlarge"
 IAM_PROFILE = "Sim2RealEC2Profile"
@@ -79,9 +79,23 @@ uv run sim2real sim2sim-eval \\
   --episodes 20 \\
   --json > /tmp/isaac_sim2sim_results.json || true
 
+# Run policy training on NVIDIA A10G GPU
+echo "Executing policy training on NVIDIA A10G (CUDA)..."
+uv run sim2real train-policy \\
+  --dataset-dir ./datasets/sim2real_pick_place \\
+  --epochs 15 \\
+  --batch-size 64 \\
+  --device cuda \\
+  --output-model /tmp/bc_cloud_policy.pt \\
+  --json > /tmp/training_results.json || true
+
 # Upload results to S3
 aws s3 cp /tmp/isaac_sim2sim_results.json \\
   s3://{BUCKET}/results/isaac_sim2sim_results.json --region {REGION} || true
+aws s3 cp /tmp/training_results.json \\
+  s3://{BUCKET}/results/training_results.json --region {REGION} || true
+aws s3 cp /tmp/bc_cloud_policy.pt \\
+  s3://{BUCKET}/results/bc_cloud_policy.pt --region {REGION} || true
 aws s3 cp /var/log/user-data.log s3://{BUCKET}/logs/user-data.log --region {REGION} || true
 
 echo "=== Sim2Real Isaac Sim Cloud Job Completed at $(date) ==="
@@ -138,19 +152,25 @@ def launch_and_manage_instance(use_spot: bool = True) -> int:
         term_data = run_aws(["ec2", "terminate-instances", "--instance-ids", instance_id])
         print(f"Termination result: {term_data}")
 
-    # Fetch results from S3
+    # Fetch results and logs from S3
     print(f"Downloading results from s3://{BUCKET}/results/ ...")
-    local_out = Path("results")
+    local_out = Path(__file__).resolve().parent.parent / "results"
     local_out.mkdir(exist_ok=True)
     subprocess.run([
         "aws", "s3", "cp", f"s3://{BUCKET}/results/", str(local_out),
         "--recursive", "--profile", PROFILE, "--region", REGION
+    ])
+    subprocess.run([
+        "aws", "s3", "cp", f"s3://{BUCKET}/logs/user-data.log", str(local_out / "user-data.log"),
+        "--profile", PROFILE, "--region", REGION
     ])
     return 0
 
 
 def main() -> int:
     watch_mode = "--watch" in sys.argv
+    force_on_demand = "--on-demand" in sys.argv
+    force_spot = "--spot" in sys.argv
 
     while True:
         status_od, case_od = check_quota_status(REQUEST_ID_ON_DEMAND)
@@ -160,12 +180,18 @@ def main() -> int:
             f"On-Demand: {status_od} (Case: {case_od}) | Spot: {status_spot} (Case: {case_spot})"
         )
 
-        if status_spot == "APPROVED":
-            print("GPU Spot Quota is APPROVED! Launching Spot workload...")
+        is_spot_ready = status_spot in ("APPROVED", "CASE_CLOSED")
+        is_od_ready = status_od in ("APPROVED", "CASE_CLOSED")
+
+        if force_spot and is_spot_ready:
+            print("Launching GPU Spot workload...")
             return launch_and_manage_instance(use_spot=True)
-        elif status_od == "APPROVED":
-            print("GPU On-Demand Quota is APPROVED! Launching On-Demand workload...")
+        elif is_od_ready or force_on_demand:
+            print("GPU Quota is granted! Launching On-Demand workload...")
             return launch_and_manage_instance(use_spot=False)
+        elif is_spot_ready:
+            print("GPU Spot Quota is granted! Launching Spot workload...")
+            return launch_and_manage_instance(use_spot=True)
 
         if not watch_mode:
             print("Quota increases are still pending AWS review.")

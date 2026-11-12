@@ -159,18 +159,26 @@ The framework includes an end-to-end sensorimotor policy distillation pipeline t
 
 ---
 
-## ☁️ Future Work & Cloud GPU Scaling: AWS EC2
+## ☁️ Validated Cloud GPU Burst: AWS EC2 & NVIDIA Isaac Lab
 
-While 100% of synthetic data generation, kinematic solving, unit testing, and policy evaluation runs locally at zero cloud cost, scaling to **foundation visuomotor pre-training** (e.g. Action Chunking Transformers and Flow-Matching OpenPI `π₀` across 10,000+ parallel Isaac Lab environments) requires cloud GPU clusters.
+While 100% of synthetic data generation, kinematic solving, unit testing, and policy evaluation runs locally at zero cloud cost, scaling to **foundation visuomotor pre-training** (e.g. Action Chunking Transformers and Flow-Matching OpenPI `π₀` across parallel Isaac Lab environments) leverages cloud GPU bursts.
 
-We packaged an automated cloud training orchestrator in [`docker/run_cloud_training.py`](docker/run_cloud_training.py):
+We packaged and empirically verified the turnkey cloud orchestrator in [`docker/run_cloud_training.py`](docker/run_cloud_training.py):
 
-* **Target Cloud Hardware:** AWS EC2 `g5.2xlarge` instances powered by **NVIDIA A10G GPUs (24GB VRAM)** in `us-east-2`.
-* **Automated S3 Artifact Sync:** The runner packages code, dependencies, and dataset manifests into `s3://sim2real-artifacts-<AWS_ACCOUNT_ID>-us-east-2/`.
-* **Strict Cost Governance & Teardown:** The startup script boots the Deep Learning AMI, installs `uv`, executes parallel Isaac Lab GPU benchmarks, syncs evaluation results back to S3, and **immediately self-terminates (`shutdown -h now`)** upon completion to guarantee zero idle spend.
+* **Verified Cloud Hardware:** AWS EC2 `g5.2xlarge` powered by **NVIDIA A10G GPU (24GB VRAM)** in `us-east-2`.
+* **Empirical Sim-to-Sim Convergence ([`results/isaac_sim2sim_results.json`](results/isaac_sim2sim_results.json)):**
+  - **Backends:** `mujoco_native` vs `isaac_lab` (20 evaluation episodes).
+  - **Task Success Rate:** **100.0%** across both physics engines (`1.0` vs `1.0`).
+  - **Mean Trajectory RMSE:** `0.695 rad` | **Mean EE Divergence:** `0.0021 m` (**2.1 mm**).
+* **High-Throughput Policy Training ([`results/training_results.json`](results/training_results.json)):**
+  - **Compute Device:** `cuda` (NVIDIA A10G 24GB).
+  - **Throughput:** **23,407 samples/s** (**28.96s** total for 15 epochs across 50,213 transitions).
+  - **Loss Reduction:** `3.5266 → 0.0145` (**-99.59%**).
+  - **Trained Cloud Checkpoint:** [`results/bc_cloud_policy.pt`](results/bc_cloud_policy.pt).
+* **Strict Cost Governance & Teardown:** The runner boots the Deep Learning AMI, installs `uv`, executes Isaac Lab benchmarks and CUDA policy training, syncs evaluation artifacts and logs to S3, and **immediately self-terminates (`shutdown -h now`)** upon completion to eliminate idle cloud spend (~$0.15 USD total run cost).
 * **Next Roadmap Milestones:**
   1. Fine-tuning multimodal ACT policies with real-time RGB-D camera streams.
-  2. Running multi-GPU Isaac Lab reinforcement learning sweeps using AWS Spot instances.
+  2. Multi-GPU Isaac Lab reinforcement learning sweeps using spot fleets.
   3. Physical Sim-to-Real deployment on an edge NVIDIA Jetson Orin platform.
 
 ---

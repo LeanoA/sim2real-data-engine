@@ -1,0 +1,15 @@
+{
+  "status": "success",
+  "model_path": "/tmp/bc_cloud_policy.pt",
+  "summary": {
+    "initial_loss": 3.526556,
+    "final_train_loss": 0.014196,
+    "final_val_loss": 0.014488,
+    "loss_reduction_pct": 99.59,
+    "total_epochs": 15,
+    "total_samples": 50213,
+    "training_time_s": 28.9606,
+    "throughput_samples_per_s": 23407.0,
+    "device_used": "cuda"
+  }
+}
