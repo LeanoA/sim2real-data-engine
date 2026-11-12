@@ -124,3 +124,84 @@ Modeling an active articulated parallel-jaw gripper in this stage would expand t
 ### Consequences
 - **Positive**: 100% stable, deterministic multi-body dynamics in native MuJoCo where payload mass (`0.08 kg`) and inertia dynamically load the arm without un-gated teleportation; preserves the 6-DOF kinematic Jacobian formulation while supporting a 7D reactive action channel (6 joint targets + 1 binary gripper latch) for Phase 1 closed-loop Behavioral Cloning.
 - **Negative**: Represents a Phase 1 proximity-gated (`<= 40 mm`) rigid grasp abstraction without modeling fingertip slip or grasp compliance (addressed in Phase 2 via dynamic `relpose` anchoring and articulated parallel-jaw fingers).
+
+---
+
+## ADR-08: Decoupled Surgical Robotics Telemetry & Stage-Wise Manipulation Verification
+
+### Context & Problem
+Early benchmark evaluation in `ood_dr_eval.py` relied on a single coarse heuristic (`payload_displacement > 0.15 m`) to determine episode success. In complex manipulation tasks, this coarse boolean flag created serious diagnostic blindness:
+1. Conflated reach failures with grasp slippage or placement misalignment.
+2. Masked control limit cycles and "hunting" oscillations (where the end-effector hesitates and jitters back and forth above the cube).
+3. Failed to enforce physical assembly tolerances ($\le 15\text{ mm}$ position, $\le 15^\circ$ tilt) at the target delivery zone.
+
+### Decision
+Decouple policy benchmarking into 5 surgical robotics telemetry channels (`SurgicalMetrics` and `ManipulationStages` in `src/sim2real_engine/benchmarks/ood_dr_eval.py`):
+1. **Min Reach Error ($\mathbf{e}_{\text{reach}}$)**: Exact Euclidean closest approach: $\min_t \|\mathbf{p}_{\text{tcp}}(t) - \mathbf{p}_{\text{obj}}(t)\|_2$.
+2. **Grasp Success Rate ($R_{\text{grasp}}$)**: Detection of stable vertical lift ($z_{\text{obj}} > z_{\text{table}} + 5\text{ cm}$) sustained for at least 10 consecutive physics control steps.
+3. **Placement Success Rate ($R_{\text{place}}$)**: Strict delivery tolerance at target zone ($\|\mathbf{p}_{\text{obj}} - \mathbf{p}_{\text{target}}\| \le 20\text{ mm}$ and tilt angle $\theta_{\text{tilt}} \le 15^\circ$).
+4. **Chained Task Success Rate ($R_{\text{task}}$)**: Stage product enforcing causal sequential execution:
+   $$R_{\text{task}} = R_{\text{reach}} \times R_{\text{grasp}} \times R_{\text{transport}} \times R_{\text{place}}$$
+5. **Execution Time & Hunting Counter**: Physical duration ($N_{\text{steps}} \times \Delta t_{\text{ctrl}}$) and count of Cartesian end-effector velocity sign reversals ($\dot{\mathbf{p}}_k \cdot \dot{\mathbf{p}}_{k-1} < 0$) indicating control limit cycles.
+
+### Consequences
+- **Positive**: Surgical diagnostic isolation of failures across manipulation phases; immediate detection of trajectory instability or hunting oscillations.
+- **Negative**: Requires logging and tracking per-timestep spatial state buffers throughout each evaluation rollout.
+
+---
+
+## ADR-09: Tool Center Point (TCP) Frame Observation Equivariance & Action Horizon Synchronization
+
+### Context & Problem
+World-frame Cartesian observations ($\mathbf{p}_{\text{obj}} \in \mathbb{R}^3$) force Behavioral Cloning MLPs to memorize specific workbench coordinates and waste representational capacity approximating non-linear forward kinematics $\mathbf{R}(\mathbf{q})$. When the workbench or robot base shifts, world-frame policies collapse zero-shot.
+
+However, simply rotating relative positions into the local TCP frame $\mathbf{p}_{\text{obj}}^{\text{tcp}} = \mathbf{R}_{\text{ee}}^T (\mathbf{p}_{\text{obj}} - \mathbf{p}_{\text{ee}})$ revealed a critical coupling with Action Chunking and Temporal Ensembling (ACT):
+- When trained with an action chunking horizon of $H=4$, temporal ensembling averages over only $80\text{ ms}$ of lookahead ($4 \times 0.02\text{ s}$).
+- The policy exhibited premature vertical descent: at step 15, $z_{\text{ee}}$ plunged to $0.141\text{ m}$ while horizontal error in XY remained high ($72.6\text{ mm}$ away from the cube), causing the gripper to pinch empty air at step 22 and aborting payload latching (resulting in $0.6\text{ mm}$ payload displacement).
+
+### Decision
+1. **Mathematical TCP-Frame Formulation**: Transform relative object delta into local end-effector coordinates using the scalar-first rotation matrix:
+   $$\mathbf{p}_{\text{obj}}^{\text{tcp}} = \mathbf{R}(\mathbf{q}_{\text{ee}})^T \left(\mathbf{p}_{\text{obj}} - \mathbf{p}_{\text{ee}}\right)$$
+   embedded dynamically in `LeRobotParquetDataset` and `BehaviorCloningMLP.to_policy_fn`.
+2. **Action Horizon Synchronization ($H=8$)**: Standardize the receding-horizon action chunking parameter at $H=8$ ($56\text{ outputs}$ for 7D control). This provides $160\text{ ms}$ of lookahead smoothing in `TemporalEnsembleBuffer`, dampening trajectory descent and ensuring the arm completes XY centering before committing to vertical descent.
+
+### Consequences
+- **Positive**: Full workspace equivariance; zero-shot coordinate transfer; 100% closed-loop grasp recovery with payload displacement surging from $0.6\text{ mm}$ to $81.3\text{ mm}$ and achieving $80.0\%$ chained task success under OOD domain randomization.
+- **Negative**: Increases output projection layer dimension from 28 to 56 weights ($256 \times 56$).
+
+---
+
+## ADR-10: Parametric Perception Noise Injection & Mechanical Breakdown Boundary
+
+### Context & Problem
+In Sim-to-Real deployment, object perception (from eye-in-hand cameras or external depth sensors) is inherently noisy. Robotics teams often lack rigorous criteria for required perception accuracy, leading to over-engineering camera hardware or deploying policies that fail unpredictably when sensor variance exceeds mechanical clearances.
+
+In `manipulator_6dof.xml`, the physical parallel-jaw gripper finger clearance is $46\text{ mm}$ for a $40\text{ mm}$ payload cube. The allowable bilateral clearance margin before collision is:
+$$\delta_{\text{clearance}} = \frac{46\text{ mm} - 40\text{ mm}}{2} = 3.0\text{ mm}$$
+
+### Decision
+Implement synthetic perception noise injection and empirical sensitivity sweep orchestration in `src/sim2real_engine/benchmarks/ood_dr_eval.py` and the `sim2real sweep-perception-noise` CLI command:
+1. **Seeded Noise Model**: Perturb perceived object pose $\hat{\mathbf{p}}_{\text{obj}} = \mathbf{p}_{\text{obj}} + \boldsymbol{\epsilon}$, with $\boldsymbol{\epsilon} \sim \mathcal{N}(\mathbf{0}, \sigma^2 \mathbf{I}_3)$. Support both `per_episode` (static camera calibration offset) and `per_step` (sensor frame jitter).
+2. **Physical Isolation**: The neural policy receives $\hat{\mathbf{p}}_{\text{obj}}$, while the physics engine and surgical metrics evaluate physical ground-truth $\mathbf{p}_{\text{obj}}$.
+3. **Breakdown Detection ($\sigma^*$)**: Automatically sweep $\sigma \in [0, 20]\text{ mm}$ across $N=10$ episodes per level to locate the breakdown threshold where grasp success drops strictly below 50%.
+
+### Consequences
+- **Positive**: Empirically proved that the policy retains $90\%$ grasp success within the physical mechanical clearance ($\sigma \le 2.5\text{ mm}$), while pinpointing the exact breakdown cliff at $\sigma^* = 7.5\text{ mm}$ where grasp collapses to $20-30\%$. Defines the formal sensor SLA required for physical deployment.
+- **Negative**: Sweeping 9 noise levels across 10 episodes requires ~4 seconds of headless physics rollouts.
+
+---
+
+## ADR-11: Zero-Runtime Multi-Model Telemetry for Static GitHub Pages Deployment
+
+### Context & Problem
+Showcasing multiple trained visuomotor policies (e.g., World Baseline 45 ep, TCP-frame Equivariant 45 ep, Cloud GPU 15 ep) in an interactive web portfolio typically requires running a persistent Python/FastAPI backend or spinning up expensive cloud servers. For GitHub Pages hosting, execution must be 100% static and client-side.
+
+### Decision
+Architect a multi-model visualization pipeline (`src/sim2real_engine/visualization/policy_dashboard.py` and `cli.py`):
+1. **Dynamic Tab Switching**: The visualizer CLI (`sim2real visualize --multi-model`) executes rollouts across all available checkpoints and serializes a unified multi-model JSON telemetry dictionary directly into `docs/index.html` and `dashboard.html`.
+2. **Client-Side Segmented Control**: Fast sub-millisecond switching between model profiles without network round-trips. Each model dynamically updates the HUD telemetry table, stage progress bars, and Three.js 3D trajectory viewports.
+3. **Explicit Model Naming**: Every profile carries explicit metadata ("World Baseline (45 ép • MPS)", "TCP Equivariant (45 ép • MPS)", "Cloud GPU (15 ép • CUDA A10G)") rather than generic tags.
+
+### Consequences
+- **Positive**: 100% static, zero-runtime deployment on GitHub Pages; interactive 3D WebGL visualization and metrics accessible without server hosting costs.
+- **Negative**: Generates a self-contained ~215 KB HTML file containing embedded telemetry JSON.
