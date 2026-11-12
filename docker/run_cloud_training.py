@@ -21,8 +21,12 @@ REGION = os.environ.get("AWS_REGION", "us-east-2")
 ACCOUNT_ID = os.environ.get("AWS_ACCOUNT_ID", "592033927220")
 PROFILE = os.environ.get("AWS_PROFILE", "xander-mac")
 BUCKET = os.environ.get("SIM2REAL_S3_BUCKET", f"sim2real-artifacts-{ACCOUNT_ID}-{REGION}")
-REQUEST_ID_ON_DEMAND = os.environ.get("AWS_QUOTA_REQ_ON_DEMAND", "7de4b3e954b94f61abb681416a5d4bc9tlC8PN1B")
-REQUEST_ID_SPOT = os.environ.get("AWS_QUOTA_REQ_SPOT", "4489870f3a2d46d49ada8976a4681286M7YGU5Ao")
+REQUEST_ID_ON_DEMAND = os.environ.get(
+    "AWS_QUOTA_REQ_ON_DEMAND", "7de4b3e954b94f61abb681416a5d4bc9tlC8PN1B"
+)
+REQUEST_ID_SPOT = os.environ.get(
+    "AWS_QUOTA_REQ_SPOT", "4489870f3a2d46d49ada8976a4681286M7YGU5Ao"
+)
 AMI_ID = "ami-032b37e4db407994d"  # Deep Learning OSS Nvidia Driver AMI GPU PyTorch 2.7
 INSTANCE_TYPE = "g5.2xlarge"
 IAM_PROFILE = "Sim2RealEC2Profile"
