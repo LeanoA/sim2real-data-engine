@@ -1,12 +1,12 @@
 ++ date
-+ echo '=== Starting Sim2Real Isaac Sim Cloud Job at Thu Nov 12 13:43:10 UTC 2026 ==='
-=== Starting Sim2Real Isaac Sim Cloud Job at Thu Nov 12 13:43:10 UTC 2026 ===
++ echo '=== Starting Sim2Real Isaac Sim Cloud Job at Thu Nov 12 17:57:11 UTC 2026 ==='
+=== Starting Sim2Real Isaac Sim Cloud Job at Thu Nov 12 17:57:11 UTC 2026 ===
 + export HOME=/root
 + HOME=/root
 + export DEBIAN_FRONTEND=noninteractive
 + DEBIAN_FRONTEND=noninteractive
 + nvidia-smi
-Thu Nov 12 13:43:10 2026       
+Thu Nov 12 17:57:11 2026       
 +-----------------------------------------------------------------------------------------+
 | NVIDIA-SMI 580.126.09             Driver Version: 580.126.09     CUDA Version: 13.0     |
 +-----------------------------------------+------------------------+----------------------+
@@ -15,7 +15,7 @@ Thu Nov 12 13:43:10 2026
 |                                         |                        |               MIG M. |
 |=========================================+========================+======================|
 |   0  NVIDIA A10G                    On  |   00000000:00:1E.0 Off |                    0 |
-|  0%   29C    P0             57W /  300W |       0MiB /  23028MiB |      0%      Default |
+|  0%   29C    P0             56W /  300W |       0MiB /  23028MiB |      0%      Default |
 |                                         |                        |                  N/A |
 +-----------------------------------------+------------------------+----------------------+
 
@@ -29,7 +29,7 @@ Thu Nov 12 13:43:10 2026
 + mkdir -p /opt/sim2real-data-engine
 + cd /opt/sim2real-data-engine
 + aws s3 cp s3://sim2real-artifacts-592033927220-us-east-2/code/sim2real-bundle.tar.gz /tmp/sim2real-bundle.tar.gz --region us-east-2
-Completed 256.0 KiB/20.3 MiB (1.3 MiB/s) with 1 file(s) remainingCompleted 512.0 KiB/20.3 MiB (2.5 MiB/s) with 1 file(s) remainingCompleted 768.0 KiB/20.3 MiB (3.8 MiB/s) with 1 file(s) remainingCompleted 1.0 MiB/20.3 MiB (5.0 MiB/s) with 1 file(s) remaining  Completed 1.2 MiB/20.3 MiB (6.3 MiB/s) with 1 file(s) remaining  Completed 1.5 MiB/20.3 MiB (7.5 MiB/s) with 1 file(s) remaining  Completed 1.8 MiB/20.3 MiB (8.7 MiB/s) with 1 file(s) remaining  Completed 2.0 MiB/20.3 MiB (10.0 MiB/s) with 1 file(s) remaining Completed 2.2 MiB/20.3 MiB (11.2 MiB/s) with 1 file(s) remaining Completed 2.5 MiB/20.3 MiB (12.4 MiB/s) with 1 file(s) remaining Completed 2.8 MiB/20.3 MiB (13.6 MiB/s) with 1 file(s) remaining Completed 3.0 MiB/20.3 MiB (14.8 MiB/s) with 1 file(s) remaining Completed 3.2 MiB/20.3 MiB (16.0 MiB/s) with 1 file(s) remaining Completed 3.5 MiB/20.3 MiB (17.2 MiB/s) with 1 file(s) remaining Completed 3.8 MiB/20.3 MiB (18.3 MiB/s) with 1 file(s) remaining Completed 4.0 MiB/20.3 MiB (19.5 MiB/s) with 1 file(s) remaining Completed 4.2 MiB/20.3 MiB (20.7 MiB/s) with 1 file(s) remaining Completed 4.5 MiB/20.3 MiB (21.9 MiB/s) with 1 file(s) remaining Completed 4.8 MiB/20.3 MiB (23.0 MiB/s) with 1 file(s) remaining Completed 5.0 MiB/20.3 MiB (24.2 MiB/s) with 1 file(s) remaining Completed 5.2 MiB/20.3 MiB (25.3 MiB/s) with 1 file(s) remaining Completed 5.5 MiB/20.3 MiB (26.5 MiB/s) with 1 file(s) remaining Completed 5.8 MiB/20.3 MiB (27.6 MiB/s) with 1 file(s) remaining Completed 6.0 MiB/20.3 MiB (28.6 MiB/s) with 1 file(s) remaining Completed 6.2 MiB/20.3 MiB (29.7 MiB/s) with 1 file(s) remaining Completed 6.5 MiB/20.3 MiB (30.8 MiB/s) with 1 file(s) remaining Completed 6.8 MiB/20.3 MiB (31.9 MiB/s) with 1 file(s) remaining Completed 7.0 MiB/20.3 MiB (33.0 MiB/s) with 1 file(s) remaining Completed 7.2 MiB/20.3 MiB (34.1 MiB/s) with 1 file(s) remaining Completed 7.5 MiB/20.3 MiB (35.1 MiB/s) with 1 file(s) remaining Completed 7.8 MiB/20.3 MiB (36.3 MiB/s) with 1 file(s) remaining Completed 8.0 MiB/20.3 MiB (37.2 MiB/s) with 1 file(s) remaining Completed 8.2 MiB/20.3 MiB (38.3 MiB/s) with 1 file(s) remaining Completed 8.5 MiB/20.3 MiB (39.3 MiB/s) with 1 file(s) remaining Completed 8.8 MiB/20.3 MiB (40.4 MiB/s) with 1 file(s) remaining Completed 9.0 MiB/20.3 MiB (41.5 MiB/s) with 1 file(s) remaining Completed 9.2 MiB/20.3 MiB (42.5 MiB/s) with 1 file(s) remaining Completed 9.5 MiB/20.3 MiB (43.6 MiB/s) with 1 file(s) remaining Completed 9.8 MiB/20.3 MiB (44.6 MiB/s) with 1 file(s) remaining Completed 10.0 MiB/20.3 MiB (45.6 MiB/s) with 1 file(s) remainingCompleted 10.2 MiB/20.3 MiB (46.7 MiB/s) with 1 file(s) remainingCompleted 10.5 MiB/20.3 MiB (47.6 MiB/s) with 1 file(s) remainingCompleted 10.8 MiB/20.3 MiB (48.7 MiB/s) with 1 file(s) remainingCompleted 11.0 MiB/20.3 MiB (49.7 MiB/s) with 1 file(s) remainingCompleted 11.2 MiB/20.3 MiB (50.7 MiB/s) with 1 file(s) remainingCompleted 11.5 MiB/20.3 MiB (51.8 MiB/s) with 1 file(s) remainingCompleted 11.8 MiB/20.3 MiB (52.7 MiB/s) with 1 file(s) remainingCompleted 12.0 MiB/20.3 MiB (53.8 MiB/s) with 1 file(s) remainingCompleted 12.2 MiB/20.3 MiB (54.7 MiB/s) with 1 file(s) remainingCompleted 12.5 MiB/20.3 MiB (55.8 MiB/s) with 1 file(s) remainingCompleted 12.8 MiB/20.3 MiB (56.7 MiB/s) with 1 file(s) remainingCompleted 13.0 MiB/20.3 MiB (57.7 MiB/s) with 1 file(s) remainingCompleted 13.2 MiB/20.3 MiB (58.6 MiB/s) with 1 file(s) remainingCompleted 13.5 MiB/20.3 MiB (59.6 MiB/s) with 1 file(s) remainingCompleted 13.8 MiB/20.3 MiB (60.5 MiB/s) with 1 file(s) remainingCompleted 14.0 MiB/20.3 MiB (61.4 MiB/s) with 1 file(s) remainingCompleted 14.2 MiB/20.3 MiB (62.4 MiB/s) with 1 file(s) remainingCompleted 14.5 MiB/20.3 MiB (63.3 MiB/s) with 1 file(s) remainingCompleted 14.8 MiB/20.3 MiB (64.2 MiB/s) with 1 file(s) remainingCompleted 15.0 MiB/20.3 MiB (65.1 MiB/s) with 1 file(s) remainingCompleted 15.2 MiB/20.3 MiB (66.0 MiB/s) with 1 file(s) remainingCompleted 15.5 MiB/20.3 MiB (66.9 MiB/s) with 1 file(s) remainingCompleted 15.8 MiB/20.3 MiB (67.8 MiB/s) with 1 file(s) remainingCompleted 16.0 MiB/20.3 MiB (68.6 MiB/s) with 1 file(s) remainingCompleted 16.2 MiB/20.3 MiB (69.5 MiB/s) with 1 file(s) remainingCompleted 16.5 MiB/20.3 MiB (70.4 MiB/s) with 1 file(s) remainingCompleted 16.8 MiB/20.3 MiB (71.3 MiB/s) with 1 file(s) remainingCompleted 17.0 MiB/20.3 MiB (72.0 MiB/s) with 1 file(s) remainingCompleted 17.2 MiB/20.3 MiB (72.6 MiB/s) with 1 file(s) remainingCompleted 17.5 MiB/20.3 MiB (73.5 MiB/s) with 1 file(s) remainingCompleted 17.8 MiB/20.3 MiB (74.3 MiB/s) with 1 file(s) remainingCompleted 18.0 MiB/20.3 MiB (75.0 MiB/s) with 1 file(s) remainingCompleted 18.2 MiB/20.3 MiB (74.9 MiB/s) with 1 file(s) remainingCompleted 18.5 MiB/20.3 MiB (70.6 MiB/s) with 1 file(s) remainingCompleted 18.8 MiB/20.3 MiB (71.4 MiB/s) with 1 file(s) remainingCompleted 19.0 MiB/20.3 MiB (72.2 MiB/s) with 1 file(s) remainingCompleted 19.2 MiB/20.3 MiB (69.3 MiB/s) with 1 file(s) remainingCompleted 19.5 MiB/20.3 MiB (70.1 MiB/s) with 1 file(s) remainingCompleted 19.8 MiB/20.3 MiB (70.8 MiB/s) with 1 file(s) remainingCompleted 20.0 MiB/20.3 MiB (71.6 MiB/s) with 1 file(s) remainingCompleted 20.2 MiB/20.3 MiB (72.3 MiB/s) with 1 file(s) remainingCompleted 20.3 MiB/20.3 MiB (72.6 MiB/s) with 1 file(s) remainingdownload: s3://sim2real-artifacts-592033927220-us-east-2/code/sim2real-bundle.tar.gz to ../../tmp/sim2real-bundle.tar.gz
+Completed 256.0 KiB/33.8 MiB (1.2 MiB/s) with 1 file(s) remainingCompleted 512.0 KiB/33.8 MiB (2.3 MiB/s) with 1 file(s) remainingCompleted 768.0 KiB/33.8 MiB (3.4 MiB/s) with 1 file(s) remainingCompleted 1.0 MiB/33.8 MiB (4.6 MiB/s) with 1 file(s) remaining  Completed 1.2 MiB/33.8 MiB (5.7 MiB/s) with 1 file(s) remaining  Completed 1.5 MiB/33.8 MiB (6.8 MiB/s) with 1 file(s) remaining  Completed 1.8 MiB/33.8 MiB (7.9 MiB/s) with 1 file(s) remaining  Completed 2.0 MiB/33.8 MiB (9.0 MiB/s) with 1 file(s) remaining  Completed 2.2 MiB/33.8 MiB (10.1 MiB/s) with 1 file(s) remaining Completed 2.5 MiB/33.8 MiB (11.1 MiB/s) with 1 file(s) remaining Completed 2.8 MiB/33.8 MiB (12.2 MiB/s) with 1 file(s) remaining Completed 3.0 MiB/33.8 MiB (13.2 MiB/s) with 1 file(s) remaining Completed 3.2 MiB/33.8 MiB (14.2 MiB/s) with 1 file(s) remaining Completed 3.5 MiB/33.8 MiB (15.3 MiB/s) with 1 file(s) remaining Completed 3.8 MiB/33.8 MiB (16.3 MiB/s) with 1 file(s) remaining Completed 4.0 MiB/33.8 MiB (17.3 MiB/s) with 1 file(s) remaining Completed 4.2 MiB/33.8 MiB (17.9 MiB/s) with 1 file(s) remaining Completed 4.5 MiB/33.8 MiB (19.0 MiB/s) with 1 file(s) remaining Completed 4.8 MiB/33.8 MiB (19.9 MiB/s) with 1 file(s) remaining Completed 5.0 MiB/33.8 MiB (20.9 MiB/s) with 1 file(s) remaining Completed 5.2 MiB/33.8 MiB (21.9 MiB/s) with 1 file(s) remaining Completed 5.5 MiB/33.8 MiB (22.9 MiB/s) with 1 file(s) remaining Completed 5.8 MiB/33.8 MiB (23.8 MiB/s) with 1 file(s) remaining Completed 6.0 MiB/33.8 MiB (24.8 MiB/s) with 1 file(s) remaining Completed 6.2 MiB/33.8 MiB (25.8 MiB/s) with 1 file(s) remaining Completed 6.3 MiB/33.8 MiB (25.8 MiB/s) with 1 file(s) remaining Completed 6.5 MiB/33.8 MiB (26.8 MiB/s) with 1 file(s) remaining Completed 6.8 MiB/33.8 MiB (27.8 MiB/s) with 1 file(s) remaining Completed 7.0 MiB/33.8 MiB (28.7 MiB/s) with 1 file(s) remaining Completed 7.3 MiB/33.8 MiB (29.6 MiB/s) with 1 file(s) remaining Completed 7.5 MiB/33.8 MiB (30.6 MiB/s) with 1 file(s) remaining Completed 7.8 MiB/33.8 MiB (31.5 MiB/s) with 1 file(s) remaining Completed 8.0 MiB/33.8 MiB (32.4 MiB/s) with 1 file(s) remaining Completed 8.3 MiB/33.8 MiB (33.4 MiB/s) with 1 file(s) remaining Completed 8.5 MiB/33.8 MiB (34.3 MiB/s) with 1 file(s) remaining Completed 8.8 MiB/33.8 MiB (35.2 MiB/s) with 1 file(s) remaining Completed 9.0 MiB/33.8 MiB (36.1 MiB/s) with 1 file(s) remaining Completed 9.3 MiB/33.8 MiB (37.0 MiB/s) with 1 file(s) remaining Completed 9.5 MiB/33.8 MiB (37.9 MiB/s) with 1 file(s) remaining Completed 9.8 MiB/33.8 MiB (38.8 MiB/s) with 1 file(s) remaining Completed 10.0 MiB/33.8 MiB (39.7 MiB/s) with 1 file(s) remainingCompleted 10.3 MiB/33.8 MiB (40.6 MiB/s) with 1 file(s) remainingCompleted 10.5 MiB/33.8 MiB (41.5 MiB/s) with 1 file(s) remainingCompleted 10.8 MiB/33.8 MiB (42.4 MiB/s) with 1 file(s) remainingCompleted 11.0 MiB/33.8 MiB (43.2 MiB/s) with 1 file(s) remainingCompleted 11.3 MiB/33.8 MiB (44.1 MiB/s) with 1 file(s) remainingCompleted 11.5 MiB/33.8 MiB (45.0 MiB/s) with 1 file(s) remainingCompleted 11.8 MiB/33.8 MiB (45.8 MiB/s) with 1 file(s) remainingCompleted 12.0 MiB/33.8 MiB (46.7 MiB/s) with 1 file(s) remainingCompleted 12.3 MiB/33.8 MiB (47.6 MiB/s) with 1 file(s) remainingCompleted 12.5 MiB/33.8 MiB (48.4 MiB/s) with 1 file(s) remainingCompleted 12.8 MiB/33.8 MiB (49.3 MiB/s) with 1 file(s) remainingCompleted 13.0 MiB/33.8 MiB (50.1 MiB/s) with 1 file(s) remainingCompleted 13.3 MiB/33.8 MiB (48.3 MiB/s) with 1 file(s) remainingCompleted 13.5 MiB/33.8 MiB (49.0 MiB/s) with 1 file(s) remainingCompleted 13.8 MiB/33.8 MiB (49.8 MiB/s) with 1 file(s) remainingCompleted 14.0 MiB/33.8 MiB (50.6 MiB/s) with 1 file(s) remainingCompleted 14.3 MiB/33.8 MiB (51.4 MiB/s) with 1 file(s) remainingCompleted 14.5 MiB/33.8 MiB (52.2 MiB/s) with 1 file(s) remainingCompleted 14.8 MiB/33.8 MiB (52.9 MiB/s) with 1 file(s) remainingCompleted 15.0 MiB/33.8 MiB (53.7 MiB/s) with 1 file(s) remainingCompleted 15.3 MiB/33.8 MiB (51.9 MiB/s) with 1 file(s) remainingCompleted 15.5 MiB/33.8 MiB (52.6 MiB/s) with 1 file(s) remainingCompleted 15.8 MiB/33.8 MiB (53.3 MiB/s) with 1 file(s) remainingCompleted 16.0 MiB/33.8 MiB (54.0 MiB/s) with 1 file(s) remainingCompleted 16.3 MiB/33.8 MiB (54.8 MiB/s) with 1 file(s) remainingCompleted 16.5 MiB/33.8 MiB (55.4 MiB/s) with 1 file(s) remainingCompleted 16.8 MiB/33.8 MiB (56.3 MiB/s) with 1 file(s) remainingCompleted 17.0 MiB/33.8 MiB (56.8 MiB/s) with 1 file(s) remainingCompleted 17.3 MiB/33.8 MiB (57.5 MiB/s) with 1 file(s) remainingCompleted 17.5 MiB/33.8 MiB (58.2 MiB/s) with 1 file(s) remainingCompleted 17.8 MiB/33.8 MiB (58.8 MiB/s) with 1 file(s) remainingCompleted 18.0 MiB/33.8 MiB (59.5 MiB/s) with 1 file(s) remainingCompleted 18.3 MiB/33.8 MiB (60.2 MiB/s) with 1 file(s) remainingCompleted 18.5 MiB/33.8 MiB (60.8 MiB/s) with 1 file(s) remainingCompleted 18.8 MiB/33.8 MiB (61.5 MiB/s) with 1 file(s) remainingCompleted 19.0 MiB/33.8 MiB (62.3 MiB/s) with 1 file(s) remainingCompleted 19.3 MiB/33.8 MiB (62.9 MiB/s) with 1 file(s) remainingCompleted 19.5 MiB/33.8 MiB (63.6 MiB/s) with 1 file(s) remainingCompleted 19.8 MiB/33.8 MiB (64.2 MiB/s) with 1 file(s) remainingCompleted 20.0 MiB/33.8 MiB (64.9 MiB/s) with 1 file(s) remainingCompleted 20.3 MiB/33.8 MiB (65.5 MiB/s) with 1 file(s) remainingCompleted 20.5 MiB/33.8 MiB (66.1 MiB/s) with 1 file(s) remainingCompleted 20.8 MiB/33.8 MiB (66.8 MiB/s) with 1 file(s) remainingCompleted 21.0 MiB/33.8 MiB (67.5 MiB/s) with 1 file(s) remainingCompleted 21.3 MiB/33.8 MiB (68.1 MiB/s) with 1 file(s) remainingCompleted 21.5 MiB/33.8 MiB (68.8 MiB/s) with 1 file(s) remainingCompleted 21.8 MiB/33.8 MiB (69.5 MiB/s) with 1 file(s) remainingCompleted 22.0 MiB/33.8 MiB (70.1 MiB/s) with 1 file(s) remainingCompleted 22.3 MiB/33.8 MiB (70.7 MiB/s) with 1 file(s) remainingCompleted 22.5 MiB/33.8 MiB (71.4 MiB/s) with 1 file(s) remainingCompleted 22.8 MiB/33.8 MiB (72.0 MiB/s) with 1 file(s) remainingCompleted 23.0 MiB/33.8 MiB (72.7 MiB/s) with 1 file(s) remainingCompleted 23.3 MiB/33.8 MiB (73.3 MiB/s) with 1 file(s) remainingCompleted 23.5 MiB/33.8 MiB (73.9 MiB/s) with 1 file(s) remainingCompleted 23.8 MiB/33.8 MiB (74.6 MiB/s) with 1 file(s) remainingCompleted 24.0 MiB/33.8 MiB (75.2 MiB/s) with 1 file(s) remainingCompleted 24.3 MiB/33.8 MiB (75.9 MiB/s) with 1 file(s) remainingCompleted 24.5 MiB/33.8 MiB (76.5 MiB/s) with 1 file(s) remainingCompleted 24.8 MiB/33.8 MiB (77.1 MiB/s) with 1 file(s) remainingCompleted 25.0 MiB/33.8 MiB (77.8 MiB/s) with 1 file(s) remainingCompleted 25.3 MiB/33.8 MiB (75.5 MiB/s) with 1 file(s) remainingCompleted 25.5 MiB/33.8 MiB (76.1 MiB/s) with 1 file(s) remainingCompleted 25.8 MiB/33.8 MiB (76.6 MiB/s) with 1 file(s) remainingCompleted 26.0 MiB/33.8 MiB (77.3 MiB/s) with 1 file(s) remainingCompleted 26.3 MiB/33.8 MiB (77.8 MiB/s) with 1 file(s) remainingCompleted 26.5 MiB/33.8 MiB (78.5 MiB/s) with 1 file(s) remainingCompleted 26.8 MiB/33.8 MiB (78.9 MiB/s) with 1 file(s) remainingCompleted 27.0 MiB/33.8 MiB (79.4 MiB/s) with 1 file(s) remainingCompleted 27.3 MiB/33.8 MiB (80.0 MiB/s) with 1 file(s) remainingCompleted 27.5 MiB/33.8 MiB (80.6 MiB/s) with 1 file(s) remainingCompleted 27.8 MiB/33.8 MiB (81.0 MiB/s) with 1 file(s) remainingCompleted 28.0 MiB/33.8 MiB (81.7 MiB/s) with 1 file(s) remainingCompleted 28.3 MiB/33.8 MiB (82.4 MiB/s) with 1 file(s) remainingCompleted 28.5 MiB/33.8 MiB (82.7 MiB/s) with 1 file(s) remainingCompleted 28.8 MiB/33.8 MiB (83.4 MiB/s) with 1 file(s) remainingCompleted 29.0 MiB/33.8 MiB (84.0 MiB/s) with 1 file(s) remainingCompleted 29.3 MiB/33.8 MiB (84.4 MiB/s) with 1 file(s) remainingCompleted 29.5 MiB/33.8 MiB (85.0 MiB/s) with 1 file(s) remainingCompleted 29.8 MiB/33.8 MiB (85.5 MiB/s) with 1 file(s) remainingCompleted 30.0 MiB/33.8 MiB (86.1 MiB/s) with 1 file(s) remainingCompleted 30.3 MiB/33.8 MiB (86.6 MiB/s) with 1 file(s) remainingCompleted 30.5 MiB/33.8 MiB (87.2 MiB/s) with 1 file(s) remainingCompleted 30.8 MiB/33.8 MiB (87.7 MiB/s) with 1 file(s) remainingCompleted 31.0 MiB/33.8 MiB (88.3 MiB/s) with 1 file(s) remainingCompleted 31.3 MiB/33.8 MiB (88.8 MiB/s) with 1 file(s) remainingCompleted 31.5 MiB/33.8 MiB (89.2 MiB/s) with 1 file(s) remainingCompleted 31.8 MiB/33.8 MiB (89.8 MiB/s) with 1 file(s) remainingCompleted 32.0 MiB/33.8 MiB (87.0 MiB/s) with 1 file(s) remainingCompleted 32.3 MiB/33.8 MiB (87.6 MiB/s) with 1 file(s) remainingCompleted 32.5 MiB/33.8 MiB (88.1 MiB/s) with 1 file(s) remainingCompleted 32.8 MiB/33.8 MiB (88.6 MiB/s) with 1 file(s) remainingCompleted 33.0 MiB/33.8 MiB (89.2 MiB/s) with 1 file(s) remainingCompleted 33.3 MiB/33.8 MiB (89.7 MiB/s) with 1 file(s) remainingCompleted 33.5 MiB/33.8 MiB (90.3 MiB/s) with 1 file(s) remainingCompleted 33.8 MiB/33.8 MiB (90.8 MiB/s) with 1 file(s) remainingdownload: s3://sim2real-artifacts-592033927220-us-east-2/code/sim2real-bundle.tar.gz to ../../tmp/sim2real-bundle.tar.gz
 + tar -xzf /tmp/sim2real-bundle.tar.gz -C /opt/sim2real-data-engine
 tar: Ignoring unknown extended header keyword 'SCHILY.fflags'
 tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.FinderInfo'
@@ -37,6 +37,14 @@ tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.lastus
 tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.lastuseddate#PS'
 tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.lastuseddate#PS'
 tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.lastuseddate#PS'
+tar: Ignoring unknown extended header keyword 'SCHILY.fflags'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.FinderInfo'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.quarantine'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.lastuseddate#PS'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.quarantine'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.lastuseddate#PS'
+tar: Ignoring unknown extended header keyword 'SCHILY.fflags'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.FinderInfo'
 tar: Ignoring unknown extended header keyword 'SCHILY.fflags'
 tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.FinderInfo'
 tar: Ignoring unknown extended header keyword 'SCHILY.fflags'
@@ -48,7 +56,7 @@ tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.Finder
 + which uv
 + curl -LsSf https://astral.sh/uv/install.sh
 + sh
-downloading uv 0.13.7 x86_64-unknown-linux-gnu
+downloading uv 0.13.8 x86_64-unknown-linux-gnu
 installing to /root/.local/bin
   uv
   uvx
@@ -63,57 +71,57 @@ To add $HOME/.local/bin to your PATH, either restart your shell or run:
 + echo 'Executing Isaac Lab sim2sim evaluation...'
 Executing Isaac Lab sim2sim evaluation...
 + uv run sim2real sim2sim-eval --ref mujoco_native --target isaac_lab --episodes 20 --json
-Downloading cpython-3.13.18-linux-x86_64-gnu (download) (33.8MiB)
+Downloading cpython-3.13.18-linux-x86_64-gnu (download) (33.9MiB)
  Downloaded cpython-3.13.18-linux-x86_64-gnu (download)
 Using CPython 3.13.18
 Creating virtual environment at: .venv
    Building sim2real-engine @ file:///opt/sim2real-data-engine
 Downloading nvidia-cuda-cupti (11.4MiB)
-Downloading ruff (10.1MiB)
-Downloading cuda-bindings (8.0MiB)
-Downloading nvidia-cuda-runtime (2.2MiB)
-Downloading pydantic-core (2.2MiB)
-Downloading pygments (1.2MiB)
-Downloading numpy (15.9MiB)
-Downloading nvidia-cudnn-cu13 (495.1MiB)
-Downloading sympy (6.0MiB)
-Downloading nvidia-cublas (386.1MiB)
-Downloading nvidia-nccl-cu13 (206.0MiB)
-Downloading networkx (2.0MiB)
-Downloading nvidia-cufft (208.1MiB)
 Downloading nvidia-nvjitlink (44.5MiB)
-Downloading nvidia-cuda-cccl (3.9MiB)
-Downloading nvidia-nvshmem-cu13 (129.1MiB)
-Downloading pyarrow (52.5MiB)
-Downloading nvidia-cuda-nvrtc (44.8MiB)
-Downloading nvidia-cufile (1.3MiB)
-Downloading ast-serialize (1.3MiB)
-Downloading torch (514.2MiB)
-Downloading nvidia-cusparselt-cu13 (162.3MiB)
-Downloading nvidia-cusolver (217.4MiB)
+Downloading numpy (15.9MiB)
 Downloading triton (272.4MiB)
-Downloading pyopengl (3.0MiB)
+Downloading cuda-bindings (8.0MiB)
+Downloading pygments (1.2MiB)
+Downloading nvidia-nvshmem-cu13 (129.1MiB)
+Downloading ast-serialize (1.3MiB)
 Downloading nvidia-cusparse (144.0MiB)
+Downloading nvidia-cufile (1.3MiB)
+Downloading nvidia-cusparselt-cu13 (162.3MiB)
+Downloading networkx (2.0MiB)
+Downloading nvidia-nccl-cu13 (206.0MiB)
+Downloading pydantic-core (2.2MiB)
+Downloading nvidia-cufft (208.1MiB)
+Downloading nvidia-cusolver (217.4MiB)
+Downloading nvidia-cuda-runtime (2.2MiB)
+Downloading nvidia-cublas (386.1MiB)
+Downloading pyopengl (3.0MiB)
+Downloading nvidia-cudnn-cu13 (495.1MiB)
+Downloading nvidia-cuda-nvrtc (44.8MiB)
+Downloading nvidia-cuda-cccl (3.9MiB)
+Downloading torch (514.2MiB)
+Downloading sympy (6.0MiB)
+Downloading pyarrow (52.5MiB)
+Downloading ruff (10.1MiB)
 Downloading mypy (14.8MiB)
-Downloading mujoco-studio (12.2MiB)
 Downloading mujoco-core (9.2MiB)
- Downloaded ast-serialize
+Downloading mujoco-studio (12.2MiB)
  Downloaded nvidia-cufile
+ Downloaded ast-serialize
  Downloaded pygments
  Downloaded pydantic-core
  Downloaded nvidia-cuda-runtime
  Downloaded networkx
+ Downloaded pyopengl
  Downloaded nvidia-cuda-cccl
  Downloaded sympy
- Downloaded pyopengl
  Downloaded cuda-bindings
  Downloaded mujoco-core
  Downloaded ruff
       Built sim2real-engine @ file:///opt/sim2real-data-engine
  Downloaded nvidia-cuda-cupti
  Downloaded mujoco-studio
- Downloaded mypy
  Downloaded numpy
+ Downloaded mypy
  Downloaded nvidia-nvjitlink
  Downloaded nvidia-cuda-nvrtc
  Downloaded pyarrow
@@ -127,14 +135,14 @@ Downloading mujoco-core (9.2MiB)
  Downloaded nvidia-cublas
  Downloaded nvidia-cudnn-cu13
  Downloaded torch
-Installed 53 packages in 620ms
+Installed 53 packages in 569ms
 + echo 'Executing policy training on NVIDIA A10G (CUDA)...'
 Executing policy training on NVIDIA A10G (CUDA)...
-+ uv run sim2real train-policy --dataset-dir ./datasets/sim2real_pick_place --epochs 15 --batch-size 64 --device cuda --output-model /tmp/bc_cloud_policy.pt --json
++ uv run sim2real train-policy --dataset-dir ./datasets/sim2real_pick_place --epochs 45 --horizon 8 --batch-size 64 --device cuda --output-model /tmp/bc_cloud_policy.pt --json
 + aws s3 cp /tmp/isaac_sim2sim_results.json s3://sim2real-artifacts-592033927220-us-east-2/results/isaac_sim2sim_results.json --region us-east-2
-Completed 232 Bytes/232 Bytes (2.1 KiB/s) with 1 file(s) remainingupload: ../../tmp/isaac_sim2sim_results.json to s3://sim2real-artifacts-592033927220-us-east-2/results/isaac_sim2sim_results.json
+Completed 232 Bytes/232 Bytes (2.3 KiB/s) with 1 file(s) remainingupload: ../../tmp/isaac_sim2sim_results.json to s3://sim2real-artifacts-592033927220-us-east-2/results/isaac_sim2sim_results.json
 + aws s3 cp /tmp/training_results.json s3://sim2real-artifacts-592033927220-us-east-2/results/training_results.json --region us-east-2
-Completed 369 Bytes/369 Bytes (3.6 KiB/s) with 1 file(s) remainingupload: ../../tmp/training_results.json to s3://sim2real-artifacts-592033927220-us-east-2/results/training_results.json
+Completed 369 Bytes/369 Bytes (3.7 KiB/s) with 1 file(s) remainingupload: ../../tmp/training_results.json to s3://sim2real-artifacts-592033927220-us-east-2/results/training_results.json
 + aws s3 cp /tmp/bc_cloud_policy.pt s3://sim2real-artifacts-592033927220-us-east-2/results/bc_cloud_policy.pt --region us-east-2
-Completed 1.0 MiB/1.1 MiB (17.1 MiB/s) with 1 file(s) remainingCompleted 1.1 MiB/1.1 MiB (9.3 MiB/s) with 1 file(s) remaining upload: ../../tmp/bc_cloud_policy.pt to s3://sim2real-artifacts-592033927220-us-east-2/results/bc_cloud_policy.pt
+Completed 1.0 MiB/1.1 MiB (17.9 MiB/s) with 1 file(s) remainingCompleted 1.1 MiB/1.1 MiB (10.0 MiB/s) with 1 file(s) remainingupload: ../../tmp/bc_cloud_policy.pt to s3://sim2real-artifacts-592033927220-us-east-2/results/bc_cloud_policy.pt
 + aws s3 cp /var/log/user-data.log s3://sim2real-artifacts-592033927220-us-east-2/logs/user-data.log --region us-east-2

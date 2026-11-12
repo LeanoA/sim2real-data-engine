@@ -123,15 +123,15 @@ def _build_model_bundle(
         }
     elif "cloud" in model_id.lower() or "cuda" in model_id.lower():
         default_meta = {
-            "name": "BC-MLP Cloud GPU Baseline (15 épocas · AWS A10G CUDA)",
+            "name": "BC-MLP Cloud GPU Baseline (45 épocas · AWS A10G CUDA)",
             "shortName": "Cloud GPU (CUDA A10G)",
-            "tabLabel": "Cloud GPU (15 ép &bull; CUDA A10G)",
+            "tabLabel": "Cloud GPU (45 ép &bull; CUDA A10G)",
             "deviceTag": "NVIDIA A10G (24GB CUDA)",
-            "epochs": 15,
-            "throughput": "23,407 samples/s (1.96x)",
-            "loss": "0.0145 (-99.59%)",
-            "taskStatus": "Underfitted Descent (11.8 cm Z miss)",
-            "taskStatusClass": "badge-warning",
+            "epochs": 45,
+            "throughput": "22,160 samples/s (1.94x)",
+            "loss": "0.0087 (-99.75%)",
+            "taskStatus": "100% Grasp & Place Exitoso (H=8 Aligned)",
+            "taskStatusClass": "badge-success",
             "colorArm": "#8b5cf6",
             "colorTrail": "#d946ef",
         }
