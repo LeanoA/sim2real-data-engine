@@ -145,6 +145,18 @@ def test_evaluate_ood_robustness_execution() -> None:
     assert report.ood_dr_no_ensemble.num_episodes == 2
     assert report.action_jerk_reduction_pct is not None
 
+    # Verify decoupled surgical robotics telemetry
+    surg = report.nominal.surgical
+    assert surg.mean_min_reach_error_mm >= 0.0
+    assert surg.mean_placement_error_mm >= 0.0
+    assert surg.mean_execution_time_s > 0.0
+    assert surg.mean_hunting_oscillations >= 0.0
+    assert 0.0 <= surg.stages.reach_rate <= 1.0
+    assert 0.0 <= surg.stages.grasp_rate <= 1.0
+    assert 0.0 <= surg.stages.transport_rate <= 1.0
+    assert 0.0 <= surg.stages.place_rate <= 1.0
+    assert 0.0 <= surg.stages.chained_task_success_rate <= 1.0
+
 
 def test_cli_eval_policy_dr_and_compare_ensembling(capsys: pytest.CaptureFixture[str]) -> None:
     """`sim2real eval-policy --dr --compare-ensembling` emits formatted summary and JSON."""

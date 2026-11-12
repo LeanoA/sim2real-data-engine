@@ -829,25 +829,44 @@ def _run_eval_policy(
             print(f"OOD Robustness Benchmark ({report.backend}):")
             print(f"Model: {report.model_path}")
             print(f"Episodes: {report.num_episodes}")
-            print(
-                f"  Nominal: Success Rate={report.nominal.success_rate * 100.0:.1f}%, "
-                f"Payload Disp={report.nominal.mean_payload_displacement_m * 1000.0:.1f} mm, "
-                f"Action Jerk={report.nominal.mean_action_jerk:.4f}"
-            )
-            print(
-                f"  OOD DR (Ensembled): Success Rate="
-                f"{report.ood_dr_ensembled.success_rate * 100.0:.1f}%, "
-                f"Payload Disp="
-                f"{report.ood_dr_ensembled.mean_payload_displacement_m * 1000.0:.1f} mm, "
-                f"Action Jerk={report.ood_dr_ensembled.mean_action_jerk:.4f}"
-            )
-            if report.ood_dr_no_ensemble is not None:
+
+            for name, r in [
+                ("Nominal", report.nominal),
+                ("OOD DR (Ensembled)", report.ood_dr_ensembled),
+            ]:
+                s = r.surgical
+                st = s.stages
                 print(
-                    f"  OOD DR (No Ensemble): Success Rate="
-                    f"{report.ood_dr_no_ensemble.success_rate * 100.0:.1f}%, "
-                    f"Payload Disp="
-                    f"{report.ood_dr_no_ensemble.mean_payload_displacement_m * 1000.0:.1f} mm, "
-                    f"Action Jerk={report.ood_dr_no_ensemble.mean_action_jerk:.4f}"
+                    f"  {name}: Chained Task Success={st.chained_task_success_rate * 100.0:.1f}%\n"
+                    f"    Stages: Reach={st.reach_rate * 100.0:.0f}% | "
+                    f"Grasp={st.grasp_rate * 100.0:.0f}% | "
+                    f"Transport={st.transport_rate * 100.0:.0f}% | "
+                    f"Place={st.place_rate * 100.0:.0f}%\n"
+                    f"    Surgical: Proximity={s.mean_min_reach_error_mm:.1f} mm | "
+                    f"Place Err={s.mean_placement_error_mm:.1f} mm | "
+                    f"Duration={s.mean_execution_time_s:.2f}s | "
+                    f"Hunting={s.mean_hunting_oscillations:.1f} rev\n"
+                    f"    Dynamics: Payload Disp={r.mean_payload_displacement_m * 1000.0:.1f} mm | "
+                    f"Jerk={r.mean_action_jerk:.4f}"
+                )
+
+            if report.ood_dr_no_ensemble is not None:
+                r_no = report.ood_dr_no_ensemble
+                s_no = r_no.surgical
+                st_no = s_no.stages
+                print(
+                    f"  OOD DR (No Ensemble): Chained Success="
+                    f"{st_no.chained_task_success_rate * 100.0:.1f}%\n"
+                    f"    Stages: Reach={st_no.reach_rate * 100.0:.0f}% | "
+                    f"Grasp={st_no.grasp_rate * 100.0:.0f}% | "
+                    f"Transport={st_no.transport_rate * 100.0:.0f}% | "
+                    f"Place={st_no.place_rate * 100.0:.0f}%\n"
+                    f"    Surgical: Proximity={s_no.mean_min_reach_error_mm:.1f} mm | "
+                    f"Place Err={s_no.mean_placement_error_mm:.1f} mm | "
+                    f"Hunting={s_no.mean_hunting_oscillations:.1f} rev\n"
+                    f"    Dynamics: Payload Disp="
+                    f"{r_no.mean_payload_displacement_m * 1000.0:.1f} mm | "
+                    f"Jerk={r_no.mean_action_jerk:.4f}"
                 )
                 success_diff = (
                     report.ood_dr_ensembled.success_rate
