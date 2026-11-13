@@ -715,7 +715,7 @@ def _run_visualize(
             if "tcp" in name or "equivariant" in name:
                 return "tcp_equivariant_45ep"
             if "cloud" in name or "cuda" in name:
-                return "cloud_15ep"
+                return "cloud_45ep"
             return "canonical_45ep"
 
         models_to_load: dict[str, Path | str] = {}
@@ -731,11 +731,11 @@ def _run_visualize(
             if tcp_path.is_file():
                 models_to_load["tcp_equivariant_45ep"] = tcp_path
             if cloud_path.is_file():
-                models_to_load["cloud_15ep"] = cloud_path
+                models_to_load["cloud_45ep"] = cloud_path
         elif tcp_path.is_file():
             models_to_load["tcp_equivariant_45ep"] = tcp_path
         elif cloud_path.is_file():
-            models_to_load["cloud_15ep"] = cloud_path
+            models_to_load["cloud_45ep"] = cloud_path
 
         if len(models_to_load) > 1:
             comps = collect_multi_model_comparison(

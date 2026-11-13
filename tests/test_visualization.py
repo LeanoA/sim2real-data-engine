@@ -220,7 +220,7 @@ def test_multi_model_visualization_and_cli(
     assert "tab-cloud" in html_text
     assert "tab-compare" in html_text
     assert "canonical_45ep" in html_text
-    assert "cloud_15ep" in html_text
+    assert "cloud_45ep" in html_text
     assert "Client-Side Static Store" in html_text
 
 
