@@ -1,10 +1,10 @@
-# Architecture Specification — Sim2Real Data Engine (Phases 1–6)
+# Architecture Specification — Sim2Real Data Engine (Phases 1–6+)
 
-This document is the authoritative contract specification for `sim2real-data-engine`. Every module, class signature, mathematical formulation, and acceptance gate defined below is frozen across phases so any engineer or autonomous coding agent can implement Phases 2 through 6 with zero interface drift.
+This document is the authoritative contract specification for `sim2real-data-engine`. Every module, class signature, mathematical formulation, and acceptance gate defined below reflects the implemented architecture across core simulation, domain randomization, LeRobot v2 export, behavioral cloning, decoupled temporal ensembling, interactive visualization, and surgical/Sim-to-Sim benchmarking.
 
 ---
 
-## 1. Complete Target Directory Tree (Phases 1–6)
+## 1. Complete Directory Tree (Implemented)
 
 ```text
 sim2real-data-engine/
@@ -14,46 +14,71 @@ sim2real-data-engine/
 ├── ARTICLE_DRAFT.md                              # [Phase 6] Sim-to-Sim & synthetic data technical article
 ├── pyproject.toml                                # Python 3.13 + uv + pytest + ruff + mypy (--strict)
 ├── docs/
+│   ├── index.html                                # Multi-model static 3D WebGL dashboard (GitHub Pages)
 │   ├── ARCHITECTURE_SPECIFICATION.md             # This authoritative contract specification
-│   └── ARCHITECTURE_DECISIONS.md                 # ADR-01 through ADR-06
+│   ├── ARCHITECTURE_DECISIONS.md                 # ADR-01 through ADR-11
+│   └── EXPERIMENT_REPORT_PICK_PLACE.md           # Quantitative MuJoCo 4.0 pick-and-place convergence report
 ├── docker/
 │   ├── Dockerfile.genesis                        # [Phase 6] Headless GPU container for Genesis batch sweeps
 │   ├── Dockerfile.isaaclab                       # [Phase 6] Headless RTX container for NVIDIA Isaac Lab
-│   └── docker-compose.cloud.yml                  # [Phase 6] Multi-container GPU burst orchestration
+│   ├── docker-compose.cloud.yml                  # [Phase 6] Multi-container GPU burst orchestration
+│   └── run_cloud_training.py                     # Automated AWS EC2 (g5.2xlarge) burst runner & teardown
 ├── src/
 │   └── sim2real_engine/
 │       ├── __init__.py                           # [Phase 1] Package version
-│       ├── cli.py                                # [Phase 1-6] `sim2real` CLI entrypoint
+│       ├── cli.py                                # [Phase 1-6+] `sim2real` CLI entrypoint
 │       ├── core/
 │       │   ├── __init__.py                       # [Phase 1] Core exports
 │       │   ├── contracts.py                      # [Phase 1] SE3Pose, JointState, DR config, EpisodeStepRecord
 │       │   └── kinematics.py                     # [Phase 2] SO(3)/SE(3) Log/Exp, SLERP, Damped Least-Squares IK
 │       ├── simulators/
 │       │   ├── __init__.py                       # [Phase 2] Simulator adapter registry
-│       │   ├── base.py                           # [Phase 2] SimulatorBackend Protocol & PrivilegedPickPlaceExpert
-│       │   ├── mujoco_adapter.py                 # [Phase 2] Local ARM64/CPU deterministic physics adapter
+│       │   ├── base.py                           # [Phase 2] SimulatorBackend Protocol & 7-stage PrivilegedPickPlaceExpert
+│       │   ├── mujoco_adapter.py                 # [Phase 2] Deterministic 1,000 Hz kinematic adapter
+│       │   ├── mujoco_native.py                  # [Phase 2+] Native MuJoCo 4.0 500 Hz contact physics & weld latch
 │       │   └── cloud_adapters.py                 # [Phase 6] GenesisAdapter & IsaacLabAdapter
+│       ├── models/
+│       │   ├── __init__.py                       # MJCF model exports
+│       │   └── manipulator_6dof.xml              # Declarative 6-DOF robot + table + payload_weld MJCF scene
 │       ├── randomization/
 │       │   ├── __init__.py                       # [Phase 3] Randomization exports
 │       │   └── samplers.py                       # [Phase 3] EpisodePerturbation, DomainRandomizer (PCG64)
 │       ├── dataset/
 │       │   ├── __init__.py                       # [Phase 4] Dataset exports
 │       │   ├── manifest.py                       # [Phase 4] DatasetFeatureStats, DatasetManifest (SHA-256)
-│       │   └── exporter.py                       # [Phase 4] LeRobotEpisodeExporter (chunked tabular + RGB-D)
+│       │   └── exporter.py                       # [Phase 4] LeRobotEpisodeExporter (chunked tabular Parquet)
+│       ├── learning/
+│       │   ├── __init__.py                       # Sensorimotor learning exports
+│       │   ├── dataset.py                        # LeRobotParquetDataset + optional TCP-frame transform
+│       │   ├── policy.py                         # BehaviorCloningMLP (30D -> Hx7D chunk)
+│       │   └── trainer.py                        # MPS/CUDA/CPU BC trainer (Smooth L1 + latch weighting)
 │       ├── server/
 │       │   ├── __init__.py                       # [Phase 5] Inference bridge exports
 │       │   ├── chunk_buffer.py                   # [Phase 5] TemporalEnsembleBuffer (exp(-m*k) action chunking)
 │       │   └── bridge.py                         # [Phase 5] PolicyInferenceBridge & LatencyTracker (P50/P95/P99)
-│       └── benchmarks/
-│           ├── __init__.py                       # [Phase 6] Benchmark exports
-│           └── sim2sim_eval.py                   # [Phase 6] Cross-engine trajectory divergence & OOD evaluator
+│       ├── benchmarks/
+│       │   ├── __init__.py                       # [Phase 6] Benchmark exports
+│       │   ├── sim2sim_eval.py                   # [Phase 6] Cross-engine trajectory & EE divergence evaluator
+│       │   └── ood_dr_eval.py                    # [Phase 6+] Surgical manipulation metrics, OOD DR & noise sweeps
+│       └── visualization/
+│           ├── __init__.py                       # Visualization exports
+│           ├── data.py                           # Rollout telemetry collector for single & multi-model dashboards
+│           ├── dashboard.py                      # Trajectory comparison dashboard builder
+│           ├── policy_dashboard.py               # Multi-model static WebGL HTML/Three.js dashboard generator
+│           └── mujoco_gui.py                     # Native OpenGL interactive MuJoCo 4.0 desktop viewer
 └── tests/
     ├── test_contracts_and_cli.py                 # [Phase 1] Core schemas & CLI verification
     ├── test_kinematics_and_mujoco.py             # [Phase 2] DLS IK, SLERP & MuJoCo rollout convergence
+    ├── test_mujoco_native.py                     # Native MuJoCo 4.0 physics & pick-and-place rollout tests
     ├── test_randomization.py                     # [Phase 3] Bit-exact seeded sampling & distribution bounds
     ├── test_dataset_exporter.py                  # [Phase 4] LeRobotDataset v2 round-trip & SHA-256 integrity
+    ├── test_learning.py                          # BC MLP forward shape, TCP transform & trainer verification
     ├── test_inference_server.py                  # [Phase 5] Action chunking temporal ensemble & P99 telemetry
-    └── test_sim2sim_benchmarks.py                # [Phase 6] Cross-engine Sim-to-Sim evaluation suite
+    ├── test_temporal_ensembling_properties.py    # Temporal ensemble mathematical decay & smoothing invariants
+    ├── test_sim2sim_benchmarks.py                # [Phase 6] Cross-engine Sim-to-Sim evaluation suite
+    ├── test_closed_loop_physics_invariants.py    # Surgical evaluation & OOD closed-loop physics invariants
+    ├── test_policy_invariance_and_bounds.py      # TCP-frame SE(3) equivariance & action bound tests
+    └── test_visualization.py                     # Multi-model HTML dashboard generation & payload checks
 ```
 
 ---
@@ -129,27 +154,28 @@ $$\mathbf{u}_t = \frac{\sum_{k=0}^{K-1} \exp(-m \cdot k) \, \hat{\mathbf{a}}_{t 
 #### Required Interfaces
 - `src/sim2real_engine/server/chunk_buffer.py`:
   - `class TemporalEnsembleBuffer`:
-    - `__init__(self, chunk_horizon: int, dof: int, decay_m: float = 0.01) -> None`
-    - `push_chunk(self, action_chunk: NDArray[np.float64]) -> None`
-    - `pop_ensembled_action(self) -> NDArray[np.float64]`
-    - `reset(self) -> None`
+    - `__init__(self, action_dim: int, horizon: int = 16, decay_rate: float = 0.05, enabled: bool = True) -> None`
+    - `push_chunk(self, chunk: NDArray[np.float64], step: int) -> None`
+    - `get_ensembled_action(self, current_step: int) -> NDArray[np.float64]`
 - `src/sim2real_engine/server/bridge.py`:
   - `class LatencySummary(BaseModel)`: `count: int`, `p50_ms: float`, `p95_ms: float`, `p99_ms: float`, `max_ms: float`.
   - `class PolicyInferenceBridge`: deterministic Actor-Policy bridge with deadband filtering and P50/P95/P99 latency tracking.
 
 ---
 
-### Phase 6: Cloud GPU Burst & Sim-to-Sim Benchmarks (`simulators/cloud_adapters.py`, `benchmarks/sim2sim_eval.py`)
+### Phase 6 & Extensions: Cloud GPU Burst, Sim-to-Sim & Surgical Evaluation (`simulators/cloud_adapters.py`, `benchmarks/sim2sim_eval.py`, `benchmarks/ood_dr_eval.py`)
 
 #### Mathematical Formulation — Sim-to-Sim Trajectory Divergence
-Given nominal trajectory $\{\mathbf{q}_t^{(A)}, \mathbf{p}_t^{(A)}\}_{t=1}^T$ on Backend $A$ (`mujoco`) and $\{\mathbf{q}_t^{(B)}, \mathbf{p}_t^{(B)}\}_{t=1}^T$ on Backend $B$ (`genesis` or `isaac_lab`) under identical action sequences and seeds:
-$$\text{RMSE}_{\text{joint}}(A, B) = \sqrt{\frac{1}{T \cdot n} \sum_{t=1}^T \|\mathbf{q}_t^{(A)} - \mathbf{q}_t^{(B)}\|_2^2}, \qquad \text{RMSE}_{\text{EE}}(A, B) = \sqrt{\frac{1}{T} \sum_{t=1}^T \|\mathbf{p}_t^{(A)} - \mathbf{p}_t^{(B)}\|_2^2}$$
+Given nominal trajectory $\{\mathbf{q}_t^{(A)}, \mathbf{p}_t^{(A)}\}_{t=1}^T$ on Backend $A$ (`mujoco` or `mujoco_native`) and $\{\mathbf{q}_t^{(B)}, \mathbf{p}_t^{(B)}\}_{t=1}^T$ on Backend $B$ (`genesis` or `isaac_lab`) under identical action sequences and seeds:
+$$\text{RMSE}_{\text{joint}}(A, B) = \sqrt{\frac{1}{T \cdot n} \sum_{t=1}^T \|\mathbf{q}_t^{(A)} - \mathbf{q}_t^{(B)}\|_2^2}, \qquad \text{Div}_{\text{EE}}(A, B) = \frac{1}{N} \sum_{i=1}^N \|\mathbf{p}_{T,i}^{(A)} - \mathbf{p}_{T,i}^{(B)}\|_2$$
 
 #### Required Interfaces
 - `src/sim2real_engine/simulators/cloud_adapters.py`: `GenesisAdapter` and `IsaacLabAdapter` implementing `SimulatorBackend` with contact stiffness/damping fidelity profiles.
 - `src/sim2real_engine/benchmarks/sim2sim_eval.py`:
-  - `class Sim2SimMetrics(BaseModel)`: `reference_backend: BackendName`, `target_backend: BackendName`, `joint_rmse_rad: float`, `ee_position_rmse_m: float`, `grasp_success_rate_delta: float`, `throughput_steps_per_sec: float`.
+  - `class Sim2SimMetrics(BaseModel)`: `reference_backend: BackendName`, `target_backend: BackendName`, `num_episodes: int`, `mean_trajectory_rmse: float`, `mean_ee_divergence_m: float`, `success_rate_reference: float`, `success_rate_target: float`.
+  - `create_simulator_backend(name: BackendName) -> SimulatorBackend`
   - `evaluate_sim2sim_gap(reference: BackendName, target: BackendName, num_episodes: int = 10, seed: int = 42) -> Sim2SimMetrics`
+- `src/sim2real_engine/benchmarks/ood_dr_eval.py`: decoupled surgical manipulation evaluation (`SurgicalMetrics`, `ManipulationStages`), OOD DR comparisons, and perception noise sensitivity sweeps (`sweep-perception-noise`).
 
 ---
 
@@ -158,8 +184,9 @@ $$\text{RMSE}_{\text{joint}}(A, B) = \sqrt{\frac{1}{T \cdot n} \sum_{t=1}^T \|\m
 | Phase | Pytest Verification Target | CLI Subcommand Added |
 | :--- | :--- | :--- |
 | **Phase 1** | `uv run pytest tests/test_contracts_and_cli.py` | `sim2real info`, `sim2real backends`, `sim2real validate-config` |
-| **Phase 2** | `uv run pytest tests/test_kinematics_and_mujoco.py` | `sim2real rollout --backend mujoco --episodes 5 --json` |
+| **Phase 2** | `uv run pytest tests/test_kinematics_and_mujoco.py tests/test_mujoco_native.py` | `sim2real rollout --backend mujoco_native --episodes 5 --json` |
 | **Phase 3** | `uv run pytest tests/test_randomization.py` | `sim2real sample-dr --seed 42 --episodes 3 --json` |
 | **Phase 4** | `uv run pytest tests/test_dataset_exporter.py` | `sim2real export-dataset --episodes 5 --output-dir <dir> --json` |
-| **Phase 5** | `uv run pytest tests/test_inference_server.py` | `sim2real benchmark-bridge --steps 200 --chunk-horizon 16 --json` |
-| **Phase 6** | `uv run pytest tests/test_sim2sim_benchmarks.py` | `sim2real sim2sim-eval --ref mujoco --target isaac_lab --json` |
+| **Phase 5** | `uv run pytest tests/test_inference_server.py tests/test_temporal_ensembling_properties.py` | `sim2real benchmark-bridge --steps 200 --chunk-horizon 8 --json` |
+| **Phase 6** | `uv run pytest tests/test_sim2sim_benchmarks.py` | `sim2real sim2sim-eval --ref mujoco_native --target isaac_lab --json` |
+| **Learning, Eval & Vis** | `uv run pytest tests/test_learning.py tests/test_closed_loop_physics_invariants.py tests/test_policy_invariance_and_bounds.py tests/test_visualization.py` | `sim2real train-policy`, `sim2real eval-policy`, `sim2real sweep-perception-noise`, `sim2real view-physics`, `sim2real visualize` |
