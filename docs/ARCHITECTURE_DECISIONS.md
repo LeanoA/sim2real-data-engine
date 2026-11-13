@@ -93,7 +93,7 @@ Developing and debugging robotics simulation pipelines exclusively on cloud GPU 
 ### Decision
 Enforce a two-tier compute topology:
 1. **Tier 1 — Local Development & CI (`macOS ARM64 / CPU`)**: 100% of unit tests, differential IK solvers, domain randomization samplers, dataset exporters, and inference server benchmarks run locally with zero GPU dependencies.
-2. **Tier 2 — Cloud GPU Burst (`Docker Headless on AWS g5.xlarge / GCP g2-standard-4`)**: Ephemeral spot containers execute only when generating large-scale parallel `Genesis` rollouts or `NVIDIA Isaac Lab` ray-traced RGB-D datasets.
+2. **Tier 2 — Cloud GPU Burst (`Docker Headless on AWS g5.2xlarge / GCP g2-standard-4`)**: Ephemeral spot containers execute only when generating large-scale parallel `Genesis` rollouts or `NVIDIA Isaac Lab` ray-traced RGB-D datasets.
 
 ### Consequences
 - **Positive**: Zero-cost daily development and CI; >90% reduction in cloud GPU expenditure; complete reproducibility across developer laptops and cloud clusters.
@@ -133,7 +133,7 @@ Modeling an active articulated parallel-jaw gripper in this stage would expand t
 Early benchmark evaluation in `ood_dr_eval.py` relied on a single coarse heuristic (`payload_displacement > 0.15 m`) to determine episode success. In complex manipulation tasks, this coarse boolean flag created serious diagnostic blindness:
 1. Conflated reach failures with grasp slippage or placement misalignment.
 2. Masked control limit cycles and "hunting" oscillations (where the end-effector hesitates and jitters back and forth above the cube).
-3. Failed to enforce physical assembly tolerances ($\le 15\text{ mm}$ position, $\le 15^\circ$ tilt) at the target delivery zone.
+3. Failed to enforce physical assembly tolerances ($\le 20\text{ mm}$ position, $\le 15^\circ$ tilt) at the target delivery zone.
 
 ### Decision
 Decouple policy benchmarking into 5 surgical robotics telemetry channels (`SurgicalMetrics` and `ManipulationStages` in `src/sim2real_engine/benchmarks/ood_dr_eval.py`):
@@ -166,7 +166,7 @@ However, simply rotating relative positions into the local TCP frame $\mathbf{p}
 2. **Action Horizon Synchronization ($H=8$)**: Standardize the receding-horizon action chunking parameter at $H=8$ ($56\text{ outputs}$ for 7D control). This provides $160\text{ ms}$ of lookahead smoothing in `TemporalEnsembleBuffer`, dampening trajectory descent and ensuring the arm completes XY centering before committing to vertical descent.
 
 ### Consequences
-- **Positive**: Full workspace equivariance; zero-shot coordinate transfer; 100% closed-loop grasp recovery with payload displacement surging from $0.6\text{ mm}$ to $81.3\text{ mm}$ and achieving $80.0\%$ chained task success under OOD domain randomization.
+- **Positive**: Full workspace equivariance; zero-shot coordinate transfer; 100% closed-loop grasp recovery with payload displacement surging from $0.6\text{ mm}$ to $81.3\text{ mm}$ on the 5-episode slice ($125.0\text{ mm}$ across 20 episodes) and achieving $80.0\%$ chained task success under OOD domain randomization.
 - **Negative**: Increases output projection layer dimension from 28 to 56 weights ($256 \times 56$).
 
 ---
@@ -194,13 +194,13 @@ Implement synthetic perception noise injection and empirical sensitivity sweep o
 ## ADR-11: Zero-Runtime Multi-Model Telemetry for Static GitHub Pages Deployment
 
 ### Context & Problem
-Showcasing multiple trained visuomotor policies (e.g., World Baseline 45 ep, TCP-frame Equivariant 45 ep, Cloud GPU 15 ep) in an interactive web portfolio typically requires running a persistent Python/FastAPI backend or spinning up expensive cloud servers. For GitHub Pages hosting, execution must be 100% static and client-side.
+Showcasing multiple trained visuomotor policies (e.g., World Baseline 45 ep, TCP-frame Equivariant 45 ep, Cloud GPU 45 ep) in an interactive web portfolio typically requires running a persistent Python/FastAPI backend or spinning up expensive cloud servers. For GitHub Pages hosting, execution must be 100% static and client-side.
 
 ### Decision
 Architect a multi-model visualization pipeline (`src/sim2real_engine/visualization/policy_dashboard.py` and `cli.py`):
 1. **Dynamic Tab Switching**: The visualizer CLI (`sim2real visualize --multi-model`) executes rollouts across all available checkpoints and serializes a unified multi-model JSON telemetry dictionary directly into `docs/index.html` and `dashboard.html`.
 2. **Client-Side Segmented Control**: Fast sub-millisecond switching between model profiles without network round-trips. Each model dynamically updates the HUD telemetry table, stage progress bars, and Three.js 3D trajectory viewports.
-3. **Explicit Model Naming**: Every profile carries explicit metadata ("World Baseline (45 ép • MPS)", "TCP Equivariant (45 ép • MPS)", "Cloud GPU (15 ép • CUDA A10G)") rather than generic tags.
+3. **Explicit Model Naming**: Every profile carries explicit metadata ("World Baseline (45 ép • MPS)", "TCP Equivariant (45 ép • MPS)", "Cloud GPU (45 ép • CUDA A10G)") rather than generic tags.
 
 ### Consequences
 - **Positive**: 100% static, zero-runtime deployment on GitHub Pages; interactive 3D WebGL visualization and metrics accessible without server hosting costs.

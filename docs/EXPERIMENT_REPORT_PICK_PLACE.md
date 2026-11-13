@@ -10,7 +10,7 @@ This report documents the architectural diagnosis, implementation, and empirical
 - **Solution (Phase 1 — Native MuJoCo 4.0 Physical Pick-and-Place):**
   1. Integrated a proximity-gated (`<= 40 mm`) site-based `equality/weld` constraint in MJCF, dynamically toggled via `data.eq_active` in `MuJoCoPhysicsAdapter.set_gripper(grasped: bool)` to isolate Phase 1 sensorimotor learning from contact slip chatter (with Phase 2 introducing dynamic `relpose` anchoring and articulated parallel-jaw fingers).
   2. Increased finger clearance to `46 mm` (`pos = 0.02 ±0.029 0`) to prevent contact collisions during descent.
-  3. Extended `PrivilegedPickPlaceExpert` to a complete 6-stage lifecycle (`APPROACH → DESCEND → GRASP → LIFT → TRANSPORT → PLACE → COMPLETED`) followed by post-release gravity settling ticks.
+  3. Extended `PrivilegedPickPlaceExpert` to a complete 7-stage lifecycle (`APPROACH → DESCEND → GRASP → LIFT → TRANSPORT → PLACE → COMPLETED`) followed by post-release gravity settling ticks.
 - **Results:**
   - **Success Rate:** Jumped from **0.0%** to **100.0%**.
   - **Net Payload Transport:** Increased from **0.0 cm** to **14.2 cm** across the workstation table.

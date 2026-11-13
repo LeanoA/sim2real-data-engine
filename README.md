@@ -40,7 +40,7 @@ In modern robotic manipulation, policy learning (Action Chunking Transformers, D
 
 1. **High-Velocity Native Simulation:** Generates thousands of physics-validated demonstrations in seconds on local ARM64 CPU (zero cloud cost) using compiled DeepMind MuJoCo 4.0 with Damped Least-Squares (DLS) kinematics and isolated `PCG64` domain randomization.
 2. **Open Standards Compliance:** Trajectories stream directly into tabular Parquet chunks conforming to Hugging Face **`LeRobotDataset` v2**, with empirical normalization envelopes (`mean`, `std`, `min`, `max`) and cryptographic SHA-256 tamper seals.
-3. **Closed-Loop Sensorimotor Distillation:** Trains 30D state-conditioned neural action policies with receding-horizon action chunking and exponential temporal ensembling on local Metal GPU (MPS, 11.4k samples/s), validated in closed-loop desktop viewers (establishing the control foundation for Phase 2 RGB-D vision encoder conditioning).
+3. **Closed-Loop Sensorimotor Distillation:** Trains 30D state-conditioned neural action policies with receding-horizon action chunking and exponential temporal ensembling on local Metal GPU (MPS, **10.8k–11.0k samples/s**), validated in closed-loop desktop viewers (establishing the control foundation for Phase 2 RGB-D vision encoder conditioning).
 4. **Cloud GPU Burst:** Features turnkey AWS EC2 GPU provisioning (`docker/run_cloud_training.py`) to burst identical dataset manifests to NVIDIA A10G cloud instances for massive 10,000+ parallel Isaac Lab rollouts.
 
 ---
@@ -103,7 +103,7 @@ flowchart TD
     subgraph Core["1. Privileged Expert & Kinematics Core (core/)"]
         CFG["DomainRandomizationConfig & SE3Pose Contracts"]
         IK["Damped Least-Squares Differential IK Expert (Lie Algebra SE(3))"]
-        FSM["6-Stage Pick-and-Place FSM (Approach, Descend, Grasp, Lift, Transport, Place)"]
+        FSM["7-Stage Pick-and-Place FSM (Approach, Descend, Grasp, Lift, Transport, Place, Completed)"]
         CFG --> IK --> FSM
     end
 
@@ -117,9 +117,9 @@ flowchart TD
 
     subgraph Pipeline["3. Dataset & Sensorimotor Distillation (dataset/, learning/, server/)"]
         LER["LeRobotDataset v2 Exporter<br/>30D privileged state Parquet tables + SHA-256 seal"]
-        TRN["Receding-Horizon BC Trainer (learning/)<br/>Metal MPS GPU (11.4k samples/s), -99.8% loss drop"]
+        TRN["Receding-Horizon BC Trainer (learning/)<br/>Metal MPS GPU (10.8k–11.0k samples/s), -99.75% loss drop"]
         SRV["Temporal Ensemble Ring Buffer (server/)<br/>Exponential decay exp(-m*k), ~0.11ms MLP + 8.0ms IPC budget"]
-        OOD["OOD Domain Randomization Benchmark (benchmarks/)<br/>-79.6% action jerk reduction, 55% retention"]
+        OOD["OOD Domain Randomization Benchmark (benchmarks/)<br/>-79.6% action jerk reduction, 80.0% chained success"]
         VIS["Interactive 3D Visualizer & Desktop Viewer<br/>OpenGL native window + WebGL 3D dashboard"]
         MUJ_NAT & GEN & ISA --> LER --> TRN --> SRV --> OOD & VIS
     end
@@ -140,12 +140,12 @@ All metrics empirically benchmarked on Apple Silicon (M-series, unified memory):
 | **Static Analysis & Typing** | **`mypy --strict` & `ruff` clean** | 0 warnings across 43 files | **PASSED** |
 | **Dataset Export Rate (500 episodes)** | **50,213 steps in 9.1 s** (`> 5,500 steps/s`) | `< 15 s` | **PASSED** |
 | **Cryptographic Data Integrity** | **SHA-256 Digest per Parquet Chunk** | Tamper-proof manifest seal | **PASSED** |
-| **Policy Training Throughput (MPS)** | **11,438 samples/s** (45 epochs) | `> 5,000 samples/s` | **PASSED** |
-| **Validation Loss Reduction** | **-99.8%** (`3.5266 → 0.0087`) | `> 95%` on 50k samples | **PASSED** |
-| **Policy Inference Latency (P99)** | **0.11 ms MLP / 8.11 ms Bridge** (w/ 8.0 ms IPC budget) | `< 20.0 ms` (50 Hz budget) | **PASSED** |
+| **Policy Training Throughput (MPS)** | **10,781–10,998 samples/s** (45 epochs) | `> 5,000 samples/s` | **PASSED** |
+| **Validation Loss Reduction** | **-99.75%** (`3.5266 → 0.0087`) | `> 95%` on 50k samples | **PASSED** |
+| **Policy Inference Latency (P99)** | **0.11 ms MLP / 8.08 ms Bridge** (`8.22–8.25 ms` rollout) | `< 20.0 ms` (50 Hz budget) | **PASSED** |
 | **OOD Ensembling Chatter Reduction** | **-79.6% Action Jerk** (`0.1409 → 0.0287`) | Continuous smooth torques | **PASSED** |
 | **OOD Task Success Retention** | **80.0% chained task success** (vs 0.0% unensembled) | Retain control under noise | **PASSED** |
-| **TCP-Frame Spatial Equivariance** | **81.3 mm payload disp** ($H=8$ synchronized) | Spatial coordinate transfer | **PASSED** |
+| **TCP-Frame Spatial Equivariance** | **80.0% chained success / 125.0 mm disp** (20 eps; `81.3 mm` 5-ep slice) | Spatial coordinate transfer | **PASSED** |
 | **Perception Noise Robustness** | **90% grasp at $\sigma \le 2.5\text{ mm}$** ($\sigma^* = 7.5\text{ mm}$ vs $3.0\text{ mm}$ clearance) | Tolerance-bounded breakdown | **PASSED** |
 
 ---
@@ -156,8 +156,8 @@ The framework includes an end-to-end sensorimotor policy distillation pipeline t
 
 1. **Architecture:** Residual Behavioral Cloning MLP conditioned on 30-dimensional privileged state observations (6D joint angles `q`, 6D joint velocities `dq`, 7D Cartesian end-effector `SE(3)` pose, 7D privileged object `SE(3)` pose, 3D relative object-to-TCP displacement vector `Δp`, and 1D binary gripper latch state).
 2. **Action Chunking Horizon (`H = 8`):** Predicts an 8-step future 7D action sequence (~160 ms receding horizon) to mitigate single-step compounding covariate shift (`O(T²)` drift).
-3. **Training Velocity:** Trained on Apple Silicon GPU via PyTorch Metal Performance Shaders (MPS), achieving **11,438 samples/s** and reducing validation loss by **-99.8%** (`3.5266 → 0.0087`) across 45 epochs (`batch_size=64`).
-4. **Temporal Ensembling & Latency Telemetry:** During closed-loop execution, overlapping action chunks from historical steps `t - k` are blended using exponential decay weights `w_k = exp(-m · k)`, reducing high-frequency actuator jerk by **-79.6%**. The CPU MLP forward pass completes in **~0.11 ms** (**8.09 ms P50 / 8.11 ms P99** when evaluated with `PolicyInferenceBridge`'s default `8.0 ms` synthetic IPC/network transport latency budget).
+3. **Training Velocity:** Trained on Apple Silicon GPU via PyTorch Metal Performance Shaders (MPS), achieving **10,781 samples/s** (`World` checkpoint, `188.6s`) to **10,998 samples/s** (`TCP` checkpoint, `184.9s`) and reducing validation loss by **-99.75%** (`3.5266 → 0.0087`) across 45 epochs (`batch_size=64`).
+4. **Temporal Ensembling & Latency Telemetry:** During closed-loop execution, overlapping action chunks from historical steps `t - k` are blended using exponential decay weights `w_k = exp(-m · k)` (`m = 0.05`), reducing high-frequency actuator jerk by **-79.6%**. The CPU MLP forward pass completes in **~0.11 ms** (**8.02 ms P50 / 8.08 ms P99** on `benchmark-bridge`, and **8.09 ms P50 / 8.18–8.25 ms P99** in full closed-loop physics rollouts with `PolicyInferenceBridge`'s default `8.0 ms` synthetic IPC/network transport latency budget).
 
 ---
 
@@ -174,9 +174,9 @@ We packaged and empirically verified the turnkey cloud orchestrator in [`docker/
   - **Mean Trajectory RMSE:** `0.695 rad` | **Mean EE Divergence:** `0.0021 m` (**2.1 mm**).
 * **High-Throughput Policy Training ([`results/training_results.json`](results/training_results.json)):**
   - **Compute Device:** `cuda` (NVIDIA A10G 24GB).
-  - **Throughput:** **23,407 samples/s** (**28.96s** total for 15 epochs across 50,213 transitions).
-  - **Loss Reduction:** `3.5266 → 0.0145` (**-99.59%**).
-  - **Trained Cloud Checkpoint:** [`results/bc_cloud_policy.pt`](results/bc_cloud_policy.pt).
+  - **Throughput:** **22,160.3 samples/s** (**91.77s** total for 45 epochs across 50,213 transitions).
+  - **Loss Reduction:** `3.5266 → 0.008715` (**-99.75%**).
+  - **Trained Cloud Checkpoint:** [`results/bc_cloud_policy.pt`](results/bc_cloud_policy.pt) (**80.0%** OOD chained task success across 20 episodes, **-78.58%** action jerk reduction).
 * **Strict Cost Governance & Teardown:** The runner boots the Deep Learning AMI, installs `uv`, executes Isaac Lab benchmarks and CUDA policy training, syncs evaluation artifacts and logs to S3, and **immediately self-terminates (`shutdown -h now`)** upon completion to eliminate idle cloud spend (~$0.15 USD total run cost).
 * **Next Roadmap Milestones:**
   1. Fine-tuning multimodal ACT policies with real-time RGB-D camera streams.
@@ -196,7 +196,7 @@ We packaged and empirically verified the turnkey cloud orchestrator in [`docker/
 | `sim2real train-policy` | Train 30D Behavioral Cloning MLP with action chunking on MPS (supports `--tcp-frame`). | `uv run sim2real train-policy --dataset-dir datasets/sim2real_pick_place --epochs 45 --horizon 8` |
 | `sim2real export-dataset` | Export synthetic demonstrations to LeRobot v2 Parquet. | `uv run sim2real export-dataset --backend mujoco_native --episodes 200` |
 | `sim2real sim2sim-eval` | Evaluate Sim-to-Sim tracking drift against analytical reference adapters. | `uv run sim2real sim2sim-eval --ref mujoco_native --target isaac_lab --episodes 10` |
-| `sim2real benchmark-bridge`| Profile real-time action chunking buffer and inference latency. | `uv run sim2real benchmark-bridge --horizon 8 --steps 200` |
+| `sim2real benchmark-bridge`| Profile real-time action chunking buffer and inference latency. | `uv run sim2real benchmark-bridge --chunk-horizon 8 --steps 200` |
 | `sim2real sample-dr` | Sample deterministic PCG64 physical perturbation manifests. | `uv run sim2real sample-dr --seed 42 --episodes 5 --json` |
 | `sim2real backends` | List registered simulator backends and environment status. | `uv run sim2real backends --json` |
 | `sim2real info` | Display framework version, architecture, and runtime info. | `uv run sim2real info` |
@@ -208,7 +208,7 @@ We packaged and empirically verified the turnkey cloud orchestrator in [`docker/
 Execute the entire test and quality verification suite locally:
 
 ```bash
-# 1. Run all 87 unit and integration tests (under 10 seconds)
+# 1. Run all 97 unit and integration tests (under 20 seconds)
 uv run pytest -v
 
 # 2. Strict static typing across all modules (0 errors across 43 files)
@@ -237,7 +237,7 @@ sim2real-data-engine/
 │   ├── Dockerfile.genesis           # Genesis multi-physics batch container
 │   └── run_cloud_training.py        # Automated AWS EC2 GPU provisioning & teardown
 ├── docs/                            # Architectural specs, ADRs, and experiment reports
-│   ├── ARCHITECTURE_DECISIONS.md    # ADR-01 through ADR-07
+│   ├── ARCHITECTURE_DECISIONS.md    # ADR-01 through ADR-11
 │   ├── ARCHITECTURE_SPECIFICATION.md# Formal module interfaces and mathematical bounds
 │   └── EXPERIMENT_REPORT_PICK_PLACE.md # Quantitative benchmark report (100% success rate)
 ├── src/
@@ -252,7 +252,7 @@ sim2real-data-engine/
 │       ├── server/                  # Policy inference bridge & receding-horizon ring buffer
 │       ├── simulators/              # Native MuJoCo, Kinematic, & Analytical Impedance Adapters
 │       └── visualization/           # WebGL dashboard generator & OpenGL desktop viewer
-└── tests/                           # 87 deterministic unit and integration tests
+└── tests/                           # 97 deterministic unit and integration tests
 ```
 
 ---
