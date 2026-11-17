@@ -19,9 +19,10 @@ def test_mjcf_model_compilation() -> None:
     assert path.is_file()
 
     model, data = load_robot_mjcf()
-    assert model.nq == 13
-    assert model.nv == 12
-    assert model.nu == 6
+    assert model.nq == 15
+    assert model.nv == 14
+    assert model.nu == 7
+    assert model.nsensor == 2
 
 
 def test_mujoco_physics_adapter_protocol_conformance() -> None:
@@ -75,25 +76,32 @@ def test_mujoco_physics_adapter_step_advances_simulation() -> None:
     assert len(record.joint_state.torques_nm) == 6
     assert record.gripper_action is None
 
-    # Move payload site near TCP to test proximity-gated grasp
+    # Move payload site near TCP to test physical parallel-jaw contact clamping
     tcp_pos = adapter.data.site("ee_tcp").xpos.copy()
     adapter.data.joint("payload_freejoint").qpos[:3] = tcp_pos
     mujoco.mj_forward(adapter.model, adapter.data)
     assert adapter.tcp_to_payload_distance() <= 0.04
 
-    # Test 7D action: close gripper / activate weld (g = 1.0)
+    # Test 7D action: close gripper physically onto payload cube (g = 1.0)
     target_7d_close = (*target_q, 1.0)
-    rec_close = adapter.step(joint_targets_rad=target_7d_close)
+    for _ in range(15):
+        rec_close = adapter.step(joint_targets_rad=target_7d_close)
     assert rec_close.gripper_action == 1.0
-    assert rec_close.gripper_state == 1.0
-    assert adapter.data.eq_active[adapter._weld_id] == 1
+    assert rec_close.gripper_state is not None
+    assert 0.20 < rec_close.gripper_state < 0.70
+    assert adapter.gripper_contact_force > 1.0
+    q_left = float(adapter.data.joint("finger_left_joint").qpos[0])
+    q_right = float(adapter.data.joint("finger_right_joint").qpos[0])
+    assert pytest.approx(q_left, abs=5e-4) == q_right
 
-    # Test 7D action: open gripper / deactivate weld (g = 0.0)
+    # Test 7D action: open gripper and release contact (g = 0.0)
     target_7d_open = (*target_q, 0.0)
-    rec_open = adapter.step(joint_targets_rad=target_7d_open)
+    for _ in range(15):
+        rec_open = adapter.step(joint_targets_rad=target_7d_open)
     assert rec_open.gripper_action == 0.0
-    assert rec_open.gripper_state == 0.0
-    assert adapter.data.eq_active[adapter._weld_id] == 0
+    assert rec_open.gripper_state is not None
+    assert rec_open.gripper_state < 0.10
+    assert adapter.gripper_contact_force == 0.0
 
     # Invalid dimension
     with pytest.raises(ValueError, match="action targets"):
@@ -158,6 +166,7 @@ def test_mujoco_physics_adapter_domain_perturbation() -> None:
     adapter = MuJoCoPhysicsAdapter()
     nominal_mass = float(adapter.model.body("payload_object").mass[0])
     nominal_fric = float(adapter.model.geom("payload_geom").friction[0])
+    nominal_finger_fric = float(adapter.model.geom("finger_left").friction[0])
 
     pert = EpisodePerturbation(
         episode_id=1,
@@ -172,29 +181,54 @@ def test_mujoco_physics_adapter_domain_perturbation() -> None:
     adapter.reset(seed=10, perturbation=pert)
     new_mass = float(adapter.model.body("payload_object").mass[0])
     new_fric = float(adapter.model.geom("payload_geom").friction[0])
+    new_finger_fric = float(adapter.model.geom("finger_left").friction[0])
     assert pytest.approx(new_mass) == nominal_mass * 1.5
     assert pytest.approx(new_fric) == nominal_fric * 2.0
+    assert pytest.approx(new_finger_fric) == nominal_finger_fric * 2.0
 
     # Resetting without perturbation restores nominal values
     adapter.reset(seed=11)
     assert pytest.approx(float(adapter.model.body("payload_object").mass[0])) == nominal_mass
     assert pytest.approx(float(adapter.model.geom("payload_geom").friction[0])) == nominal_fric
+    assert (
+        pytest.approx(float(adapter.model.geom("finger_left").friction[0])) == nominal_finger_fric
+    )
 
 
-def test_mujoco_physics_adapter_proximity_gated_grasp() -> None:
+def test_mujoco_physics_adapter_empty_close_no_teleport() -> None:
     adapter = MuJoCoPhysicsAdapter()
     adapter.reset(seed=42)
 
     # Robot at home is far from payload (> 100 mm)
     assert adapter.tcp_to_payload_distance() > 0.10
 
-    # Premature grasp command must NOT latch weld or teleport object
-    latched = adapter.set_gripper(True)
-    assert latched is False
-    assert adapter.gripper_state == 0.0
-    assert adapter.data.eq_active[adapter._weld_id] == 0
+    # Closing gripper in empty air drives fingers fully shut without moving payload
+    for _ in range(15):
+        rec = adapter.step((*adapter.home_configuration, 1.0))
 
-    # Step with 7D action (g = 1.0) while far away
-    rec = adapter.step((*adapter.home_configuration, 1.0))
-    assert rec.gripper_state == 0.0
-    assert adapter.data.eq_active[adapter._weld_id] == 0
+    assert rec.gripper_state is not None
+    assert adapter.gripper_state > 0.85
+    assert adapter.gripper_contact_force == 0.0
+    assert adapter.tcp_to_payload_distance() > 0.10
+    assert pytest.approx(rec.privileged_object_pose.position[2], abs=0.005) == 0.07
+
+
+def test_mujoco_native_pick_and_place_dr_coulomb_hold() -> None:
+    from sim2real_engine.randomization.samplers import EpisodePerturbation
+
+    pert = EpisodePerturbation(
+        episode_id=1,
+        derived_seed=99,
+        mass_scale=1.5,
+        friction_scale=0.6,
+        damping_scale=1.2,
+        lighting_intensity=1.0,
+        camera_pose_offset=SE3Pose(position=(0.0, 0.0, 0.0)),
+    )
+    adapter = MuJoCoPhysicsAdapter()
+    expert = PrivilegedPickPlaceExpert(ik_solver=DampedLeastSquaresIK(dof=adapter.dof))
+    records = expert.run_episode(backend=adapter, seed=42, max_steps=120, perturbation=pert)
+    assert expert.stage == "COMPLETED"
+    max_z = max(r.privileged_object_pose.position[2] for r in records)
+    assert max_z > records[0].privileged_object_pose.position[2] + 0.08
+    assert pytest.approx(records[-1].privileged_object_pose.position[1], abs=0.03) == -0.10

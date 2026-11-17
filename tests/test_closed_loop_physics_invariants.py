@@ -105,12 +105,11 @@ def test_elbow_link3_floor_clearance(checkpoint_path: Path) -> None:
     assert min_elbow_z > 0.28
 
 
-def test_proximity_gating_never_latches_in_mid_air(checkpoint_path: Path) -> None:
-    """Weld equality constraint must strictly NEVER activate if TCP-payload distance > 40mm."""
+def test_physical_gripper_symmetry_and_no_payload_teleport(checkpoint_path: Path) -> None:
+    """Prismatic fingers must move symmetrically and never lift the cube from afar."""
     model, meta = BehaviorCloningMLP.load_checkpoint(checkpoint_path)
     policy_fn = model.to_policy_fn(meta)
 
-    # Test across multiple random seeds
     for test_seed in [42, 43, 44]:
         buffer = TemporalEnsembleBuffer(action_dim=model.action_dim, horizon=model.horizon)
         bridge = PolicyInferenceBridge(buffer=buffer, policy_fn=policy_fn)
@@ -137,13 +136,17 @@ def test_proximity_gating_never_latches_in_mid_air(checkpoint_path: Path) -> Non
             current_obj = rec.privileged_object_pose
             current_grip = float(rec.gripper_state if rec.gripper_state is not None else 0.0)
 
-            # Invariant: if weld is active, distance MUST have been within 40mm
-            if adapter.gripper_state > 0.5:
+            q_left = float(adapter.data.joint("finger_left_joint").qpos[0])
+            q_right = float(adapter.data.joint("finger_right_joint").qpos[0])
+            assert abs(q_left - q_right) < 5e-4, (
+                f"Seed {test_seed}, Step {step}: Finger asymmetry {q_left:.5f} vs {q_right:.5f}"
+            )
+
+            # Invariant: payload cannot lift off tabletop unless TCP is physically engaged
+            if current_obj.position[2] > 0.085:
                 dist = adapter.tcp_to_payload_distance()
-                # In active state, weld constraint binds them closely (< 40mm)
-                err_dist = dist * 1000.0
                 assert dist <= 0.045, (
-                    f"Seed {test_seed}, Step {step}: Latched with invalid distance {err_dist:.1f}mm"
+                    f"Seed {test_seed}, Step {step}: Payload lifted at invalid distance {dist:.3f}m"
                 )
 
 
