@@ -205,3 +205,21 @@ Architect a multi-model visualization pipeline (`src/sim2real_engine/visualizati
 ### Consequences
 - **Positive**: 100% static, zero-runtime deployment on GitHub Pages; interactive 3D WebGL visualization and metrics accessible without server hosting costs.
 - **Negative**: Generates a self-contained ~215 KB HTML file containing embedded telemetry JSON.
+
+---
+
+## ADR-12: Articulated Parallel-Jaw Prismatic Gripper & Coulomb Contact Grasping
+
+### Context & Problem
+In Phase 1 (ADR-07), `manipulator_6dof.xml` modeled `finger_left` and `finger_right` as static rigid geoms with a proximity-gated (`<= 40 mm`) `<weld>` constraint (`payload_weld`) toggled via `data.eq_active`. While this enabled deterministic end-to-end pick-and-place verification, it bypassed normal clamping force, Coulomb friction cones, slip failure modes, and real jaw aperture proprioception.
+
+### Decision
+Upgrade the native MuJoCo manipulator (`src/sim2real_engine/models/manipulator_6dof.xml` and `src/sim2real_engine/simulators/mujoco_native.py`) to an articulated parallel-jaw gripper while preserving 6-DOF arm kinematics and the `obs_dim=30`, `action_dim=7` policy interface:
+1. **1-DOF Symmetrically Coupled Prismatic Jaws**: Convert `finger_left` and `finger_right` into child bodies (`left_finger_link`, `right_finger_link`) with `slide` joints (`range="0.0 0.022"`, `54 mm` open clearance for the `40 mm` payload cube -> `7.0 mm` bilateral margin), coupled via `<equality><joint name="gripper_symmetry" .../>` and a symmetric `<tendon><fixed name="gripper_tendon">` driven by a single `<position name="act_gripper">` actuator (`kp=300`, `kv=15`, `forcerange="-15 15"`). Raise `gripper_palm` (`z=+0.027 m`) so it clears the cube top during `DESCEND`.
+2. **Arm / Gripper Decoupling**: Keep `DampedLeastSquaresIK` and `MuJoCoPhysicsAdapter.get_jacobian()` strictly 6-DOF (`jac[:, :6]`). Map the 7th action dimension (`[0.0, 1.0]`) directly to `act_gripper` without adding finger DOFs to the arm Jacobian.
+3. **Sim2Real-Faithful Proprioception**: Report normalized physical jaw closure (`(q_left + q_right) / (2 * max_travel)` in `[0.0, 1.0]`) in `EpisodeStepRecord.gripper_state` (`obs_dim=30`). Add declarative `<touch>` sensors (`touch_left`, `touch_right`) strictly for telemetry and verification invariants, avoiding sim-to-real brittle contact force impulses in policy observations.
+4. **Expert FSM Calibration**: Require `DESCEND` convergence (`<= 15 mm`) around the payload center and 8 dwell ticks (`160 ms`) in `GRASP` for normal force stabilization before `LIFT`.
+
+### Consequences
+- **Positive**: Replaces artificial weld snapping with genuine Coulomb contact grasping (`~4.4 N` total normal force, verified under `1.5x` mass and `0.6x` friction domain randomization) and provides real aperture proprioception (`~0.33` clamped vs. `~0.99` empty close) without breaking `BehaviorCloningMLP` input/output dimensions.
+- **Negative**: Requires re-collecting expert demonstrations and retraining policies to exploit continuous jaw proprioception and contact dynamics fully.
