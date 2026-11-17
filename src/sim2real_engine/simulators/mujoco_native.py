@@ -9,14 +9,14 @@ from numpy.typing import NDArray
 from sim2real_engine.core.contracts import EpisodeStepRecord, JointState, SE3Pose
 from sim2real_engine.models import load_robot_mjcf
 from sim2real_engine.randomization.samplers import EpisodePerturbation
-from sim2real_engine.simulators.base import GRASP_ENGAGE_RADIUS_M
 
 
 class MuJoCoPhysicsAdapter:
     """Official MuJoCo 4.x C++ physics engine adapter for real contact dynamics.
 
     Implements the hexagonal SimulatorBackend port using compiled MJCF models,
-    true Coulomb friction, rigid-body contact manifolds, and analytical C++ Jacobians.
+    articulated parallel-jaw fingers, true Coulomb friction, rigid-body contact
+    manifolds, and analytical C++ Jacobians.
     """
 
     def __init__(self, control_dt: float = 0.02, physics_substeps: int = 10) -> None:
@@ -31,11 +31,9 @@ class MuJoCoPhysicsAdapter:
         self._ee_body_id = self.model.body("end_effector").id
         self._home_key_id = self.model.key("home").id
         self._home_q = np.array([0.0, -0.55, 1.10, 0.0, -0.55, 0.0], dtype=np.float64)
-        try:
-            self._weld_id = self.model.equality("payload_weld").id
-        except KeyError:
-            self._weld_id = -1
-        self._object_grasped = False
+        self._finger_travel_max: float = float(self.model.joint("finger_left_joint").range[1])
+        self._gripper_ctrl_max: float = float(self.model.actuator("act_gripper").ctrlrange[1])
+        self._gripper_target: float = 0.0
         self._episode_id = 0
         self._step_index = 0
 
@@ -45,6 +43,16 @@ class MuJoCoPhysicsAdapter:
             float(self.model.geom("payload_geom").friction[0]),
             float(self.model.geom("payload_geom").friction[1]),
             float(self.model.geom("payload_geom").friction[2]),
+        )
+        self._nominal_finger_left_friction: tuple[float, float, float] = (
+            float(self.model.geom("finger_left").friction[0]),
+            float(self.model.geom("finger_left").friction[1]),
+            float(self.model.geom("finger_left").friction[2]),
+        )
+        self._nominal_finger_right_friction: tuple[float, float, float] = (
+            float(self.model.geom("finger_right").friction[0]),
+            float(self.model.geom("finger_right").friction[1]),
+            float(self.model.geom("finger_right").friction[2]),
         )
         self._nominal_dof_damping: NDArray[np.float64] = self.model.dof_damping[:6].copy()
 
@@ -68,6 +76,16 @@ class MuJoCoPhysicsAdapter:
             self._nominal_friction[1] * perturbation.friction_scale,
             self._nominal_friction[2] * perturbation.friction_scale,
         ]
+        self.model.geom("finger_left").friction = [
+            self._nominal_finger_left_friction[0] * perturbation.friction_scale,
+            self._nominal_finger_left_friction[1] * perturbation.friction_scale,
+            self._nominal_finger_left_friction[2] * perturbation.friction_scale,
+        ]
+        self.model.geom("finger_right").friction = [
+            self._nominal_finger_right_friction[0] * perturbation.friction_scale,
+            self._nominal_finger_right_friction[1] * perturbation.friction_scale,
+            self._nominal_finger_right_friction[2] * perturbation.friction_scale,
+        ]
         self.model.dof_damping[:6] = self._nominal_dof_damping * perturbation.damping_scale
         mujoco.mj_setConst(self.model, self.data)
 
@@ -75,6 +93,8 @@ class MuJoCoPhysicsAdapter:
         """Restore nominal payload mass, friction, and joint damping."""
         self.model.body("payload_object").mass = [self._nominal_payload_mass]
         self.model.geom("payload_geom").friction = list(self._nominal_friction)
+        self.model.geom("finger_left").friction = list(self._nominal_finger_left_friction)
+        self.model.geom("finger_right").friction = list(self._nominal_finger_right_friction)
         self.model.dof_damping[:6] = self._nominal_dof_damping.copy()
         mujoco.mj_setConst(self.model, self.data)
 
@@ -94,9 +114,8 @@ class MuJoCoPhysicsAdapter:
 
         self._episode_id = seed
         self._step_index = 0
-        self._object_grasped = False
-        if self._weld_id >= 0:
-            self.data.eq_active[self._weld_id] = 0
+        self._gripper_target = 0.0
+        self.data.actuator("act_gripper").ctrl[0] = 0.0
 
         # Perturb object on table surface (tabletop is at z = 0.05, box half-size is 0.02)
         obj_x = 0.38 + float(rng.uniform(-0.04, 0.04))
@@ -147,21 +166,29 @@ class MuJoCoPhysicsAdapter:
 
     @property
     def gripper_state(self) -> float:
-        """Actual latch state: 1.0 when the payload is held, else 0.0."""
-        return 1.0 if self._object_grasped else 0.0
+        """Normalized parallel-jaw closure in [0.0, 1.0] (0.0 = open, 1.0 = fully closed)."""
+        q_left = float(self.data.joint("finger_left_joint").qpos[0])
+        q_right = float(self.data.joint("finger_right_joint").qpos[0])
+        avg_travel = 0.5 * (q_left + q_right)
+        return float(np.clip(avg_travel / self._finger_travel_max, 0.0, 1.0))
 
-    def set_gripper(self, grasped: bool) -> bool:
-        """Command the gripper; returns the resulting latch state.
+    @property
+    def gripper_contact_force(self) -> float:
+        """Total scalar normal contact force (N) across left and right fingertip touch sensors."""
+        left = float(self.data.sensor("touch_left").data[0])
+        right = float(self.data.sensor("touch_right").data[0])
+        return left + right
 
-        Closing only latches the payload when it lies within ``GRASP_ENGAGE_RADIUS_M`` of the
-        TCP. Opening always releases.
+    def set_gripper(self, grasped: bool | float) -> bool:
+        """Command the articulated parallel-jaw actuator target.
+
+        Accepts a boolean (True=1.0 closed, False=0.0 open) or continuous normalized closure
+        command in [0.0, 1.0]. Returns True when closure target > 0.5.
         """
-        if grasped and not self._object_grasped:
-            grasped = self.tcp_to_payload_distance() <= GRASP_ENGAGE_RADIUS_M
-        self._object_grasped = grasped
-        if self._weld_id >= 0:
-            self.data.eq_active[self._weld_id] = 1 if grasped else 0
-        return grasped
+        target = (1.0 if grasped else 0.0) if isinstance(grasped, bool) else float(grasped)
+        self._gripper_target = float(np.clip(target, 0.0, 1.0))
+        self.data.actuator("act_gripper").ctrl[0] = self._gripper_target * self._gripper_ctrl_max
+        return self._gripper_target > 0.5
 
     def get_jacobian(self) -> NDArray[np.float64]:
         """Compute exact 6x6 spatial geometric Jacobian at the end-effector via MuJoCo C API."""
@@ -181,14 +208,14 @@ class MuJoCoPhysicsAdapter:
         """Advance physical simulation through multiple substeps with collision solving.
 
         Supports 6-DOF arm targets and 7-DOF reactive action targets (arm + gripper).
-        When 7 targets are provided, index 6 commands gripper closure (> 0.5 activates weld).
+        When 7 targets are provided, index 6 commands normalized gripper closure in [0.0, 1.0].
         """
         if len(joint_targets_rad) == self._dof:
             arm_targets = joint_targets_rad
         elif len(joint_targets_rad) == self._dof + 1:
             arm_targets = joint_targets_rad[: self._dof]
             gripper_cmd = float(joint_targets_rad[self._dof])
-            self.set_gripper(gripper_cmd > 0.5)
+            self.set_gripper(gripper_cmd)
         else:
             msg = (
                 f"Expected {self._dof} (arm only) or {self._dof + 1} (arm + gripper) "
@@ -197,6 +224,7 @@ class MuJoCoPhysicsAdapter:
             raise ValueError(msg)
 
         self.data.ctrl[:6] = np.asarray(arm_targets, dtype=np.float64)
+        self.data.actuator("act_gripper").ctrl[0] = self._gripper_target * self._gripper_ctrl_max
 
         for _ in range(self._physics_substeps):
             # Feedforward gravity compensation for high-precision articulated trajectory tracking

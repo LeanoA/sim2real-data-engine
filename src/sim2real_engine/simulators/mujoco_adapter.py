@@ -167,18 +167,19 @@ class MuJoCoKinematicAdapter:
         """Actual latch state: 1.0 when the payload is held, else 0.0."""
         return 1.0 if self._object_grasped else 0.0
 
-    def set_gripper(self, grasped: bool) -> bool:
+    def set_gripper(self, grasped: bool | float) -> bool:
         """Command the kinematic grasp; returns the resulting latch state.
 
         Closing only latches the payload when it lies within ``GRASP_ENGAGE_RADIUS_M`` of the
         end effector. Opening always releases.
         """
-        if grasped and not self._object_grasped:
+        close_requested = grasped if isinstance(grasped, bool) else float(grasped) > 0.5
+        if close_requested and not self._object_grasped:
             ee_pos = np.asarray(self._forward_kinematics(self._q).position, dtype=np.float64)
             obj_pos = np.asarray(self._object_pose.position, dtype=np.float64)
-            grasped = float(np.linalg.norm(ee_pos - obj_pos)) <= GRASP_ENGAGE_RADIUS_M
-        self._object_grasped = grasped
-        return grasped
+            close_requested = float(np.linalg.norm(ee_pos - obj_pos)) <= GRASP_ENGAGE_RADIUS_M
+        self._object_grasped = close_requested
+        return close_requested
 
     def get_jacobian(self) -> NDArray[np.float64]:
         """Compute 6x6 spatial geometric Jacobian at the current joint configuration."""

@@ -74,11 +74,11 @@ class SimulatorBackend(Protocol):
 
     @property
     def gripper_state(self) -> float:
-        """Actual gripper latch state: 1.0 when held, else 0.0."""
+        """Normalized gripper closure state in [0.0, 1.0] (0.0 = open, 1.0 = closed)."""
         ...
 
-    def set_gripper(self, grasped: bool) -> bool:
-        """Control gripper grasp or weld constraint attachment state."""
+    def set_gripper(self, grasped: bool | float) -> bool:
+        """Command gripper closure (bool or normalized target in [0.0, 1.0])."""
         ...
 
 

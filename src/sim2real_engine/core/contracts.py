@@ -174,8 +174,8 @@ class EpisodeStepRecord(BaseModel):
         ge=0.0,
         le=1.0,
         description=(
-            "Actual gripper latch state (1.0 = payload held) at the time of the observation "
-            "stored in this record. Distinct from the commanded gripper action."
+            "Normalized physical gripper closure state in [0.0, 1.0] (0.0 = open, 1.0 = closed) "
+            "at the time of the observation stored in this record. Distinct from commanded action."
         ),
     )
 
