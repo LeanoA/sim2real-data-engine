@@ -202,7 +202,7 @@ class PerceptionSensitivityCurve(BaseModel):
         ..., ge=0.0, le=1.0, description="Grasp rate at sigma=0 mm."
     )
     mechanical_clearance_mm: float = Field(
-        default=3.0,
+        default=7.0,
         description="Physical gripper-payload clearance tolerance (mm) before finger collision.",
     )
 
@@ -595,5 +595,5 @@ def run_perception_sensitivity_sweep(
         noise_points=points,
         breakdown_threshold_mm=breakdown_thresh,
         zero_noise_grasp_rate=zero_grasp_rate,
-        mechanical_clearance_mm=3.0,
+        mechanical_clearance_mm=7.0,
     )

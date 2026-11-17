@@ -286,7 +286,7 @@ def test_cli_sweep_perception_noise(capsys: pytest.CaptureFixture[str]) -> None:
     captured_json = capsys.readouterr()
     payload = json.loads(captured_json.out)
     assert "mechanical_clearance_mm" in payload
-    assert payload["mechanical_clearance_mm"] == 3.0
+    assert payload["mechanical_clearance_mm"] == 7.0
     assert len(payload["noise_points"]) == 2
 
     # Plain text ASCII table output check
@@ -302,6 +302,6 @@ def test_cli_sweep_perception_noise(capsys: pytest.CaptureFixture[str]) -> None:
     assert ret_plain == 0
     captured_plain = capsys.readouterr()
     assert "Perception Noise Sensitivity Sweep" in captured_plain.out
-    assert "Clearance: 3.0 mm" in captured_plain.out
+    assert "Clearance: 7.0 mm" in captured_plain.out
     assert "Empirical Breakdown Threshold" in captured_plain.out
 

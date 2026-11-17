@@ -18,7 +18,7 @@ def _classify_rollout_phases(
     obj_ys: list[float],
     obj_zs: list[float],
 ) -> tuple[list[str], list[str]]:
-    """Classify per-step manipulation phase and dynamic weld gripper state."""
+    """Classify per-step manipulation phase and parallel-jaw gripper state."""
     total_steps = len(obj_zs)
     if total_steps == 0:
         return [], []
@@ -35,11 +35,11 @@ def _classify_rollout_phases(
 
         # Gripper state
         if lifted_now:
-            grippers.append("LATCHED (weld)")
+            grippers.append("CLAMPED (friction)")
         elif had_successful_lift and y <= -0.06 and i > 75:
             grippers.append("RELEASED (placed)")
         elif not had_successful_lift and i >= 38:
-            grippers.append("MISSED (proximity > 40mm)")
+            grippers.append("MISSED (no contact)")
         else:
             grippers.append("OPEN")
 
@@ -973,7 +973,7 @@ def generate_policy_comparison_html(
       <p class="subtitle">
         Closed-loop behavioral cloning rollouts vs. privileged IK expert across local
         Apple Silicon (MPS) and cloud AWS EC2 A10G (CUDA) &bull; Synchronized kinematics,
-        weld gripper constraints &amp; telemetry.
+        articulated parallel-jaw gripper &amp; telemetry.
       </p>
     </div>
     <div class="nav-links">
@@ -1391,7 +1391,7 @@ def generate_policy_comparison_html(
         const g2 = b2.gripperStates[step];
         hudGripper.textContent = b1.shortName + ': ' + g1 + ' | ' + b2.shortName + ': ' + g2;
         hudGripper.className = 'hud-value hud-badge ' +
-          (g1.startsWith('LATCHED') ? 'gripper-latched' : 'gripper-open');
+          (g1.startsWith('CLAMPED') ? 'gripper-latched' : 'gripper-open');
         document.getElementById('hud-step').textContent = step + ' / ' + (totalSteps - 1);
         document.getElementById('hud-time').textContent = b1.timesteps[step].toFixed(2) + ' s';
         document.getElementById('hud-error').textContent =
@@ -1433,7 +1433,7 @@ def generate_policy_comparison_html(
         document.getElementById('hud-phase').textContent = phaseStr;
         hudGripper.textContent = gripStr;
         let gripCls = 'gripper-open';
-        if (gripStr.startsWith('LATCHED')) gripCls = 'gripper-latched';
+        if (gripStr.startsWith('CLAMPED')) gripCls = 'gripper-latched';
         else if (gripStr.startsWith('MISSED')) gripCls = 'gripper-missed';
         else if (gripStr.startsWith('RELEASED')) gripCls = 'gripper-released';
         hudGripper.className = 'hud-value hud-badge ' + gripCls;
