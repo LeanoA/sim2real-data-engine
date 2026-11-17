@@ -168,13 +168,13 @@ class PrivilegedPickPlaceExpert:
         if self._stage == "APPROACH" and pos_dist <= self.waypoint_tol_m:
             self._stage = "DESCEND"
             waypoint = self.current_waypoint()
-        elif self._stage == "DESCEND" and pos_dist <= self.waypoint_tol_m:
+        elif self._stage == "DESCEND" and pos_dist <= min(self.waypoint_tol_m, 0.015):
             self._stage = "GRASP"
             self._grasp_dwell_ticks = 0
             waypoint = self.current_waypoint()
         elif self._stage == "GRASP":
             self._grasp_dwell_ticks += 1
-            if self._grasp_dwell_ticks >= 3:
+            if self._grasp_dwell_ticks >= 8:
                 self._stage = "LIFT"
                 waypoint = self.current_waypoint()
         elif self._stage == "LIFT" and pos_dist <= self.waypoint_tol_m:
@@ -183,7 +183,7 @@ class PrivilegedPickPlaceExpert:
         elif self._stage == "TRANSPORT" and pos_dist <= self.waypoint_tol_m:
             self._stage = "PLACE"
             waypoint = self.current_waypoint()
-        elif self._stage == "PLACE" and pos_dist <= min(self.waypoint_tol_m, 0.01):
+        elif self._stage == "PLACE" and pos_dist <= min(self.waypoint_tol_m, 0.015):
             self._stage = "COMPLETED"
 
         delta_q = self.ik_solver.step(
@@ -199,12 +199,10 @@ class PrivilegedPickPlaceExpert:
         if not emit_gripper:
             return q_target
 
-        if self._stage in ("LIFT", "TRANSPORT", "PLACE"):
+        if self._stage in ("GRASP", "LIFT", "TRANSPORT", "PLACE"):
             gripper_cmd = 1.0
         elif self._stage in ("APPROACH", "DESCEND", "COMPLETED"):
             gripper_cmd = 0.0
-        elif self._stage == "GRASP":
-            gripper_cmd = 1.0 if self._grasp_dwell_ticks >= 3 else 0.0
         else:
             gripper_cmd = 0.0
 
