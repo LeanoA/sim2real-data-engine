@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 import mujoco
 import numpy as np
 from numpy.typing import NDArray
@@ -186,6 +188,9 @@ class MuJoCoPhysicsAdapter:
         command in [0.0, 1.0]. Returns True when closure target > 0.5.
         """
         target = (1.0 if grasped else 0.0) if isinstance(grasped, bool) else float(grasped)
+        if not math.isfinite(target):
+            msg = f"Gripper closure target must be finite; got {target}"
+            raise ValueError(msg)
         self._gripper_target = float(np.clip(target, 0.0, 1.0))
         self.data.actuator("act_gripper").ctrl[0] = self._gripper_target * self._gripper_ctrl_max
         return self._gripper_target > 0.5

@@ -166,7 +166,8 @@ def test_mujoco_physics_adapter_domain_perturbation() -> None:
     adapter = MuJoCoPhysicsAdapter()
     nominal_mass = float(adapter.model.body("payload_object").mass[0])
     nominal_fric = float(adapter.model.geom("payload_geom").friction[0])
-    nominal_finger_fric = float(adapter.model.geom("finger_left").friction[0])
+    nominal_finger_left_fric = float(adapter.model.geom("finger_left").friction[0])
+    nominal_finger_right_fric = float(adapter.model.geom("finger_right").friction[0])
 
     pert = EpisodePerturbation(
         episode_id=1,
@@ -181,18 +182,49 @@ def test_mujoco_physics_adapter_domain_perturbation() -> None:
     adapter.reset(seed=10, perturbation=pert)
     new_mass = float(adapter.model.body("payload_object").mass[0])
     new_fric = float(adapter.model.geom("payload_geom").friction[0])
-    new_finger_fric = float(adapter.model.geom("finger_left").friction[0])
+    new_finger_left_fric = float(adapter.model.geom("finger_left").friction[0])
+    new_finger_right_fric = float(adapter.model.geom("finger_right").friction[0])
     assert pytest.approx(new_mass) == nominal_mass * 1.5
     assert pytest.approx(new_fric) == nominal_fric * 2.0
-    assert pytest.approx(new_finger_fric) == nominal_finger_fric * 2.0
+    assert pytest.approx(new_finger_left_fric) == nominal_finger_left_fric * 2.0
+    assert pytest.approx(new_finger_right_fric) == nominal_finger_right_fric * 2.0
 
     # Resetting without perturbation restores nominal values
     adapter.reset(seed=11)
     assert pytest.approx(float(adapter.model.body("payload_object").mass[0])) == nominal_mass
     assert pytest.approx(float(adapter.model.geom("payload_geom").friction[0])) == nominal_fric
     assert (
-        pytest.approx(float(adapter.model.geom("finger_left").friction[0])) == nominal_finger_fric
+        pytest.approx(float(adapter.model.geom("finger_left").friction[0]))
+        == nominal_finger_left_fric
     )
+    assert (
+        pytest.approx(float(adapter.model.geom("finger_right").friction[0]))
+        == nominal_finger_right_fric
+    )
+
+
+def test_mujoco_physics_adapter_set_gripper_bounds_and_nan_guard() -> None:
+    adapter = MuJoCoPhysicsAdapter()
+    adapter.reset(seed=42)
+
+    assert adapter.set_gripper(False) is False
+    assert adapter.set_gripper(True) is True
+    assert adapter.set_gripper(0.5) is False
+    assert adapter.set_gripper(0.51) is True
+
+    # Out-of-range finite targets clamp to [0.0, 1.0]
+    assert adapter.set_gripper(-0.4) is False
+    assert pytest.approx(float(adapter.data.actuator("act_gripper").ctrl[0])) == 0.0
+    assert adapter.set_gripper(1.8) is True
+    assert (
+        pytest.approx(float(adapter.data.actuator("act_gripper").ctrl[0]))
+        == adapter._gripper_ctrl_max
+    )
+
+    # Non-finite targets must fail loudly instead of poisoning MuJoCo ctrl
+    for bad_val in (float("nan"), float("inf"), float("-inf")):
+        with pytest.raises(ValueError, match="finite"):
+            adapter.set_gripper(bad_val)
 
 
 def test_mujoco_physics_adapter_empty_close_no_teleport() -> None:

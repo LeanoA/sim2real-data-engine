@@ -173,7 +173,14 @@ class MuJoCoKinematicAdapter:
         Closing only latches the payload when it lies within ``GRASP_ENGAGE_RADIUS_M`` of the
         end effector. Opening always releases.
         """
-        close_requested = grasped if isinstance(grasped, bool) else float(grasped) > 0.5
+        if isinstance(grasped, bool):
+            close_requested = grasped
+        else:
+            val = float(grasped)
+            if not math.isfinite(val):
+                msg = f"Gripper closure target must be finite; got {val}"
+                raise ValueError(msg)
+            close_requested = val > 0.5
         if close_requested and not self._object_grasped:
             ee_pos = np.asarray(self._forward_kinematics(self._q).position, dtype=np.float64)
             obj_pos = np.asarray(self._object_pose.position, dtype=np.float64)
