@@ -65,15 +65,26 @@
                 <!-- Joint 6: Wrist Yaw (Z-axis), End-Effector offset l3 = 0.10m -->
                 <body name="link_6" pos="0 0 0">
                   <joint name="joint_6" type="hinge" axis="0 0 1" range="-3.1415 3.1415"/>
-                  <geom name="ee_stem" type="capsule" fromto="0 0 0 0.10 0 0" size="0.025" material="joint_mat"/>
+                  <geom name="ee_stem" type="capsule" fromto="0 0 0 0.075 0 0" size="0.022" material="joint_mat"/>
 
                   <!-- End-Effector Tool Center Point (TCP) -->
                   <body name="end_effector" pos="0.10 0 0">
-                    <geom name="ee_center" type="sphere" size="0.02" material="arm_mat"/>
-                    <!-- Gripper fingers with active collision and high friction (46mm clearance for 40mm cube) -->
-                    <geom name="finger_left" type="box" pos="0.02 0.029 0" size="0.02 0.006 0.02" material="pedestal_mat" contype="1" conaffinity="1" friction="1.2 0.05 0.001"/>
-                    <geom name="finger_right" type="box" pos="0.02 -0.029 0" size="0.02 0.006 0.02" material="pedestal_mat" contype="1" conaffinity="1" friction="1.2 0.05 0.001"/>
-                    <site name="ee_tcp" pos="0.02 0 0" size="0.005" rgba="0.2 0.8 0.2 0.5"/>
+                    <geom name="ee_center" type="sphere" pos="-0.025 0 0" size="0.018" material="arm_mat"/>
+                    <geom name="gripper_palm" type="box" pos="-0.026 0 0" size="0.006 0.036 0.012" material="pedestal_mat" contype="1" conaffinity="1"/>
+                    <site name="ee_tcp" pos="0 0 0" size="0.005" rgba="0.2 0.8 0.2 0.5"/>
+
+                    <!-- Articulated Parallel-Jaw Fingers (54mm open clearance for 40mm cube) -->
+                    <body name="left_finger_link" pos="0 0.033 0">
+                      <joint name="finger_left_joint" type="slide" axis="0 -1 0" range="0.0 0.022" damping="2.0" armature="0.01"/>
+                      <geom name="finger_left" type="box" pos="0 0 0" size="0.02 0.006 0.016" mass="0.03" material="pedestal_mat" contype="1" conaffinity="1" friction="1.4 0.05 0.002" solref="0.008 1.0" solimp="0.95 0.99 0.001"/>
+                      <site name="finger_left_site" type="box" pos="0 0 0" size="0.022 0.008 0.018" rgba="0 0 0 0"/>
+                    </body>
+
+                    <body name="right_finger_link" pos="0 -0.033 0">
+                      <joint name="finger_right_joint" type="slide" axis="0 1 0" range="0.0 0.022" damping="2.0" armature="0.01"/>
+                      <geom name="finger_right" type="box" pos="0 0 0" size="0.02 0.006 0.016" mass="0.03" material="pedestal_mat" contype="1" conaffinity="1" friction="1.4 0.05 0.002" solref="0.008 1.0" solimp="0.95 0.99 0.001"/>
+                      <site name="finger_right_site" type="box" pos="0 0 0" size="0.022 0.008 0.018" rgba="0 0 0 0"/>
+                    </body>
                   </body>
                 </body>
               </body>
@@ -102,6 +113,13 @@
     </body>
   </worldbody>
 
+  <tendon>
+    <fixed name="gripper_tendon">
+      <joint joint="finger_left_joint" coef="0.5"/>
+      <joint joint="finger_right_joint" coef="0.5"/>
+    </fixed>
+  </tendon>
+
   <actuator>
     <position name="act_j1" joint="joint_1" ctrlrange="-3.1415 3.1415"/>
     <position name="act_j2" joint="joint_2" ctrlrange="-2.094 2.094"/>
@@ -109,13 +127,19 @@
     <position name="act_j4" joint="joint_4" ctrlrange="-3.1415 3.1415"/>
     <position name="act_j5" joint="joint_5" ctrlrange="-2.094 2.094"/>
     <position name="act_j6" joint="joint_6" ctrlrange="-3.1415 3.1415"/>
+    <position name="act_gripper" tendon="gripper_tendon" ctrlrange="0.0 0.022" kp="300.0" kv="15.0" forcerange="-15.0 15.0"/>
   </actuator>
 
   <equality>
-    <weld name="payload_weld" site1="ee_tcp" site2="payload_site" active="false"/>
+    <joint name="gripper_symmetry" joint1="finger_left_joint" joint2="finger_right_joint" polycoef="0 1 0 0 0"/>
   </equality>
 
+  <sensor>
+    <touch name="touch_left" site="finger_left_site"/>
+    <touch name="touch_right" site="finger_right_site"/>
+  </sensor>
+
   <keyframe>
-    <key name="home" qpos="0.0 -0.55 1.10 0.0 -0.55 0.0 0.38 0.05 0.07 1 0 0 0" ctrl="0.0 -0.55 1.10 0.0 -0.55 0.0"/>
+    <key name="home" qpos="0.0 -0.55 1.10 0.0 -0.55 0.0 0.0 0.0 0.38 0.05 0.07 1 0 0 0" ctrl="0.0 -0.55 1.10 0.0 -0.55 0.0 0.0"/>
   </keyframe>
 </mujoco>
