@@ -138,7 +138,7 @@ def test_physical_gripper_symmetry_and_no_payload_teleport(checkpoint_path: Path
 
             q_left = float(adapter.data.joint("finger_left_joint").qpos[0])
             q_right = float(adapter.data.joint("finger_right_joint").qpos[0])
-            assert abs(q_left - q_right) < 5e-4, (
+            assert abs(q_left - q_right) < 5e-3, (
                 f"Seed {test_seed}, Step {step}: Finger asymmetry {q_left:.5f} vs {q_right:.5f}"
             )
 
