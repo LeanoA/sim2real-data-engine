@@ -1,0 +1,901 @@
+{
+  "model_path": "checkpoints/bc_tcp_m1_45ep.pt",
+  "backend": "mujoco_native",
+  "num_episodes": 20,
+  "nominal": {
+    "regime": "nominal",
+    "num_episodes": 20,
+    "success_rate": 0.65,
+    "mean_steps": 120.0,
+    "mean_ee_displacement_m": 0.2534,
+    "mean_payload_displacement_m": 0.1185,
+    "mean_action_jerk": 0.0256,
+    "inference_latency_p50_ms": 8.124,
+    "inference_latency_p99_ms": 8.139,
+    "surgical": {
+      "mean_min_reach_error_mm": 30.24,
+      "mean_placement_error_mm": 38.45,
+      "mean_execution_time_s": 2.4,
+      "mean_hunting_oscillations": 1.9,
+      "stages": {
+        "reach_rate": 0.75,
+        "grasp_rate": 0.7,
+        "transport_rate": 0.7,
+        "place_rate": 0.65,
+        "chained_task_success_rate": 0.65,
+        "reach_ci": {
+          "rate": 0.75,
+          "ci_low": 0.5313,
+          "ci_high": 0.8881,
+          "successes": 15,
+          "trials": 20,
+          "confidence": 0.95
+        },
+        "grasp_ci": {
+          "rate": 0.7,
+          "ci_low": 0.481,
+          "ci_high": 0.8545,
+          "successes": 14,
+          "trials": 20,
+          "confidence": 0.95
+        },
+        "transport_ci": {
+          "rate": 0.7,
+          "ci_low": 0.481,
+          "ci_high": 0.8545,
+          "successes": 14,
+          "trials": 20,
+          "confidence": 0.95
+        },
+        "place_ci": {
+          "rate": 0.65,
+          "ci_low": 0.4329,
+          "ci_high": 0.8188,
+          "successes": 13,
+          "trials": 20,
+          "confidence": 0.95
+        },
+        "chained_ci": {
+          "rate": 0.65,
+          "ci_low": 0.4329,
+          "ci_high": 0.8188,
+          "successes": 13,
+          "trials": 20,
+          "confidence": 0.95
+        }
+      },
+      "min_reach_error_stats": {
+        "n": 20,
+        "mean": 30.24,
+        "std": 45.98,
+        "median": 7.87,
+        "q25": 2.85,
+        "q75": 25.29,
+        "iqr": 22.45,
+        "ci95_low": 12.52,
+        "ci95_high": 51.68,
+        "min_val": 1.19,
+        "max_val": 121.35
+      },
+      "placement_error_stats": {
+        "n": 20,
+        "mean": 38.45,
+        "std": 47.78,
+        "median": 10.41,
+        "q25": 5.0,
+        "q75": 96.96,
+        "iqr": 91.95,
+        "ci95_low": 19.27,
+        "ci95_high": 58.9,
+        "min_val": 1.5,
+        "max_val": 130.97
+      },
+      "execution_time_stats": {
+        "n": 20,
+        "mean": 2.4,
+        "std": 0.0,
+        "median": 2.4,
+        "q25": 2.4,
+        "q75": 2.4,
+        "iqr": 0.0,
+        "ci95_low": 2.4,
+        "ci95_high": 2.4,
+        "min_val": 2.4,
+        "max_val": 2.4
+      },
+      "hunting_oscillations_stats": {
+        "n": 20,
+        "mean": 1.95,
+        "std": 1.36,
+        "median": 2.0,
+        "q25": 1.0,
+        "q75": 3.0,
+        "iqr": 2.0,
+        "ci95_low": 1.35,
+        "ci95_high": 2.55,
+        "min_val": 0.0,
+        "max_val": 4.0
+      }
+    },
+    "steps_stats": {
+      "n": 20,
+      "mean": 120.0,
+      "std": 0.0,
+      "median": 120.0,
+      "q25": 120.0,
+      "q75": 120.0,
+      "iqr": 0.0,
+      "ci95_low": 120.0,
+      "ci95_high": 120.0,
+      "min_val": 120.0,
+      "max_val": 120.0
+    },
+    "action_delta_stats": {
+      "n": 20,
+      "mean": 0.0256,
+      "std": 0.0065,
+      "median": 0.0286,
+      "q25": 0.0246,
+      "q75": 0.0293,
+      "iqr": 0.0047,
+      "ci95_low": 0.0227,
+      "ci95_high": 0.0281,
+      "min_val": 0.0133,
+      "max_val": 0.0313
+    },
+    "control_diagnostics": {
+      "mean_physical_joint_jerk_rad_s3": 170.07,
+      "mean_rms_torque_nm": 0.4765,
+      "mean_mechanical_work_j": 0.902,
+      "mean_hf_power_ratio": 0.1723,
+      "mean_spectral_centroid_hz": 2.375,
+      "mean_grasp_contact_force_n": 3.299,
+      "mean_peak_contact_force_n": 6.462,
+      "mean_in_hand_slip_mm_s": 383.926,
+      "physical_jerk_stats": {
+        "n": 20,
+        "mean": 170.07,
+        "std": 73.999,
+        "median": 207.377,
+        "q25": 156.933,
+        "q75": 213.124,
+        "iqr": 56.191,
+        "ci95_low": 137.141,
+        "ci95_high": 199.488,
+        "min_val": 22.214,
+        "max_val": 240.711
+      },
+      "hf_power_ratio_stats": {
+        "n": 20,
+        "mean": 0.1723,
+        "std": 0.078,
+        "median": 0.2027,
+        "q25": 0.1392,
+        "q75": 0.2317,
+        "iqr": 0.0925,
+        "ci95_low": 0.1387,
+        "ci95_high": 0.2035,
+        "min_val": 0.0022,
+        "max_val": 0.2573
+      },
+      "mechanical_work_stats": {
+        "n": 20,
+        "mean": 0.902,
+        "std": 0.397,
+        "median": 1.1269,
+        "q25": 0.8035,
+        "q75": 1.1521,
+        "iqr": 0.3485,
+        "ci95_low": 0.7265,
+        "ci95_high": 1.0538,
+        "min_val": 0.1298,
+        "max_val": 1.1744
+      },
+      "contact_force_stats": {
+        "n": 20,
+        "mean": 3.299,
+        "std": 1.921,
+        "median": 4.428,
+        "q25": 2.443,
+        "q75": 4.435,
+        "iqr": 1.992,
+        "ci95_low": 2.438,
+        "ci95_high": 4.034,
+        "min_val": 0.0,
+        "max_val": 4.759
+      },
+      "in_hand_slip_stats": {
+        "n": 1,
+        "mean": 383.926,
+        "std": 0.0,
+        "median": 383.926,
+        "q25": 383.926,
+        "q75": 383.926,
+        "iqr": 0.0,
+        "ci95_low": 383.926,
+        "ci95_high": 383.926,
+        "min_val": 383.926,
+        "max_val": 383.926
+      }
+    }
+  },
+  "id_dr_ensembled": {
+    "regime": "id_dr_ensembled",
+    "num_episodes": 20,
+    "success_rate": 0.7,
+    "mean_steps": 120.0,
+    "mean_ee_displacement_m": 0.2513,
+    "mean_payload_displacement_m": 0.1228,
+    "mean_action_jerk": 0.0252,
+    "inference_latency_p50_ms": 8.124,
+    "inference_latency_p99_ms": 8.138,
+    "surgical": {
+      "mean_min_reach_error_mm": 29.46,
+      "mean_placement_error_mm": 34.2,
+      "mean_execution_time_s": 2.4,
+      "mean_hunting_oscillations": 1.9,
+      "stages": {
+        "reach_rate": 0.8,
+        "grasp_rate": 0.75,
+        "transport_rate": 0.75,
+        "place_rate": 0.7,
+        "chained_task_success_rate": 0.7,
+        "reach_ci": {
+          "rate": 0.8,
+          "ci_low": 0.584,
+          "ci_high": 0.9193,
+          "successes": 16,
+          "trials": 20,
+          "confidence": 0.95
+        },
+        "grasp_ci": {
+          "rate": 0.75,
+          "ci_low": 0.5313,
+          "ci_high": 0.8881,
+          "successes": 15,
+          "trials": 20,
+          "confidence": 0.95
+        },
+        "transport_ci": {
+          "rate": 0.75,
+          "ci_low": 0.5313,
+          "ci_high": 0.8881,
+          "successes": 15,
+          "trials": 20,
+          "confidence": 0.95
+        },
+        "place_ci": {
+          "rate": 0.7,
+          "ci_low": 0.481,
+          "ci_high": 0.8545,
+          "successes": 14,
+          "trials": 20,
+          "confidence": 0.95
+        },
+        "chained_ci": {
+          "rate": 0.7,
+          "ci_low": 0.481,
+          "ci_high": 0.8545,
+          "successes": 14,
+          "trials": 20,
+          "confidence": 0.95
+        }
+      },
+      "min_reach_error_stats": {
+        "n": 20,
+        "mean": 29.46,
+        "std": 46.22,
+        "median": 7.72,
+        "q25": 3.14,
+        "q75": 15.9,
+        "iqr": 12.76,
+        "ci95_low": 11.75,
+        "ci95_high": 51.16,
+        "min_val": 1.19,
+        "max_val": 121.96
+      },
+      "placement_error_stats": {
+        "n": 20,
+        "mean": 34.2,
+        "std": 45.99,
+        "median": 9.7,
+        "q25": 5.68,
+        "q75": 44.23,
+        "iqr": 38.55,
+        "ci95_low": 16.31,
+        "ci95_high": 54.29,
+        "min_val": 1.43,
+        "max_val": 129.38
+      },
+      "execution_time_stats": {
+        "n": 20,
+        "mean": 2.4,
+        "std": 0.0,
+        "median": 2.4,
+        "q25": 2.4,
+        "q75": 2.4,
+        "iqr": 0.0,
+        "ci95_low": 2.4,
+        "ci95_high": 2.4,
+        "min_val": 2.4,
+        "max_val": 2.4
+      },
+      "hunting_oscillations_stats": {
+        "n": 20,
+        "mean": 1.95,
+        "std": 1.32,
+        "median": 2.0,
+        "q25": 1.0,
+        "q75": 3.0,
+        "iqr": 2.0,
+        "ci95_low": 1.35,
+        "ci95_high": 2.5,
+        "min_val": 0.0,
+        "max_val": 4.0
+      }
+    },
+    "steps_stats": {
+      "n": 20,
+      "mean": 120.0,
+      "std": 0.0,
+      "median": 120.0,
+      "q25": 120.0,
+      "q75": 120.0,
+      "iqr": 0.0,
+      "ci95_low": 120.0,
+      "ci95_high": 120.0,
+      "min_val": 120.0,
+      "max_val": 120.0
+    },
+    "action_delta_stats": {
+      "n": 20,
+      "mean": 0.0252,
+      "std": 0.0065,
+      "median": 0.0284,
+      "q25": 0.0229,
+      "q75": 0.0292,
+      "iqr": 0.0063,
+      "ci95_low": 0.0223,
+      "ci95_high": 0.0278,
+      "min_val": 0.0133,
+      "max_val": 0.0317
+    },
+    "control_diagnostics": {
+      "mean_physical_joint_jerk_rad_s3": 168.892,
+      "mean_rms_torque_nm": 0.4447,
+      "mean_mechanical_work_j": 0.9347,
+      "mean_hf_power_ratio": 0.1777,
+      "mean_spectral_centroid_hz": 2.407,
+      "mean_grasp_contact_force_n": 3.332,
+      "mean_peak_contact_force_n": 3.942,
+      "mean_in_hand_slip_mm_s": null,
+      "physical_jerk_stats": {
+        "n": 20,
+        "mean": 168.892,
+        "std": 73.473,
+        "median": 206.911,
+        "q25": 160.359,
+        "q75": 212.853,
+        "iqr": 52.494,
+        "ci95_low": 136.362,
+        "ci95_high": 196.788,
+        "min_val": 23.456,
+        "max_val": 225.347
+      },
+      "hf_power_ratio_stats": {
+        "n": 20,
+        "mean": 0.1777,
+        "std": 0.0789,
+        "median": 0.2091,
+        "q25": 0.156,
+        "q75": 0.2311,
+        "iqr": 0.0751,
+        "ci95_low": 0.1428,
+        "ci95_high": 0.2092,
+        "min_val": 0.0091,
+        "max_val": 0.2662
+      },
+      "mechanical_work_stats": {
+        "n": 20,
+        "mean": 0.9347,
+        "std": 0.416,
+        "median": 1.12,
+        "q25": 0.8578,
+        "q75": 1.1706,
+        "iqr": 0.3128,
+        "ci95_low": 0.7561,
+        "ci95_high": 1.099,
+        "min_val": 0.1011,
+        "max_val": 1.3284
+      },
+      "contact_force_stats": {
+        "n": 20,
+        "mean": 3.332,
+        "std": 1.975,
+        "median": 4.42,
+        "q25": 3.299,
+        "q75": 4.433,
+        "iqr": 1.134,
+        "ci95_low": 2.444,
+        "ci95_high": 4.018,
+        "min_val": 0.0,
+        "max_val": 4.652
+      },
+      "in_hand_slip_stats": null
+    }
+  },
+  "ood_dr_ensembled": {
+    "regime": "ood_dr_ensembled",
+    "num_episodes": 20,
+    "success_rate": 0.3,
+    "mean_steps": 120.0,
+    "mean_ee_displacement_m": 0.2264,
+    "mean_payload_displacement_m": 0.0564,
+    "mean_action_jerk": 0.0272,
+    "inference_latency_p50_ms": 8.123,
+    "inference_latency_p99_ms": 8.14,
+    "surgical": {
+      "mean_min_reach_error_mm": 30.47,
+      "mean_placement_error_mm": 167.0,
+      "mean_execution_time_s": 2.4,
+      "mean_hunting_oscillations": 1.1,
+      "stages": {
+        "reach_rate": 0.3,
+        "grasp_rate": 0.3,
+        "transport_rate": 0.3,
+        "place_rate": 0.3,
+        "chained_task_success_rate": 0.3,
+        "reach_ci": {
+          "rate": 0.3,
+          "ci_low": 0.1455,
+          "ci_high": 0.519,
+          "successes": 6,
+          "trials": 20,
+          "confidence": 0.95
+        },
+        "grasp_ci": {
+          "rate": 0.3,
+          "ci_low": 0.1455,
+          "ci_high": 0.519,
+          "successes": 6,
+          "trials": 20,
+          "confidence": 0.95
+        },
+        "transport_ci": {
+          "rate": 0.3,
+          "ci_low": 0.1455,
+          "ci_high": 0.519,
+          "successes": 6,
+          "trials": 20,
+          "confidence": 0.95
+        },
+        "place_ci": {
+          "rate": 0.3,
+          "ci_low": 0.1455,
+          "ci_high": 0.519,
+          "successes": 6,
+          "trials": 20,
+          "confidence": 0.95
+        },
+        "chained_ci": {
+          "rate": 0.3,
+          "ci_low": 0.1455,
+          "ci_high": 0.519,
+          "successes": 6,
+          "trials": 20,
+          "confidence": 0.95
+        }
+      },
+      "min_reach_error_stats": {
+        "n": 20,
+        "mean": 30.47,
+        "std": 15.1,
+        "median": 37.34,
+        "q25": 13.19,
+        "q75": 40.9,
+        "iqr": 27.71,
+        "ci95_low": 23.7,
+        "ci95_high": 36.77,
+        "min_val": 5.53,
+        "max_val": 48.73
+      },
+      "placement_error_stats": {
+        "n": 20,
+        "mean": 167.0,
+        "std": 108.94,
+        "median": 228.8,
+        "q25": 13.37,
+        "q75": 246.04,
+        "iqr": 232.67,
+        "ci95_low": 121.87,
+        "ci95_high": 210.48,
+        "min_val": 5.31,
+        "max_val": 266.64
+      },
+      "execution_time_stats": {
+        "n": 20,
+        "mean": 2.4,
+        "std": 0.0,
+        "median": 2.4,
+        "q25": 2.4,
+        "q75": 2.4,
+        "iqr": 0.0,
+        "ci95_low": 2.4,
+        "ci95_high": 2.4,
+        "min_val": 2.4,
+        "max_val": 2.4
+      },
+      "hunting_oscillations_stats": {
+        "n": 20,
+        "mean": 1.05,
+        "std": 1.0,
+        "median": 1.0,
+        "q25": 0.0,
+        "q75": 2.0,
+        "iqr": 2.0,
+        "ci95_low": 0.65,
+        "ci95_high": 1.45,
+        "min_val": 0.0,
+        "max_val": 3.0
+      }
+    },
+    "steps_stats": {
+      "n": 20,
+      "mean": 120.0,
+      "std": 0.0,
+      "median": 120.0,
+      "q25": 120.0,
+      "q75": 120.0,
+      "iqr": 0.0,
+      "ci95_low": 120.0,
+      "ci95_high": 120.0,
+      "min_val": 120.0,
+      "max_val": 120.0
+    },
+    "action_delta_stats": {
+      "n": 20,
+      "mean": 0.0272,
+      "std": 0.002,
+      "median": 0.0265,
+      "q25": 0.0256,
+      "q75": 0.0291,
+      "iqr": 0.0036,
+      "ci95_low": 0.0264,
+      "ci95_high": 0.0281,
+      "min_val": 0.0245,
+      "max_val": 0.031
+    },
+    "control_diagnostics": {
+      "mean_physical_joint_jerk_rad_s3": 174.635,
+      "mean_rms_torque_nm": 0.9139,
+      "mean_mechanical_work_j": 1.4577,
+      "mean_hf_power_ratio": 0.177,
+      "mean_spectral_centroid_hz": 2.637,
+      "mean_grasp_contact_force_n": 3.198,
+      "mean_peak_contact_force_n": 29.514,
+      "mean_in_hand_slip_mm_s": 332.442,
+      "physical_jerk_stats": {
+        "n": 20,
+        "mean": 174.635,
+        "std": 25.56,
+        "median": 161.265,
+        "q25": 157.086,
+        "q75": 207.545,
+        "iqr": 50.459,
+        "ci95_low": 164.246,
+        "ci95_high": 185.213,
+        "min_val": 151.365,
+        "max_val": 217.61
+      },
+      "hf_power_ratio_stats": {
+        "n": 20,
+        "mean": 0.177,
+        "std": 0.0382,
+        "median": 0.1523,
+        "q25": 0.1475,
+        "q75": 0.2164,
+        "iqr": 0.0689,
+        "ci95_low": 0.1614,
+        "ci95_high": 0.1927,
+        "min_val": 0.1419,
+        "max_val": 0.2413
+      },
+      "mechanical_work_stats": {
+        "n": 20,
+        "mean": 1.4577,
+        "std": 0.3813,
+        "median": 1.4724,
+        "q25": 1.0807,
+        "q75": 1.6558,
+        "iqr": 0.5751,
+        "ci95_low": 1.2919,
+        "ci95_high": 1.627,
+        "min_val": 0.9095,
+        "max_val": 2.4366
+      },
+      "contact_force_stats": {
+        "n": 20,
+        "mean": 3.198,
+        "std": 1.097,
+        "median": 3.039,
+        "q25": 2.749,
+        "q75": 4.433,
+        "iqr": 1.684,
+        "ci95_low": 2.711,
+        "ci95_high": 3.641,
+        "min_val": 0.162,
+        "max_val": 4.5
+      },
+      "in_hand_slip_stats": {
+        "n": 10,
+        "mean": 332.442,
+        "std": 48.991,
+        "median": 350.356,
+        "q25": 317.293,
+        "q75": 366.171,
+        "iqr": 48.878,
+        "ci95_low": 298.865,
+        "ci95_high": 355.878,
+        "min_val": 214.822,
+        "max_val": 371.779
+      }
+    }
+  },
+  "ood_dr_no_ensemble": {
+    "regime": "ood_dr_no_ensemble",
+    "num_episodes": 20,
+    "success_rate": 0.0,
+    "mean_steps": 120.0,
+    "mean_ee_displacement_m": 0.2338,
+    "mean_payload_displacement_m": 0.0024,
+    "mean_action_jerk": 0.1133,
+    "inference_latency_p50_ms": 8.123,
+    "inference_latency_p99_ms": 8.154,
+    "surgical": {
+      "mean_min_reach_error_mm": 89.67,
+      "mean_placement_error_mm": 218.55,
+      "mean_execution_time_s": 2.4,
+      "mean_hunting_oscillations": 28.3,
+      "stages": {
+        "reach_rate": 0.0,
+        "grasp_rate": 0.0,
+        "transport_rate": 0.0,
+        "place_rate": 0.0,
+        "chained_task_success_rate": 0.0,
+        "reach_ci": {
+          "rate": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.1611,
+          "successes": 0,
+          "trials": 20,
+          "confidence": 0.95
+        },
+        "grasp_ci": {
+          "rate": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.1611,
+          "successes": 0,
+          "trials": 20,
+          "confidence": 0.95
+        },
+        "transport_ci": {
+          "rate": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.1611,
+          "successes": 0,
+          "trials": 20,
+          "confidence": 0.95
+        },
+        "place_ci": {
+          "rate": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.1611,
+          "successes": 0,
+          "trials": 20,
+          "confidence": 0.95
+        },
+        "chained_ci": {
+          "rate": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.1611,
+          "successes": 0,
+          "trials": 20,
+          "confidence": 0.95
+        }
+      },
+      "min_reach_error_stats": {
+        "n": 20,
+        "mean": 89.67,
+        "std": 30.24,
+        "median": 90.28,
+        "q25": 62.86,
+        "q75": 117.2,
+        "iqr": 54.34,
+        "ci95_low": 77.39,
+        "ci95_high": 102.29,
+        "min_val": 40.96,
+        "max_val": 135.73
+      },
+      "placement_error_stats": {
+        "n": 20,
+        "mean": 218.55,
+        "std": 33.02,
+        "median": 226.92,
+        "q25": 188.22,
+        "q75": 246.32,
+        "iqr": 58.11,
+        "ci95_low": 204.57,
+        "ci95_high": 232.19,
+        "min_val": 165.02,
+        "max_val": 266.87
+      },
+      "execution_time_stats": {
+        "n": 20,
+        "mean": 2.4,
+        "std": 0.0,
+        "median": 2.4,
+        "q25": 2.4,
+        "q75": 2.4,
+        "iqr": 0.0,
+        "ci95_low": 2.4,
+        "ci95_high": 2.4,
+        "min_val": 2.4,
+        "max_val": 2.4
+      },
+      "hunting_oscillations_stats": {
+        "n": 20,
+        "mean": 28.3,
+        "std": 10.57,
+        "median": 28.5,
+        "q25": 23.5,
+        "q75": 33.25,
+        "iqr": 9.75,
+        "ci95_low": 23.95,
+        "ci95_high": 33.05,
+        "min_val": 7.0,
+        "max_val": 54.0
+      }
+    },
+    "steps_stats": {
+      "n": 20,
+      "mean": 120.0,
+      "std": 0.0,
+      "median": 120.0,
+      "q25": 120.0,
+      "q75": 120.0,
+      "iqr": 0.0,
+      "ci95_low": 120.0,
+      "ci95_high": 120.0,
+      "min_val": 120.0,
+      "max_val": 120.0
+    },
+    "action_delta_stats": {
+      "n": 20,
+      "mean": 0.1133,
+      "std": 0.0201,
+      "median": 0.1166,
+      "q25": 0.1049,
+      "q75": 0.1286,
+      "iqr": 0.0236,
+      "ci95_low": 0.1044,
+      "ci95_high": 0.121,
+      "min_val": 0.0511,
+      "max_val": 0.1372
+    },
+    "control_diagnostics": {
+      "mean_physical_joint_jerk_rad_s3": 3951.092,
+      "mean_rms_torque_nm": 2.1845,
+      "mean_mechanical_work_j": 8.2505,
+      "mean_hf_power_ratio": 0.8697,
+      "mean_spectral_centroid_hz": 14.648,
+      "mean_grasp_contact_force_n": 0.093,
+      "mean_peak_contact_force_n": 4.059,
+      "mean_in_hand_slip_mm_s": 473.465,
+      "physical_jerk_stats": {
+        "n": 20,
+        "mean": 3951.092,
+        "std": 910.037,
+        "median": 4044.87,
+        "q25": 3330.193,
+        "q75": 4616.993,
+        "iqr": 1286.8,
+        "ci95_low": 3562.684,
+        "ci95_high": 4310.543,
+        "min_val": 1629.001,
+        "max_val": 5213.567
+      },
+      "hf_power_ratio_stats": {
+        "n": 20,
+        "mean": 0.8697,
+        "std": 0.0719,
+        "median": 0.8651,
+        "q25": 0.801,
+        "q75": 0.9359,
+        "iqr": 0.135,
+        "ci95_low": 0.8389,
+        "ci95_high": 0.9007,
+        "min_val": 0.7622,
+        "max_val": 0.9665
+      },
+      "mechanical_work_stats": {
+        "n": 20,
+        "mean": 8.2505,
+        "std": 2.0419,
+        "median": 8.5705,
+        "q25": 7.5949,
+        "q75": 9.3886,
+        "iqr": 1.7937,
+        "ci95_low": 7.4295,
+        "ci95_high": 9.0796,
+        "min_val": 2.3266,
+        "max_val": 12.3413
+      },
+      "contact_force_stats": {
+        "n": 20,
+        "mean": 0.093,
+        "std": 0.324,
+        "median": 0.0,
+        "q25": 0.0,
+        "q75": 0.0,
+        "iqr": 0.0,
+        "ci95_low": 0.003,
+        "ci95_high": 0.249,
+        "min_val": 0.0,
+        "max_val": 1.429
+      },
+      "in_hand_slip_stats": {
+        "n": 4,
+        "mean": 473.465,
+        "std": 114.161,
+        "median": 500.567,
+        "q25": 435.272,
+        "q75": 538.76,
+        "iqr": 103.488,
+        "ci95_low": 367.056,
+        "ci95_high": 552.771,
+        "min_val": 314.235,
+        "max_val": 578.488
+      }
+    }
+  },
+  "action_jerk_reduction_pct": 75.99,
+  "physical_jerk_reduction_pct": 95.58,
+  "hf_power_reduction_pct": 79.65,
+  "id_to_ood_gap_pp": 40.0,
+  "ood_config": {
+    "seed": 2042,
+    "mass_scale_range": [
+      1.35,
+      2.25
+    ],
+    "friction_scale_range": [
+      0.3,
+      0.55
+    ],
+    "damping_scale_range": [
+      1.2,
+      1.6
+    ],
+    "camera_position_jitter_m": 0.015,
+    "lighting_intensity_range": [
+      0.6,
+      1.4
+    ],
+    "workspace_x_shift_range": [
+      -0.05,
+      0.05
+    ],
+    "workspace_y_shift_range": [
+      0.04,
+      0.09
+    ],
+    "object_yaw_range_rad": [
+      0.0,
+      0.0
+    ],
+    "gravity_comp_gain_range": [
+      1.0,
+      1.0
+    ]
+  }
+}
