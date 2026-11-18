@@ -778,8 +778,19 @@ def _run_visualize(
             collect_policy_vs_expert_comparison,
         )
 
-        canonical_path = Path("checkpoints/bc_pick_place.pt")
-        tcp_path = Path("checkpoints/bc_tcp_frame_45ep.pt")
+        world_m1_path = (
+            Path("checkpoints/bc_world_m1_45ep.pt")
+            if Path("checkpoints/bc_world_m1_45ep.pt").is_file()
+            else Path("results/bc_cloud_policy.pt")
+        )
+        canonical_path = (
+            world_m1_path if world_m1_path.is_file() else Path("checkpoints/bc_pick_place.pt")
+        )
+        tcp_path = (
+            Path("checkpoints/bc_tcp_m1_45ep.pt")
+            if Path("checkpoints/bc_tcp_m1_45ep.pt").is_file()
+            else Path("checkpoints/bc_tcp_frame_45ep.pt")
+        )
         ego_path = (
             Path("checkpoints/bc_ego_se3_45ep.pt")
             if Path("checkpoints/bc_ego_se3_45ep.pt").is_file()
@@ -799,7 +810,8 @@ def _run_visualize(
         models_to_load: dict[str, Path | str] = {}
         primary_p = Path(model_path) if model_path else canonical_path
         if primary_p.is_file():
-            models_to_load[_key_for_path(primary_p)] = primary_p
+            primary_key = _key_for_path(primary_p) if model_path else "canonical_45ep"
+            models_to_load[primary_key] = primary_p
 
         if compare_model_path:
             sec_p = Path(compare_model_path)

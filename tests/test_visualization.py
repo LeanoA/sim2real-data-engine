@@ -228,11 +228,11 @@ def test_cli_visualize_multi_model_representations(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    c1 = Path("checkpoints/bc_pick_place.pt")
-    c2 = Path("checkpoints/bc_tcp_frame_45ep.pt")
+    c1 = Path("results/bc_cloud_policy.pt")
+    c2 = Path("checkpoints/bc_tcp_m1_45ep.pt")
     c3 = Path("checkpoints/bc_ego_se3_45ep.pt")
     if not c1.is_file() or not c2.is_file() or not c3.is_file():
-        pytest.skip("Representation checkpoints are required for 3-model verification.")
+        pytest.skip("Homogeneous 450/50 checkpoints are required for 3-model verification.")
 
     out_file = tmp_path / "multi_rep_vis.html"
     code = main([
@@ -257,6 +257,7 @@ def test_cli_visualize_multi_model_representations(
     assert "canonical_45ep" in html_text
     assert "tcp_equivariant_45ep" in html_text
     assert "ego_se3_45ep" in html_text
+    assert "450/50" in html_text
 
 
 

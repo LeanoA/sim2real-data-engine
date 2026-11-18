@@ -163,7 +163,7 @@ Evaluating trained policies under strict **episode-grouped 450/50 train/validati
 
 | Policy Artifact & Observation Mode | Platform / Split | Train Time (Throughput) | Final Val Loss | Nominal Success (20 ep, 95% CI) | ID-DR Success (20 ep, 95% CI) |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| `bc_cloud_policy.pt` (World 30D) | A10G CUDA (`450/50`) | **96.24 s** (`22,720/s`) | `0.004286` (`-99.88%`) | — | — |
+| `bc_cloud_policy.pt` (World 30D) | A10G CUDA (`450/50`) | **96.24 s** (`22,720/s`) | `0.004286` (`-99.88%`) | `65.0%` `[43.3%, 81.9%]` | `60.0%` `[38.7%, 78.1%]` |
 | `bc_cloud_tcp_45ep.pt` (TCP 30D) | A10G CUDA (`450/50`) | **96.31 s** (`22,705/s`) | `0.004362` (`-99.87%`) | `60.0%` `[38.7%, 78.1%]` | `60.0%` `[38.7%, 78.1%]` |
 | `bc_cloud_ego_se3_45ep.pt` (Ego-SE3 20D) | A10G CUDA (`450/50`) | **97.23 s** (`22,489/s`) | `0.004492` (`-99.86%`) | — | — |
 | `bc_tcp_m1_45ep.pt` (TCP 30D) | Apple MPS (`450/50`) | `192.11 s` (`11,382/s`) | `0.004311` (`-99.88%`) | `65.0%` `[43.3%, 81.9%]` | `70.0%` `[48.1%, 85.5%]` |
@@ -304,8 +304,8 @@ z_ee (m)
 Demonstrating multi-model robotics research to technical teams often encounters a practical roadblock: running rollouts requires specialized GPU clusters, MuJoCo native installations, and Python environments.
 
 Following **ADR-11**, we implemented an offline multi-model telemetry compilation pipeline in `sim2real visualize --multi-model`:
-- **Pre-computed Representation Rollouts:** The CLI executes closed-loop rollouts across the three distinct spatial observation representations (`World-Frame 30D`, `TCP-Hybrid 30D`, and `Ego-Centric SE(3) 20D`), capturing full 7D joint states, Cartesian end-effector paths, action chunk lookaheads, and synchronized tracking error curves (separating representation design from raw `MPS` vs. `AWS A10G CUDA` hardware scale-out benchmarks).
-- **Client-Side Segmented Control:** Trajectories are bundled into a single standalone HTML/Plotly WebGL artifact (`docs/index.html`) with zero runtime server dependencies. Users can switch between `World-Frame 30D` (`36.0 mm` mean error), `TCP-Hybrid 30D` (`2.8 mm` mean error), and the `Ego-SE(3) 20D` ablation (`56.9 mm` error from global goal blindness), or overlay trajectories side-by-side at 60 FPS directly in any browser.
+- **Pre-computed Representation Rollouts:** The CLI executes apples-to-apples closed-loop rollouts across the three distinct spatial observation representations trained under the identical `450/50` episode-grouped split (`World-Frame 30D` via `results/bc_cloud_policy.pt`, `TCP-Hybrid 30D` via `checkpoints/bc_tcp_m1_45ep.pt`, and `Ego-Centric SE(3) 20D` via `checkpoints/bc_ego_se3_45ep.pt`), eliminating split/sample-count confounders while keeping `MPS` vs. `AWS A10G CUDA` hardware throughput benchmarks strictly separate.
+- **Client-Side Segmented Control:** Trajectories are bundled into a single standalone HTML/Plotly WebGL artifact (`docs/index.html`) with zero runtime server dependencies. Users can inspect the qualitative `seed=42` rollouts—where `TCP-Hybrid 30D` cuts mean tracking error `3.3x` vs. `World-Frame 30D` (`14.3 mm` vs. `47.1 mm`) and avoids the global dropoff blindness of `Ego-SE(3) 20D` (`56.9 mm`)—alongside $N=20$ aggregate Wilson CI badges (`65%/70%/30%` vs. `65%/60%/20%` vs. `25%/20%/5%` across Nominal / ID-DR / True OOD).
 
 ---
 

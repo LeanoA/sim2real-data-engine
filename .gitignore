@@ -13,7 +13,9 @@ checkpoints/*
 !checkpoints/
 !checkpoints/bc_pick_place.pt
 !checkpoints/bc_tcp_frame_45ep.pt
+!checkpoints/bc_tcp_m1_45ep.pt
 !checkpoints/bc_ego_se3_45ep.pt
+!results/bc_cloud_policy.pt
 outputs/
 dist/
 build/

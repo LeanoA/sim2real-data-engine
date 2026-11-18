@@ -110,28 +110,28 @@ def _build_model_bundle(
     mid_lower = model_id.lower()
     if "ego" in mid_lower or "se3" in mid_lower:
         default_meta = {
-            "name": "BC-MLP Ego-Centric SE(3) 20D (Pure Relative Ablation)",
+            "name": "BC-MLP Ego-SE(3) 20D (450/50 Episode-Grouped Ablation)",
             "shortName": "Ego-SE(3) 20D",
-            "tabLabel": "Ego-SE(3) 20D (Ablation)",
-            "deviceTag": "20D SE(3) Rel &bull; 450/50 Ep Split",
+            "tabLabel": "Ego-SE(3) 20D (450/50)",
+            "deviceTag": "20D Rel SE(3) &bull; 450/50 Ep Split",
             "epochs": 45,
             "throughput": "12,242/s (MPS) &bull; 22,489/s (A10G)",
             "loss": "0.0044 (-99.87%)",
-            "taskStatus": "25% Nominal / 5% True OOD (Goal Blindness)",
+            "taskStatus": "N=20: 25% Nom / 20% ID-DR / 5% OOD",
             "taskStatusClass": "badge-arm",
             "colorArm": "#8b5cf6",
             "colorTrail": "#d946ef",
         }
     elif "tcp" in mid_lower or "equivariant" in mid_lower:
         default_meta = {
-            "name": "BC-MLP TCP-Hybrid 30D (Frame-Aligned Displacement)",
+            "name": "BC-MLP TCP-Hybrid 30D (450/50 Episode-Grouped Split)",
             "shortName": "TCP-Hybrid 30D",
-            "tabLabel": "TCP-Hybrid 30D (Equivariant)",
-            "deviceTag": "30D TCP-Frame &bull; MPS (12.4k/s)",
+            "tabLabel": "TCP-Hybrid 30D (450/50)",
+            "deviceTag": "30D TCP-Frame &bull; 450/50 Ep Split",
             "epochs": 45,
-            "throughput": "12,352 samples/s",
-            "loss": "0.0092 (-99.74%)",
-            "taskStatus": "100% Nominal / 95% ID-DR / 45% True OOD",
+            "throughput": "11,382/s (MPS) &bull; 22,705/s (A10G)",
+            "loss": "0.0043 (-99.88%)",
+            "taskStatus": "N=20: 65% Nom / 70% ID-DR / 30% OOD",
             "taskStatusClass": "badge-success",
             "colorArm": "#06b6d4",
             "colorTrail": "#38bdf8",
@@ -145,21 +145,21 @@ def _build_model_bundle(
             "epochs": 45,
             "throughput": "22,720 samples/s (1.85x)",
             "loss": "0.0043 (-99.88%)",
-            "taskStatus": "450/50 Episode-Grouped Split",
+            "taskStatus": "N=20: 65% Nom / 60% ID-DR / 20% OOD",
             "taskStatusClass": "badge-success",
             "colorArm": "#8b5cf6",
             "colorTrail": "#d946ef",
         }
     else:
         default_meta = {
-            "name": "BC-MLP World-Frame 30D (Global Coordinates Baseline)",
+            "name": "BC-MLP World-Frame 30D (450/50 Episode-Grouped Baseline)",
             "shortName": "World-Frame 30D",
-            "tabLabel": "World-Frame 30D (Baseline)",
-            "deviceTag": "30D Global Obs &bull; MPS (12.2k/s)",
+            "tabLabel": "World-Frame 30D (450/50)",
+            "deviceTag": "30D Global Obs &bull; 450/50 Ep Split",
             "epochs": 45,
-            "throughput": "12,245 samples/s",
-            "loss": "0.0091 (-99.74%)",
-            "taskStatus": "75% Nominal / 75% ID-DR / 35% True OOD",
+            "throughput": "22,720/s (A10G) &bull; 450/50 Ep",
+            "loss": "0.0043 (-99.88%)",
+            "taskStatus": "N=20: 65% Nom / 60% ID-DR / 20% OOD",
             "taskStatusClass": "badge-success",
             "colorArm": "#10b981",
             "colorTrail": "#ec4899",
@@ -990,9 +990,9 @@ def generate_policy_comparison_html(
         <span class="badge badge-expert">Physics-Accurate</span>
       </h1>
       <p class="subtitle">
-        Closed-loop behavioral cloning spatial representations (World 30D vs. TCP-Hybrid 30D
-        vs. Ego-SE(3) 20D) against the privileged IK expert in MuJoCo 4.x &bull; Synchronized
-        kinematics, articulated parallel-jaw gripper &amp; telemetry.
+        Apples-to-apples 450/50 episode-grouped split comparison (World-Frame 30D vs.
+        TCP-Hybrid 30D vs. Ego-SE(3) 20D) on seed=42 vs. privileged IK expert in MuJoCo 4.x
+        &bull; Tab success rates reflect N=20 episodes per regime (95% Wilson CIs).
       </p>
     </div>
     <div class="nav-links">

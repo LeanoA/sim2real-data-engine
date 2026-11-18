@@ -51,7 +51,7 @@ This repository runs **controlled ablations inside one unified pipeline**—ever
 
 | Experimental Axis | What Is Compared | Why It Matters |
 | :--- | :--- | :--- |
-| **1. Spatial Representation** *(Core Model Focus — Interactive 3D Dashboard)* | **World-Frame `30D`** (`36.0 mm` err · `75%` Nom / `35%` OOD) vs. **TCP-Hybrid `30D`** (`2.8 mm` err · `100%` Nom / `95%` ID-DR / `45%` OOD) vs. **Ego-SE(3) `20D`** (`56.9 mm` err · `25%` Nom / `5%` OOD) | Proves why coordinate framing dominates model capacity—and documents an honest failure mode: pure local `SE(3)` invariance loses awareness of a fixed global dropoff zone unless goal-conditioned. |
+| **1. Spatial Representation** *(Core Model Focus — Interactive 3D Dashboard, homogeneous `450/50` split)* | **World-Frame `30D`** (`47.1 mm` @ seed 42 · `65%` Nom / `60%` ID-DR / `20%` OOD) vs. **TCP-Hybrid `30D`** (`14.3 mm` @ seed 42 · `65%` Nom / `70%` ID-DR / `30%` OOD) vs. **Ego-SE(3) `20D`** (`56.9 mm` @ seed 42 · `25%` Nom / `20%` ID-DR / `5%` OOD) | Apples-to-apples ablation on the exact same `450/50` episode split: TCP framing cuts seed-42 tracking error `3.3x` and retains higher ID-DR/OOD success, while pure `20D SE(3)` exposes an honest failure mode (goal blindness when global coordinates are stripped without goal-frame injection). |
 | **2. Closed-Loop Control & Filtering** | Single-step raw execution (`0%` True OOD) vs. `H=8` temporal ensembling (`w_k = exp(-0.05·k)`) | Smooths trajectories at 50 Hz, cutting FFT chatter ($\ge 5\text{ Hz}$) by **-78.0% to -84.2%** and physical joint jerk ($\dddot{\mathbf{q}}$) by **-95.6% to -97.4%** under `8.0 ms` IPC delay. |
 | **3. Physical Extrapolation & Root Cause** | `Nominal` vs. `ID-DR` vs. `True OOD`, $2^4$ Orthogonal ANOVA (`48` ep), Psychometric Noise Sweep | Isolates *which* physical parameter drives failure (`damping_scale` explains **71.4%–100.0%** of grasp variance vs. **0.0%** for mass/friction) and pinpoints $\sigma_{50} = 12.74\text{ mm}$. |
 | **4. Compute Scale-Out** *(Hardware Only, Identical Models)* | Apple Silicon `MPS` (`11.4k–12.4k samples/s`) vs. AWS EC2 `g5.2xlarge` `NVIDIA A10G` (`22.5k–22.7k samples/s`) | Validates `~1.9x` cloud training speed-up on the exact same `450/50` episode split without conflating GPU throughput with policy architecture. |
@@ -272,7 +272,7 @@ sim2real-data-engine/
 │   ├── policy_closed_loop.gif       # Trained neural policy closed-loop inference
 │   ├── synthetic_data_generation.mp4# High-definition video export
 │   └── policy_closed_loop.mp4       # Policy execution video export
-├── checkpoints/                     # Representation checkpoints (bc_pick_place.pt, bc_tcp_frame_45ep.pt, bc_ego_se3_45ep.pt)
+├── checkpoints/                     # Trained checkpoints (incl. 450/50 models bc_tcp_m1_45ep.pt & bc_ego_se3_45ep.pt; World 450/50 in results/bc_cloud_policy.pt)
 ├── datasets/                        # LeRobot v2 chunked Parquet datasets & SHA-256 manifests
 │   └── sim2real_pick_place/         # 500 native MuJoCo demonstration episodes (~54k steps)
 ├── docker/                          # Headless cloud GPU container configurations & EC2 manager
