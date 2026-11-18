@@ -3,14 +3,14 @@
 [![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/downloads/)
 [![Typed: mypy strict](https://img.shields.io/badge/typing-mypy%20strict-1f6feb.svg)](https://mypy-lang.org/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-261230.svg)](https://docs.astral.sh/ruff/)
-[![Tests: 119 passing](https://img.shields.io/badge/tests-119%20passing-success.svg)](tests/)
+[![Tests: 120 passing](https://img.shields.io/badge/tests-120%20passing-success.svg)](tests/)
 [![Live 3D WebGL Demo](https://img.shields.io/badge/Live%203D%20Demo-WebGL%20Dashboard-ec4899.svg)](https://leanoa.github.io/sim2real-data-engine/)
 [![AWS EC2 Ready](https://img.shields.io/badge/AWS%20EC2-g5.2xlarge%20(A10G)-orange.svg)](docker/run_cloud_training.py)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 **Deterministic Synthetic Data Engine, Multi-Engine Physics Benchmarking & Closed-Loop Sensorimotor Policy Distillation for Robotic Manipulation.**
 
-> 🌐 **[Launch Live Interactive 3D WebGL Evaluation Dashboard in Your Browser ↗](https://leanoa.github.io/sim2real-data-engine/)** *(No installation required — inspect the 6-DOF robot arm, closed-loop BC policy vs. privileged IK expert, dynamic `weld` grasp states, and 50 Hz tracking error telemetry).*
+> 🌐 **[Launch Live Interactive 3D WebGL Evaluation Dashboard in Your Browser ↗](https://leanoa.github.io/sim2real-data-engine/)** *(No installation required — switch live between **World-Frame 30D**, **TCP-Hybrid 30D**, and **Ego-Centric SE(3) 20D** policies against the privileged IK expert in MuJoCo 4.x, with 50 Hz tracking error and grasp telemetry).*
 
 ---
 
@@ -45,6 +45,21 @@ In modern robotic manipulation, policy learning (Action Chunking Transformers, D
 
 ---
 
+## 🔬 What This Stage Evaluates & Compares
+
+This repository runs **controlled ablations inside one unified pipeline**—every policy is trained on the same MuJoCo 4.x demonstrations exported as **`LeRobotDataset v2` Parquet** using a **Residual BC MLP (`H = 8`, `7D` targets)**:
+
+| Experimental Axis | What Is Compared | Why It Matters |
+| :--- | :--- | :--- |
+| **1. Spatial Representation** *(Core Model Focus — Interactive 3D Dashboard)* | **World-Frame `30D`** (`36.0 mm` err · `75%` Nom / `35%` OOD) vs. **TCP-Hybrid `30D`** (`2.8 mm` err · `100%` Nom / `95%` ID-DR / `45%` OOD) vs. **Ego-SE(3) `20D`** (`56.9 mm` err · `25%` Nom / `5%` OOD) | Proves why coordinate framing dominates model capacity—and documents an honest failure mode: pure local `SE(3)` invariance loses awareness of a fixed global dropoff zone unless goal-conditioned. |
+| **2. Closed-Loop Control & Filtering** | Single-step raw execution (`0%` True OOD) vs. `H=8` temporal ensembling (`w_k = exp(-0.05·k)`) | Smooths trajectories at 50 Hz, cutting FFT chatter ($\ge 5\text{ Hz}$) by **-78.0% to -84.2%** and physical joint jerk ($\dddot{\mathbf{q}}$) by **-95.6% to -97.4%** under `8.0 ms` IPC delay. |
+| **3. Physical Extrapolation & Root Cause** | `Nominal` vs. `ID-DR` vs. `True OOD`, $2^4$ Orthogonal ANOVA (`48` ep), Psychometric Noise Sweep | Isolates *which* physical parameter drives failure (`damping_scale` explains **71.4%–100.0%** of grasp variance vs. **0.0%** for mass/friction) and pinpoints $\sigma_{50} = 12.74\text{ mm}$. |
+| **4. Compute Scale-Out** *(Hardware Only, Identical Models)* | Apple Silicon `MPS` (`11.4k–12.4k samples/s`) vs. AWS EC2 `g5.2xlarge` `NVIDIA A10G` (`22.5k–22.7k samples/s`) | Validates `~1.9x` cloud training speed-up on the exact same `450/50` episode split without conflating GPU throughput with policy architecture. |
+
+> *Note on physics backends:* `MuJoCo Native 4.0` executes full rigid-body contact dynamics (`500 Hz`), while `GenesisAdapter` and `IsaacLabAdapter` provide analytical impedance/kinematic baselines (`Sim2Sim`) alongside headless Docker targets for external GPU cluster runs.
+
+---
+
 ## 🚀 30-Second Quickstart: Run the Simulations Locally
 
 Clone and install dependencies with [`uv`](https://docs.astral.sh/uv/) in under 10 seconds:
@@ -76,14 +91,14 @@ uv run sim2real view-physics --model-path checkpoints/bc_pick_place.pt --episode
 Generate a self-contained 3D kinematics dashboard that runs offline in any browser without native GUI dependencies:
 
 ```bash
-# Generate and immediately open the 3D comparative dashboard
-uv run sim2real visualize --model-path checkpoints/bc_pick_place.pt --output dashboard.html --open
+# Generate and immediately open the multi-representation 3D dashboard (World 30D vs. TCP-Hybrid 30D vs. Ego-SE(3) 20D)
+uv run sim2real visualize --multi-model --output dashboard.html --open
 ```
 
 > **Dashboard Telemetry:**
-> - **3D Trajectory Overlay:** Directly compares the policy trajectory (green arm, pink path) against the privileged expert ground truth (cyan path).
+> - **Representation Switcher:** Toggle live between `World-Frame 30D`, `TCP-Hybrid 30D`, and `Ego-SE(3) 20D` (or overlay trajectories side-by-side) against the privileged expert ground truth (cyan dashed path).
 > - **Timeline Scrubber:** Interactive frame-by-frame scrubber slider and play/pause controls.
-> - **HUD Telemetry:** Real-time end-effector Cartesian coordinates, payload position, and net displacement.
+> - **HUD Telemetry:** Real-time end-effector Cartesian coordinates, payload position, grasp state, and spatial tracking error.
 
 ---
 
@@ -104,34 +119,52 @@ uv run sim2real sweep-perception-noise --model-path checkpoints/bc_tcp_frame_45e
 
 ---
 
-## 🏗️ System Architecture
+## 🏗️ System Architecture & Codebase Map
 
 ```mermaid
-flowchart TD
-    subgraph Core["1. Privileged Expert & Kinematics Core (core/)"]
-        CFG["DomainRandomizationConfig & SE3Pose Contracts"]
-        IK["Damped Least-Squares Differential IK Expert (Lie Algebra SE(3))"]
-        FSM["7-Stage Pick-and-Place FSM (Approach, Descend, Grasp, Lift, Transport, Place, Completed)"]
-        CFG --> IK --> FSM
+flowchart TB
+    subgraph S1["Stage 1 · Physics & Data Engine (core/, models/, randomization/, simulators/, dataset/)"]
+        CFG["PCG64 Domain Randomizer<br/>(Mass, Friction, Damping, XY Shift, Yaw, g-comp)"]
+        SIM["MuJoCo 4.0 Native (500 Hz Contacts + Touch)<br/>+ Kinematic & Analytical Sim2Sim Adapters"]
+        EXP["7-Stage FSM + DLS IK Expert (SE(3))"]
+        DS["LeRobotDataset v2 Exporter<br/>Parquet Chunks + SHA-256 + Episode IDs"]
+        CFG --> SIM
+        SIM <--> EXP
+        EXP --> DS
     end
 
-    subgraph Backends["2. Pluggable Physics Engine Layer (simulators/)"]
-        MUJ_NAT["MuJoCo Native 4.0 Backend (C API / Mac ARM64)<br/>500 Hz contact solver & proximity-gated weld"]
-        MUJ_KIN["MuJoCo Kinematic Backend (1,000 Hz CPU)<br/>Rapid CI kinematic verification"]
-        GEN["Genesis Adapter (Analytical Impedance Reference / Cloud Batch)<br/>Offline contract emulator (alpha=0.88) & container target"]
-        ISA["Isaac Lab Adapter (Analytical Impedance Reference / Cloud RTX)<br/>Offline contract emulator (alpha=0.82) & container target"]
-        FSM --> MUJ_NAT & MUJ_KIN & GEN & ISA
+    subgraph S2["Stage 2 · Representation & Distillation (learning/)"]
+        OBS["Observation Builder<br/>World 30D | TCP-Hybrid 30D | Ego-SE(3) 20D"]
+        SPLIT["Episode-Grouped Split (450 train / 50 val)"]
+        TRAIN["Residual BC MLP Trainer (H=8, 7D)<br/>Local MPS (12.4k/s) or AWS A10G CUDA (22.7k/s)"]
+        DS --> OBS --> SPLIT --> TRAIN
     end
 
-    subgraph Pipeline["3. Dataset & Sensorimotor Distillation (dataset/, learning/, server/)"]
-        LER["LeRobotDataset v2 Exporter<br/>30D/20D Parquet tables + SHA-256 + Episode Split"]
-        TRN["Receding-Horizon BC Trainer (learning/)<br/>MPS & A10G CUDA (22.7k samples/s), -99.88% loss"]
-        SRV["Temporal Ensemble Ring Buffer (server/)<br/>exp(-m*k) low-pass filter, ~0.11ms MLP + 8.0ms IPC"]
-        OOD["Statistical & Control Benchmarks (benchmarks/)<br/>Wilson CIs, 2^4 ANOVA, FFT/Jerk/Slip, Psychometric σ₅₀"]
-        VIS["Interactive 3D Visualizer & Desktop Viewer<br/>OpenGL native window + WebGL 3D dashboard"]
-        MUJ_NAT & GEN & ISA --> LER --> TRN --> SRV --> OOD & VIS
+    subgraph S3["Stage 3 · Closed-Loop Control & Diagnostics (server/, benchmarks/, visualization/)"]
+        SRV["PolicyInferenceBridge (50 Hz, 8.0 ms IPC)<br/>exp(-0.05*k) Temporal Ensemble Ring Buffer"]
+        DIAG["Diagnostic & Sensitivity Engine<br/>True OOD, 2^4 ANOVA, FFT/Jerk/Slip, Wilson CIs, σ₅₀"]
+        DASH["Offline WebGL 3D Dashboard (docs/index.html)<br/>+ Native OpenGL Live Perturbation Viewer"]
+        TRAIN --> SRV --> DIAG
+        SRV --> DASH
     end
+
+    DIAG -. "Causal bottleneck (η²) calibrates DR bounds & physics" .-> CFG
 ```
+
+### Architecture Module Map
+
+| Package / Path | Responsibility | Key Entrypoints |
+| :--- | :--- | :--- |
+| `src/sim2real_engine/core/` | Kinematic contracts (`SE3Pose`, `JointState`), DLS IK solver, $SO(3)/SE(3)$ transforms, and 7-stage Pick-and-Place FSM | `kinematics.py`, `expert.py`, `contracts.py` |
+| `src/sim2real_engine/models/` | Declarative 6-DOF robot arm + 1-DOF articulated parallel-jaw gripper MJCF + `<touch>` sensors | `pick_place_scene.xml`, `mjcf_builder.py` |
+| `src/sim2real_engine/randomization/` | Isolated `PCG64` physical/spatial perturbation samplers (`Nominal`, `ID-DR`, `True OOD`) | `samplers.py` |
+| `src/sim2real_engine/simulators/` | Unified simulator protocol for `MuJoCoNative` (500 Hz), `MuJoCoKinematic`, `Genesis`, and `IsaacLab` adapters | `mujoco_native.py`, `mujoco_adapter.py`, `base.py` |
+| `src/sim2real_engine/dataset/` | `LeRobotDataset v2` chunked Parquet writer, per-dim normalization stats, SHA-256 manifest validator | `exporter.py` |
+| `src/sim2real_engine/learning/` | Shared `30D`/`20D` observation assembly, leakage-free episode split, Residual BC MLP & trainer | `dataset.py`, `policy.py`, `trainer.py` |
+| `src/sim2real_engine/server/` | 50 Hz `PolicyInferenceBridge`, synthetic `8.0 ms` IPC budget, `exp(-m*k)` temporal ensembler | `inference_bridge.py` |
+| `src/sim2real_engine/benchmarks/` | Wilson CIs, Binomial MLE $\sigma_{50}$, $2^4$ orthogonal ANOVA, FFT chatter, joint jerk & slip | `statistics.py`, `ood_dr_eval.py`, `sensitivity.py`, `control_diagnostics.py` |
+| `src/sim2real_engine/visualization/` | Static client-side 3D WebGL dashboard compiler (`docs/index.html`) + native desktop viewer | `policy_dashboard.py`, `data.py`, `cli.py` |
+| `docker/` & `results/` | Automated AWS EC2 `g5.2xlarge` CUDA burst launcher (S3 sync + auto-terminate) and benchmark artifacts | `run_cloud_training.py`, `eval_tcp_ood.json` |
 
 ---
 
@@ -144,7 +177,7 @@ All metrics empirically benchmarked on Apple Silicon (M-series, unified memory):
 | **Physics Stepping Frequency** | **500 Hz** (10 substeps @ `dt = 2 ms`) | `>= 500 Hz` | **PASSED** |
 | **Grasp Physical Realism** | **Articulated 1-DOF parallel-jaw Coulomb friction** (`54 mm` open, ADR-12) | Physical collision & clamping | **PASSED** |
 | **Net Cross-Table Payload Transport** | **14.2–15.0 cm** (`y = +0.044 m → -0.098 m`) | Complete macro-task delivery | **PASSED** |
-| **Unit & Integration Test Suite** | **119 / 119 tests passing (100%)** | 100% pass rate in CI | **PASSED** |
+| **Unit & Integration Test Suite** | **120 / 120 tests passing (100%)** | 100% pass rate in CI | **PASSED** |
 | **Static Analysis & Typing** | **`mypy --strict` & `ruff` clean** | 0 errors across 34 source files | **PASSED** |
 | **Dataset Export Rate (500 episodes)** | **53,998 steps** (`SHA-256` verified) | Reproducible Parquet chunks | **PASSED** |
 | **Cryptographic Data Integrity** | **SHA-256 Digest per Parquet Chunk** | Tamper-proof manifest seal | **PASSED** |
@@ -218,7 +251,7 @@ We packaged and empirically verified the turnkey cloud orchestrator in [`docker/
 Execute the entire test and quality verification suite locally:
 
 ```bash
-# 1. Run all 119 unit and integration tests (~22 seconds)
+# 1. Run all 120 unit and integration tests (~22 seconds)
 uv run pytest -v
 
 # 2. Strict static typing across all source modules (0 errors across 34 files)
@@ -239,7 +272,7 @@ sim2real-data-engine/
 │   ├── policy_closed_loop.gif       # Trained neural policy closed-loop inference
 │   ├── synthetic_data_generation.mp4# High-definition video export
 │   └── policy_closed_loop.mp4       # Policy execution video export
-├── checkpoints/                     # Trained policy weights (bc_pick_place.pt)
+├── checkpoints/                     # Representation checkpoints (bc_pick_place.pt, bc_tcp_frame_45ep.pt, bc_ego_se3_45ep.pt)
 ├── datasets/                        # LeRobot v2 chunked Parquet datasets & SHA-256 manifests
 │   └── sim2real_pick_place/         # 500 native MuJoCo demonstration episodes (~54k steps)
 ├── docker/                          # Headless cloud GPU container configurations & EC2 manager
@@ -262,7 +295,7 @@ sim2real-data-engine/
 │       ├── server/                  # Policy inference bridge & receding-horizon ring buffer
 │       ├── simulators/              # Native MuJoCo, Kinematic, & Analytical Impedance Adapters
 │       └── visualization/           # WebGL dashboard generator & OpenGL desktop viewer
-└── tests/                           # 119 deterministic unit and integration tests
+└── tests/                           # 120 deterministic unit and integration tests
 ```
 
 ---

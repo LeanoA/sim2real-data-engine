@@ -304,8 +304,8 @@ z_ee (m)
 Demonstrating multi-model robotics research to technical teams often encounters a practical roadblock: running rollouts requires specialized GPU clusters, MuJoCo native installations, and Python environments.
 
 Following **ADR-11**, we implemented an offline multi-model telemetry compilation pipeline in `sim2real visualize --multi-model`:
-- **Pre-computed Rollouts:** The CLI executes closed-loop rollouts across all three policy checkpoints (`World Baseline`, `TCP Equivariant`, and `Cloud GPU`), capturing full 7D joint states, Cartesian end-effector paths, action chunk lookaheads, and surgical telemetry.
-- **Client-Side Segmented Control:** Trajectories are bundled into a single standalone HTML/Three.js artifact with zero runtime server dependencies. Users can toggle between models via client-side segmented controls, inspecting spatial compliance, descent paths, and reach-to-place transitions at 60 FPS directly in any standard browser.
+- **Pre-computed Representation Rollouts:** The CLI executes closed-loop rollouts across the three distinct spatial observation representations (`World-Frame 30D`, `TCP-Hybrid 30D`, and `Ego-Centric SE(3) 20D`), capturing full 7D joint states, Cartesian end-effector paths, action chunk lookaheads, and synchronized tracking error curves (separating representation design from raw `MPS` vs. `AWS A10G CUDA` hardware scale-out benchmarks).
+- **Client-Side Segmented Control:** Trajectories are bundled into a single standalone HTML/Plotly WebGL artifact (`docs/index.html`) with zero runtime server dependencies. Users can switch between `World-Frame 30D` (`36.0 mm` mean error), `TCP-Hybrid 30D` (`2.8 mm` mean error), and the `Ego-SE(3) 20D` ablation (`56.9 mm` error from global goal blindness), or overlay trajectories side-by-side at 60 FPS directly in any browser.
 
 ---
 
@@ -316,7 +316,7 @@ Robotic manipulation is transitioning from proof-of-concept research to determin
 The complete codebase, documentation, ADRs, and verification test suites are open-source:
 
 ```bash
-# 1. Clone and verify test suite (119 tests passing, mypy --strict clean across 34 source files)
+# 1. Clone and verify test suite (120 tests passing, mypy --strict clean across 34 source files)
 git clone https://github.com/LeanoA/sim2real-data-engine.git
 cd sim2real-data-engine
 uv sync
