@@ -43,18 +43,18 @@ flowchart TB
     end
 
     subgraph Core["2. Core Kinematics & Domain Randomization"]
-        K["Lie Algebra SE(3) Kinematics<br/>• Damped Least-Squares IK + Null-Space Posture<br/>• Geodesic SLERP on S³"]
-        DR["Isolated PCG64 Randomization<br/>• SeedSequence([base_seed, episode_id])<br/>• Mass (±15%), friction (±30%), damping (±10%)"]
+        K["Lie Algebra SE(3) Kinematics<br/>• Damped Least-Squares IK + Null-Space Posture<br/>• SO(3) Exp/Log Maps & Geodesic SLERP on S³"]
+        DR["Isolated PCG64 Randomization<br/>• SeedSequence([base_seed, episode_id])<br/>• Mass, friction, damping, XY shift, SO(3) yaw & grav-comp"]
     end
 
     subgraph Export["3. Hugging Face LeRobot v2 Pipeline"]
-        P["Chunked Parquet Tables<br/>(30D Privileged Sensorimotor State, 7D Action)"]
-        S["SHA-256 Envelope & Stats<br/>(Per-dimension mean, std, min, max)"]
+        P["Chunked Parquet Tables<br/>(30D World/TCP or 20D Ego-SE(3) State, 7D Action)"]
+        S["SHA-256 Envelope & Episode-Grouped Split<br/>(Leakage-free train/val split + per-dim stats)"]
     end
 
-    subgraph PolicyBridge["4. Policy Inference & Execution Bridge"]
-        ACT["Imitation Learning Policy<br/>• Residual BehaviorCloningMLP (H=8, 7D)<br/>• Metal MPS GPU Acceleration (12.2k–12.4k samples/s)"]
-        BUF["TemporalEnsembleBuffer (Ring Buffer)<br/>• Exponential ensembling exp(-m*k), m=0.05<br/>• ~0.11ms MLP + 8.0ms IPC budget (8.04ms P99 bridge)"]
+    subgraph PolicyBridge["4. Policy Inference & Statistical Eval"]
+        ACT["Imitation Learning Policy<br/>• Residual BehaviorCloningMLP (H=8, 7D)<br/>• MPS & AWS A10G CUDA (~22.7k samples/s)"]
+        BUF["TemporalEnsembleBuffer + Diagnostics<br/>• exp(-m*k) low-pass filtering (-78% to -84% HF >=5Hz)<br/>• Wilson 95% CIs, 2^4 ANOVA, Psychometric σ₅₀ & Slip"]
     end
 
     subgraph Vis["5. Visual Inspection & Telemetry"]
@@ -80,15 +80,15 @@ We implement Levenberg-Marquardt Damped Least-Squares (DLS) kinematics with adap
 
 $$\Delta \mathbf{q} = \mathbf{J}^T \left(\mathbf{J}\mathbf{J}^T + \lambda^2 \mathbf{I}_6\right)^{-1} \mathbf{e} + \left(\mathbf{I}_n - \mathbf{J}^\dagger_{\lambda} \mathbf{J}\right) k_{\text{null}} (\mathbf{q}_{\text{home}} - \mathbf{q})$$
 
-All orientation errors are computed on the Lie algebra $\mathfrak{so}(3)$ via the matrix logarithmic map $\text{Log}(\mathbf{R}_{\text{target}} \mathbf{R}_{\text{current}}^T)$, and waypoint quaternions are interpolated via antipodal-corrected SLERP on $S^3$.
+All orientation errors are computed on the Lie algebra $\mathfrak{so}(3)$ via the matrix logarithmic map $\text{Log}(\mathbf{R}_{\text{target}} \mathbf{R}_{\text{current}}^T)$, rotational perturbations use the inverse exponential map $\exp([\boldsymbol{\omega}]_\times)$ (`so3_exp_map`), quaternions are canonicalized on $S^3/\mathbb{Z}_2$ ($w \ge 0$), and waypoints are interpolated via antipodal-corrected SLERP.
 
 ---
 
 ### Pillar 2: Native DeepMind MuJoCo 4.0 Contact Physics
 Rather than relying on kinematic mocks that magically teleport objects, `sim2real-data-engine` integrates compiled DeepMind MuJoCo 4.0 contact mechanics:
 - **`MjModel` vs. `MjData`:** Decouples immutable kinematic and inertial blueprints (`MjModel`) from dynamic runtime state buffers (`MjData`).
-- **Linear Complementarity Problem (LCP) Contact Solver:** Enforces hard non-penetration and pyramidal Coulomb friction cones (`||f_T|| <= μ f_N`).
-- **Multi-Rate Substepping:** The physical manipulator executes 10 physics substeps at 500 Hz (`dt = 2 ms`) within each 50 Hz (`dt = 20 ms`) control step, completely eliminating numerical contact explosion.
+- **Elliptic Coulomb Contact Solver:** Enforces hard non-penetration and elliptic friction cones (`||f_T|| <= μ f_N`) with declarative fingertip `<touch>` sensors (`touch_left`, `touch_right`) and total mechanical energy diagnostics (`mjENBL_ENERGY`).
+- **Multi-Rate Substepping & Feedforward Uncertainty:** The physical manipulator executes 10 physics substeps at 500 Hz (`dt = 2 ms`) within each 50 Hz (`dt = 20 ms`) control step, with configurable `gravity_comp_gain` (`qfrc_applied = g_comp * qfrc_bias`) to study unmodeled payload dynamics instead of assuming ideal bias cancellation.
 - **Analytical Jacobians:** Direct C-API queries via `mujoco.mj_jac` provide analytical translational and rotational Jacobians in microseconds.
 
 ---
@@ -103,10 +103,10 @@ rng = np.random.default_rng(np.random.PCG64(seed_seq))
 
 mass_scale = float(rng.uniform(mass_min, mass_max))
 friction_scale = float(rng.uniform(fric_min, fric_max))
-camera_jitter = rng.uniform(-delta_c, delta_c, size=3)
+damping_scale = float(rng.uniform(damp_min, damp_max))
 ```
 
-Whether episode 42 is sampled sequentially on an Apple Silicon laptop or in parallel across a 64-worker Kubernetes cluster, link mass multipliers, Coulomb friction coefficients, and camera extrinsic `SE(3)` jitter are bit-for-bit identical.
+Whether episode 42 is sampled sequentially on an Apple Silicon laptop or in parallel across a cluster, link mass multipliers, Coulomb friction coefficients, joint damping, spatial workspace XY shifts, $SO(3)$ object yaw rotations, and gravity-compensation gains are bit-for-bit identical—while separating **In-Distribution (ID)** training ranges from **True Out-of-Distribution (OOD)** extrapolation.
 
 ---
 
@@ -121,20 +121,20 @@ Upon collection, `finalize_manifest()` computes per-dimension normalization vect
 
 ---
 
-### Pillar 5: Receding-Horizon Policy Training, TCP Equivariance & Metal/Cloud Scaling
+### Pillar 5: Receding-Horizon Policy Training, `SE(3)` Equivariance & Metal/Cloud Scaling
 Single-step action prediction with standard MSE loss suffers from quadratic compounding covariate shift (`O(T²)` error drift) and mode collapse when demonstrations contain multiple valid trajectories.
 
-To overcome this, the engine integrates an optimized PyTorch Behavioral Cloning architecture with multi-step action chunking and spatial equivariance:
-1. **Tool Center Point (TCP) Frame Spatial Equivariance:** Rather than forcing the network to memorize arbitrary workbench coordinates, relative object observations are mapped directly into the local end-effector frame:
-   $$\mathbf{p}_{\text{obj}}^{\text{tcp}} = \mathbf{R}(\mathbf{q}_{\text{ee}})^T \left(\mathbf{p}_{\text{obj}} - \mathbf{p}_{\text{ee}}\right)$$
-   This provides spatial equivariance: the approach target is canonically $\mathbf{p}_{\text{obj}}^{\text{tcp}} \to [0, 0, d_{\text{latch}}]^T$ regardless of where the robot operates across the table, eliminating non-linear forward kinematics memorization.
-2. **Residual MLP with Pre-LayerNorm & Synchronized Horizon ($H=8$):** A deep trunk with residual skip connections and SiLU activations maps the normalized 30D observation vector to a full `(H=8, 7)` future action trajectory chunk (56 output parameters for 7D control).
+To overcome this, the engine integrates an optimized PyTorch Behavioral Cloning architecture with **episode-grouped train/validation splitting** (450 train / 50 val episodes, eliminating temporal transition leakage between adjacent 20 ms frames), multi-step action chunking, and shared train/inference observation assembly (`assemble_policy_observation`):
+1. **Tool Center Point (TCP) Frame & Pure Ego-Centric `SE(3)` Modes:**
+   - **30D TCP-Hybrid (`--tcp-frame`):** Transforms relative object displacement into local end-effector coordinates $\mathbf{p}_{\text{obj}}^{\text{tcp}} = \mathbf{R}(\mathbf{q}_{\text{ee}})^T (\mathbf{p}_{\text{obj}} - \mathbf{p}_{\text{ee}})$ while retaining normalized joint proprioception and workspace anchors.
+   - **20D Pure Ego-Centric `SE(3)` (`--ego-centric`):** Prunes raw global world-frame coordinates (`ee_pos`, `ee_quat`, `obj_pos`, `obj_quat`) and feeds canonicalized relative pose $(\mathbf{p}_{\text{obj}}^{\text{tcp}}, \mathbf{q}_{\text{obj}}^{\text{tcp}})$ with $\mathbf{q}_{\text{rel}} = \text{canon}(\mathbf{q}_{\text{ee}}^{-1} \otimes \mathbf{q}_{\text{obj}})$, achieving strict group invariance under arbitrary rigid world transforms $g \in SE(3)$ and antipodal quaternion flips.
+2. **Residual MLP with Pre-LayerNorm & Synchronized Horizon ($H=8$):** A deep trunk with residual skip connections and SiLU activations maps normalized observations (`30D` or `20D`) to a full `(H=8, 7)` future action trajectory chunk (56 output parameters for 7D control).
 3. **Hardware-Accelerated Dual Training (Metal MPS & Cloud CUDA A10G):**
-   - **Local Apple Silicon MPS:** Trains at **12,245 samples/s** (`World` checkpoint, `178.59 s`) to **12,352 samples/s** (`TCP` checkpoint, `177.05 s`), reducing validation loss by **-99.7%** (`3.4918 → 0.0091–0.0092`) across 45 epochs.
-   - **AWS EC2 Cloud GPU (NVIDIA A10G 24GB):** Automated via `docker/run_cloud_training.py`, training 45 epochs across 53,998 transitions in **96.39 seconds** at **22,688.4 samples/s** (`val_loss: 0.009259`, `-99.73%`, `1.85x` vs MPS) before auto-terminating.
+   - **Local Apple Silicon MPS (Episode-Grouped 450/50 Split, 45 Epochs):** Trains `30D TCP` (`bc_tcp_m1_45ep.pt`) at **11,382.3 samples/s** (`192.1 s`, `val_loss: 0.004311`, `-99.88%`) and `20D Ego-SE(3)` (`bc_ego_se3_45ep.pt`) at **12,241.9 samples/s** (`178.6 s`, `val_loss: 0.004428`, `-99.87%`).
+   - **AWS EC2 Cloud GPU (NVIDIA A10G 24GB, `g5.2xlarge` in `us-east-2`):** Automated via `docker/run_cloud_training.py`, training all three architectures (`World 30D`, `TCP 30D`, `Ego-SE(3) 20D`) across 45 epochs in **96.2–97.2 seconds** each at **22,489–22,720 samples/s** (`val_loss: 0.004286–0.004492`, `~1.9x` vs MPS) plus executing full statistical benchmarks before auto-terminating.
 4. **Temporal Ensembling Ring Buffer:** Overlapping action chunks from historical prediction steps $t - k$ are fused using exponential decay weights $w_k = \exp(-m \cdot k)$ with $m = 0.05$:
    $$\mathbf{u}_t = \frac{\sum_{k=0}^{K-1} \exp(-m \cdot k) \, \hat{\mathbf{a}}_{t | t-k}}{\sum_{k=0}^{K-1} \exp(-m \cdot k)}$$
-   This temporal smoothing provides **160 ms of lookahead trajectory inertia** ($8 \times 0.02\text{ s}$), dampening high-frequency motor chatter and preventing premature vertical plunge during descent.
+   This temporal smoothing provides **160 ms of lookahead trajectory inertia** ($8 \times 0.02\text{ s}$), acting as an empirical low-pass filter that cuts high-frequency ($\ge 5\text{ Hz}$) action-velocity FFT power by **78.0%–84.2%** and true physical joint jerk ($\dddot{\mathbf{q}}$) by **95.6%–97.4%**.
 
 ---
 
@@ -145,89 +145,83 @@ Debugging robotic trajectories solely from terminal printouts or static loss cur
 
 ---
 
-## 4. Empirical Benchmarks: Sim-to-Sim Gap, Latency & OOD Robustness
+## 4. Empirical Benchmarks: Statistical Rigor, Sim-to-Sim, True OOD & Factor Attribution
+
+Rather than relying on point-estimate averages over small samples—which hide heavy-tailed outliers and wide binomial variance—all benchmark pipelines emit **95% Wilson score confidence intervals** for success rates, **Mean ± SD alongside Median / IQR** with deterministic bootstrap CIs for continuous errors, **Binomial MLE psychometric fits** for noise thresholds, and **orthogonal $2^4$ ANOVA** for failure attribution.
 
 ### 4.1 Cross-Backend Tracking Drift (MuJoCo 4.0 vs. Analytical Impedance Reference Adapter)
-Executing `sim2real sim2sim-eval` compares our offline analytical impedance reference adapter (`IsaacLabAdapter`, stiff joint compliance `kp = 48.0 N·m/rad`, `alpha = 0.82` used for zero-GPU CI verification before cloud RTX container deployment) against both the MuJoCo kinematic solver (`mujoco`) and full compiled native contact physics (`mujoco_native` across 20 episodes in `results/isaac_sim2sim_results.json`):
+Executing `sim2real sim2sim-eval` compares our offline analytical impedance reference adapter (`IsaacLabAdapter`, stiff joint compliance `kp = 48.0 N·m/rad`, `alpha = 0.82` used for zero-GPU CI verification before cloud RTX container deployment) against full compiled native contact physics (`mujoco_native` across 20 episodes in `results/isaac_sim2sim_results.json`):
 
-| Metric | Kinematic Ref (`mujoco`, 5 ep) | Native Physics Ref (`mujoco_native`, 20 ep) | Contract Interpretation |
+| Metric | Native Physics vs. Reference (`20 episodes`) | Distribution / 95% Wilson CI | Contract Interpretation |
 | :--- | :---: | :---: | :--- |
-| **Physics Integration Frequency** | 500 Hz / 500 Hz | 500 Hz / 500 Hz | Nominal stepping alignment |
-| **Pick-and-Place Task Success Rate** | 100.0% vs 100.0% | **95.0% vs 100.0%** | **5.0% Contact Gap** |
-| **Mean Trajectory Drift (`RMSE_traj`)** | `0.0480 rad` | `0.6635 rad` | Joint-space contact compliance lag |
-| **Mean Final End-Effector Divergence** | `0.0001 m` (**0.10 mm**) | `0.0106 m` (**10.6 mm**) | Closed-loop Cartesian convergence |
+| **Pick-and-Place Task Success Rate** | **95.0% vs. 100.0%** | `[76.4%, 99.1%]` vs. `[83.9%, 100.0%]` | **5.0% Contact Gap** (19/20 vs. 20/20) |
+| **Trajectory Drift (`RMSE_traj`)** | `0.6635 rad` mean | `SD = 0.0542`, `Med = 0.6622`, `IQR = 0.0751` | Joint-space contact compliance lag |
+| **Final End-Effector Divergence** | `10.62 mm` mean | **`Med = 2.06 mm`**, `IQR = 0.30 mm`, `max = 173.2 mm` | 1 outlier episode skews mean 5× above median |
 
-### 4.2 Closed-Loop 7D Policy Inference Telemetry & Cloud Scaling
-Evaluating the trained 30D-to-7D Behavioral Cloning policies across closed-loop MuJoCo rollouts demonstrates sub-millisecond forward-pass execution (**~0.11 ms** on CPU) and deterministic compliance even when `PolicyInferenceBridge` injects its default **8.0 ms synthetic IPC / remote-transport latency budget**. Furthermore, scaling training across local Apple Silicon MPS and AWS EC2 Cloud GPU (`g5.2xlarge`, NVIDIA A10G 24GB VRAM in `us-east-2`) proves consistent convergence across execution backends:
+### 4.2 Closed-Loop 7D Policy Inference & Cloud CUDA Scaling (`episode_grouped` Split)
+Evaluating trained policies under strict **episode-grouped 450/50 train/validation splitting** (`48,592 / 5,406` transitions) demonstrates sub-millisecond forward-pass execution (**~0.11 ms** on CPU) inside `PolicyInferenceBridge`'s **8.0 ms synthetic transport delay budget** (`P99 < 8.15 ms`, well under the 20 ms 50 Hz deadline), alongside `~1.9x` cloud speedup on AWS EC2 `g5.2xlarge` (NVIDIA A10G CUDA):
 
-| Metric | Local Metal GPU (`mps` Checkpoint) | AWS Cloud GPU (`cuda:0` A10G) | Target / SLA | Status |
-| :--- | :---: | :---: | :---: | :---: |
-| **Hardware Platform** | Apple Silicon M-Series | AWS EC2 `g5.2xlarge` (A10G) | High-throughput training | Verified |
-| **Training Budget & Epochs** | 45 epochs (53,998 steps) | 45 epochs (53,998 steps) | Aligned convergence budget | Synchronized |
-| **Wall-Clock Training Time** | 178.59 s (World) / 177.05 s (TCP) | **96.39 s** | < 180.0 s cloud target | **1.85x speedup** |
-| **Training Throughput** | 12,245 (World) / 12,352 (TCP) samples/s | **22,688.4 samples/s** | > 15,000 samples/s | **1.85x vs World MPS** |
-| **Final Validation Loss** | `0.0091` / `0.0092` (-99.7%) | **`0.009259` (-99.73%)** | Smooth L1 < 0.010 | Converged |
-| **Raw CPU Forward Pass** | ~0.11 ms | ~0.11 ms | < 1.0 ms local compute | Sub-millisecond |
-| **Bridge / Rollout Latency (P99, 8ms IPC)** | 8.04 ms bridge / 8.10–8.13 ms rollout | 8.04 ms bridge / ~8.1 ms rollout | 20.0 ms (50 Hz loop) | Zero deadline misses |
-| **Closed-Loop Chained Success (20 eps)** | **100.0% Nom / 95.0% OOD** (TCP) · 75.0% (World) | **95.0% Nom / 95.0% OOD** | Full transport to target | **150.2 mm disp (TCP)** |
+| Policy Artifact & Observation Mode | Platform / Split | Train Time (Throughput) | Final Val Loss | Nominal Success (20 ep, 95% CI) | ID-DR Success (20 ep, 95% CI) |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| `bc_cloud_policy.pt` (World 30D) | A10G CUDA (`450/50`) | **96.24 s** (`22,720/s`) | `0.004286` (`-99.88%`) | — | — |
+| `bc_cloud_tcp_45ep.pt` (TCP 30D) | A10G CUDA (`450/50`) | **96.31 s** (`22,705/s`) | `0.004362` (`-99.87%`) | `60.0%` `[38.7%, 78.1%]` | `60.0%` `[38.7%, 78.1%]` |
+| `bc_cloud_ego_se3_45ep.pt` (Ego-SE3 20D) | A10G CUDA (`450/50`) | **97.23 s** (`22,489/s`) | `0.004492` (`-99.86%`) | — | — |
+| `bc_tcp_m1_45ep.pt` (TCP 30D) | Apple MPS (`450/50`) | `192.11 s` (`11,382/s`) | `0.004311` (`-99.88%`) | `65.0%` `[43.3%, 81.9%]` | `70.0%` `[48.1%, 85.5%]` |
+| `bc_ego_se3_45ep.pt` (Ego-SE3 20D) | Apple MPS (`450/50`) | `178.62 s` (`12,242/s`) | `0.004428` (`-99.87%`) | `25.0%` `[11.2%, 46.9%]` | `20.0%` `[8.1%, 41.6%]` |
+| `bc_tcp_frame_45ep.pt` (TCP 30D, legacy 100%) | Apple MPS (all 500 eps) | `177.05 s` (`12,352/s`) | `0.0092` | **`100.0%`** `[83.9%, 100.0%]` | **`95.0%`** `[76.4%, 99.1%]` |
+| `bc_pick_place.pt` (World 30D, legacy) | Apple MPS | `178.59 s` (`12,245/s`) | `0.0091` | `75.0%` `[53.1%, 88.8%]` | `75.0%` `[53.1%, 88.8%]` |
 
-### 4.3 Decoupled Surgical Robotics Telemetry: Beyond Binary Success (ADR-08)
-Standard RL and imitation learning benchmarks collapse trajectory evaluations into a single binary "Success / Fail" scalar. In physical manipulation, this coarse metric completely obscures the root cause of failures (e.g., did the arm fail to reach the object, fail to close the gripper, lose grasp during transit, or drop the object outside the target bin?).
+**Why did `bc_ego_se3_45ep.pt` score `25.0%` closed-loop despite `val_loss = 0.0044`?** Two architectural lessons emerged directly from this experiment: (1) once `ee_pos` and `obj_pos` are pruned, the fixed table dropoff coordinate `(0.38, -0.10, 0.07)` is no longer anchored in Cartesian space, and (2) raw metric `rel_pos_tcp` (`~0.01–0.20 m`) sits an order of magnitude smaller than z-scored `q_norm` / `v_norm` (`std = 1.0`), calling for explicit relative-pose normalization and goal-frame conditioning in v0.3.
 
-Following **ADR-08**, we decoupled closed-loop evaluation into 5 independent physical telemetry channels (shown for the **TCP-Frame Equivariant** `checkpoints/bc_tcp_frame_45ep.pt` 20-episode OOD DR benchmark vs. **World Baseline** `checkpoints/bc_pick_place.pt`):
+### 4.3 Decoupled Surgical Telemetry: Beyond Binary Success (ADR-08)
+Following **ADR-08**, closed-loop evaluation isolates 5 physical telemetry channels across `Nominal`, **In-Distribution DR** (`mass ∈ [0.85, 1.15]`, `friction ∈ [0.70, 1.30]`, `damping ∈ [0.90, 1.10]`), and **True OOD Extrapolation** (`mass ∈ [1.35, 2.25]`, `friction ∈ [0.30, 0.55]`, `damping ∈ [1.20, 1.60]`, `x_shift ∈ [-50, +50] mm`, `y_shift ∈ [+40, +90] mm`) across 20 episodes:
 
-| Physical Telemetry Metric | TCP Equivariant (Nominal / OOD) | World Baseline (Nominal / OOD) | Operational Tolerance / Condition |
+| Physical Telemetry Metric | `bc_tcp_frame_45ep.pt` (Nom / ID-DR / True OOD) | `bc_pick_place.pt` (Nom / ID-DR / True OOD) | Operational Tolerance |
 | :--- | :---: | :---: | :--- |
-| **1. Reach Proximity Rate** | **100.0% / 95.0%** (`5.0 / 7.0 mm`) | `75.0% / 80.0%` (`14.7 / 14.9 mm`) | End-effector distance to object $\le 25\text{ mm}$ |
-| **2. Grasp Clamping Rate** | **100.0% / 95.0%** | `75.0% / 80.0%` | Sustained Coulomb lift ($z_{\text{obj}} > z_{\text{init}} + 50\text{ mm}$, $\ge 10$ steps) |
-| **3. Placement Tolerance Rate** | **100.0% / 95.0%** (`6.1 / 9.5 mm`) | `75.0% / 75.0%` (`31.6 / 31.4 mm`) | Final payload $\le 20\text{ mm}$ from target & tilt $\le 15^\circ$ |
-| **4. Chained Task Success Rate** | **100.0% / 95.0%** | `75.0% / 75.0%` | Sequential compliance across reach, grasp, transport, and place |
-| **5. Hunting Velocity Reversals** | **1.9 / 2.2 rev/ep** (`21.9` unensembled) | `2.1 / 2.5 rev/ep` (`33.7` unensembled) | Sign reversals in Cartesian velocity vector |
+| **1. Reach Proximity (`Med`, `IQR`)** | `5.0` / `7.0` / `25.3 mm` (`Med 4.5 / 4.2 / 27.9`) | `14.7` / `14.9` / `38.7 mm` (`Med 9.3 / 7.5 / 42.7`) | TCP proximity $\le 25\text{ mm}$ |
+| **2. Grasp Clamping Rate** | `100%` / `95%` / `50%` (`~4.32–4.49 N` touch) | `75%` / `80%` / `35%` (`~2.66–4.24 N` touch) | Lift $> 50\text{ mm}$ for $\ge 10$ steps |
+| **3. Placement Tolerance Rate** | `100%` / `95%` / `45%` (`6.1 / 9.5 / 112.6 mm`) | `75%` / `75%` / `35%` (`31.6 / 31.4 / 139.8 mm`) | Final $\le 20\text{ mm}$ & tilt $\le 15^\circ$ |
+| **4. Chained Task Success (95% CI)** | `100%` `[83.9, 100]` / `95%` `[76.4, 99.1]` / `45%` `[25.8, 65.8]` | `75%` `[53.1, 88.8]` / `75%` `[53.1, 88.8]` / `35%` `[18.1, 56.7]` | **ID → True OOD Gap: `+50.0 pp` / `+40.0 pp`** |
+| **5. Hunting Reversals (Ensembled)** | `1.9` / `2.2` / `1.5 rev` (`21.2` unensembled) | `2.1` / `2.5` / `1.6 rev` (`38.8` unensembled) | Cartesian velocity sign reversals |
 
-Notice how removing the Phase 1 `40 mm` proximity weld snap immediately exposed why **TCP-frame spatial equivariance** matters physically: World-frame BC's `14.7 mm` reach error now clips the `7.0 mm` finger clearance on `25%` of episodes, whereas TCP-frame equivariance centers within `5.0 mm` and reaches **100.0% Nominal / 95.0% OOD DR**.
+### 4.4 Perception Noise Sensitivity Sweep & Binomial MLE Psychometric Fit (ADR-10)
+To quantify sensor tolerance prior to physical deployment, `sim2real sweep-perception-noise` sweeps $\sigma \in [0, 20]\text{ mm}$ across $N = 20$ closed-loop episodes per level (with optional $SO(3)$ orientation noise via `--perception-rot-noise-deg`) and fits a regularized Binomial MLE logistic psychometric curve $P(\text{grasp} \mid \sigma) = \sigma_{\text{logistic}}(-k(\sigma - \sigma_{50}))$:
 
-### 4.4 Perception Noise Sensitivity Sweep & Physical Breakdown Threshold (ADR-10)
-In real-world robotic cells, object poses derived from external RGB-D cameras (e.g., Intel RealSense, Photoneo) suffer from calibration jitter, depth dropouts, and lighting variations. To quantify policy robustness prior to physical hardware deployment, we implemented a parameter sweep injecting synthetic zero-mean Gaussian noise $\mathcal{N}(0, \sigma^2 \mathbf{I}_3)$ into perceived object positions, evaluating $\sigma \in [0.0, 20.0]\text{ mm}$ across $N = 10$ closed-loop rollouts per perturbation step (TCP-Frame Equivariant `checkpoints/bc_tcp_frame_45ep.pt`):
+| Noise Level ($\sigma$) | `bc_tcp_frame_45ep.pt` Grasp (95% Wilson CI) | Reach Err (mm) | `bc_pick_place.pt` Grasp (95% Wilson CI) |
+| :---: | :---: | :---: | :---: |
+| **$\sigma = 0.0\text{ mm}$** | **100.0%** `[84%, 100%]` | `5.0 mm` | `75.0%` `[53%, 89%]` |
+| **$\sigma = 2.5\text{ mm}$** | **90.0%** `[70%, 97%]` | `8.5 mm` | `80.0%` `[58%, 92%]` |
+| **$\sigma = 5.0\text{ mm}$** | **80.0%** `[58%, 92%]` | `10.1 mm` | **`40.0%` ($\sigma^*$)** `[22%, 61%]` |
+| **$\sigma = 7.5\text{ mm}$ (Clearance Edge)** | **65.0%** `[43%, 82%]` | `17.3 mm` | `45.0%` `[26%, 66%]` |
+| **$\sigma = 10.0\text{ mm}$** | **`45.0%` ($\sigma^*$)** `[26%, 66%]` | `21.7 mm` | `35.0%` `[18%, 57%]` |
+| **$\sigma = 15.0\text{ mm}$** | `40.0%` `[22%, 61%]` | `33.9 mm` | `35.0%` `[18%, 57%]` |
+| **$\sigma = 20.0\text{ mm}$** | `30.0%` `[15%, 52%]` | `31.2 mm` | `35.0%` `[18%, 57%]` |
 
-| Noise Level ($\sigma$) | Grasp Success | Placement Success | Chained Success | Mean Min Reach Err | Mean Placement Err |
-| :---: | :---: | :---: | :---: | :---: | :---: |
-| **$\sigma = 0.0\text{ mm}$ (Clean)** | **100.0%** | **100.0%** | **100.0%** | 4.44 mm | 5.42 mm |
-| **$\sigma = 2.5\text{ mm}$ (Nominal Vision)** | **100.0%** | **100.0%** | **100.0%** | 5.75 mm | 7.39 mm |
-| **$\sigma = 5.0\text{ mm}$ (Standard RGB-D)** | **70.0%** | **70.0%** | **70.0%** | 11.10 mm | 51.78 mm |
-| **$\sigma = 7.5\text{ mm}$ (Clearance Boundary)** | **70.0%** | **70.0%** | **70.0%** | 17.73 mm | 54.10 mm |
-| **$\sigma^* = 10.0\text{ mm}$ (Breakdown Threshold)** | **40.0%** | **40.0%** | **40.0%** | 23.76 mm | 99.51 mm |
-| **$\sigma = 12.5\text{ mm}$** | 60.0% | 50.0% | 50.0% | 23.53 mm | 66.98 mm |
-| **$\sigma = 15.0\text{ mm}$** | 30.0% | 20.0% | 20.0% | 43.08 mm | 113.55 mm |
-| **$\sigma = 17.5\text{ mm}$** | 30.0% | 30.0% | 30.0% | 30.39 mm | 113.45 mm |
-| **$\sigma = 20.0\text{ mm}$ (Severely Degraded)** | 10.0% | 10.0% | 10.0% | 33.54 mm | 133.22 mm |
+With $N=20$ trials per point and **Wilson CIs**, the empirical breakdown threshold (`< 50%`) lands at $\sigma^* = 10.0\text{ mm}$ for `bc_tcp_frame_45ep.pt` (psychometric fit: **$\sigma_{50} = 12.74\text{ mm}$**, $k = 0.186/\text{mm}$, `90%->10%` transition width `23.68 mm`, McFadden pseudo-$R^2 = 0.194$) vs. $\sigma^* = 5.0\text{ mm}$ (**$\sigma_{50} = 8.64\text{ mm}$**) for `bc_pick_place.pt`, and $\sigma^* = 5.0\text{ mm}$ (**$\sigma_{50} = 4.25\text{ mm}$**) for `bc_cloud_tcp_45ep.pt` (`results/sweep_perception_tcp.json`).
 
-```text
-Chained Task Success vs Perception Noise (σ, N=10 per level, TCP Equivariant)
-100% |*-------* [Nominal Vision Envelope: σ ≤ 2.5 mm]
- 70% |               *--------* [7.0 mm Jaw Clearance Edge]
- 50% |                                *
- 40% |                         * [Breakdown σ* = 10.0 mm]
- 20% |                                       *---*
- 10% |                                                *
-     +--------+--------+--------+--------+--------+--------+
-    0.0      2.5      5.0      7.5     10.0     15.0     20.0 mm (σ)
-```
+### 4.5 Spectral Chatter Filtering, Physical Joint Jerk & Slip under True OOD
+Separating 1st-order action step deltas ($\|\mathbf{a}_t - \mathbf{a}_{t-1}\|_2$) from true physical joint jerk ($\dddot{\mathbf{q}}$ in $\text{rad/s}^3$) and Hann-windowed action-velocity FFT power ($\ge 5\text{ Hz}$) reveals *why* Temporal Ensembling prevents collapse under True OOD perturbations (`20 episodes` per regime):
 
-**The Physical Clearance Limit:**
-With the articulated `54 mm` open jaw around a `40 mm` cube, the gripper provides a **$7.0\text{ mm}$ bilateral lateral clearance** (`mechanical_clearance_mm = 7.0`). TCP-frame equivariance retains **100% grasp & chained success** up to $\sigma = 2.5\text{ mm}$, **70%** through the `7.0 mm` clearance edge ($\sigma = 7.5\text{ mm}$), and crosses the `< 50%` breakdown threshold at **$\sigma^* = 10.0\text{ mm}$** (`40.0%`) — compared to $\sigma^* = 5.0\text{ mm}$ on the non-equivariant World Baseline.
-
-### 4.5 Out-of-Distribution (OOD) Domain Randomization & Ensembling Ablation
-To verify policy resilience against physical hardware parameter shifts, we benchmarked 20-episode rollouts under randomized payload mass (`±15%`, `m in [0.85, 1.15] × m_nom`), Coulomb surface friction (`±30%`, `μ in [0.70, 1.30] × μ_nom`), and joint damping (`±10%`, `b in [0.90, 1.10] × b_nom`):
-
-| Policy / Dynamics Regime | Temporal Ensembling | Chained Task Success | Mean Payload Transport (20 ep) | Control Chatter (Action Jerk) |
+| Policy & True OOD Regime | Chained Success (95% CI) | Physical Joint Jerk ($\dddot{\mathbf{q}}$) | FFT Power $\ge 5\text{ Hz}$ ($f_c$) | Mechanical Work / Touch |
 | :--- | :---: | :---: | :---: | :---: |
-| **TCP Equivariant — Nominal** | Enabled (`exp(-m · k)`) | **100.0%** | **150.2 mm** | **0.0290** |
-| **TCP Equivariant — OOD DR** | **Enabled (`exp(-m · k)`)** | **95.0%** | **147.3 mm** | **0.0292** |
-| **TCP Equivariant — OOD DR** | **Disabled (Raw Chunks)** | **0.0%** | **14.5 mm** | 0.1071 (+267% chatter) |
-| **Cloud GPU (A10G) — OOD DR** | Enabled (`exp(-m · k)`) | **95.0%** | **147.2 mm** | **0.0292** |
-| **World Baseline — OOD DR** | Enabled (`exp(-m · k)`) | **75.0%** | **126.1 mm** | **0.0279** (`0.1418` unensembled) |
+| **`bc_tcp_frame_45ep.pt` — Ensembled** | **45.0%** `[25.8%, 65.8%]` | **185.0 $\text{rad/s}^3$** | **15.3%** (`2.31 Hz`) | `1.68 J` / `4.32 N` |
+| **`bc_tcp_frame_45ep.pt` — No Ensemble** | **0.0%** `[0.0%, 16.1%]` | `4,366.6 rad/s^3` (`-95.8%` with ens.) | `95.4%` (`19.92 Hz`, `-83.9%` with ens.) | `6.52 J` / `0.03 N` |
+| **`bc_cloud_tcp_45ep.pt` — Ensembled** | **20.0%** `[8.1%, 41.6%]` | **190.8 $\text{rad/s}^3$** | **18.1%** | — |
+| **`bc_cloud_tcp_45ep.pt` — No Ensemble** | **0.0%** `[0.0%, 16.1%]` | `4,492.0 rad/s^3` (`-95.8%` with ens.) | `82.1%` (`-78.0%` with ens.) | — |
+| **`bc_pick_place.pt` — Ensembled** | **35.0%** `[18.1%, 56.7%]` | **164.0 $\text{rad/s}^3$** | **14.3%** (`2.30 Hz`) | `1.62 J` / `2.66 N` |
+| **`bc_pick_place.pt` — No Ensemble** | **0.0%** `[0.0%, 16.1%]` | `6,363.7 rad/s^3` (`-97.4%` with ens.) | `90.3%` (`17.86 Hz`, `-84.2%` with ens.) | `12.03 J` / `0.23 N` |
 
-**Key Finding:** Under identical OOD physical perturbations with real Coulomb contact grasping, **temporal ensembling elevates OOD chained success from `0.0%` to `95.0%` (TCP Equivariant / Cloud A10G) and reduces control chatter by `72.7%` (`0.1071 → 0.0292`, and `-80.3%` on World Baseline `0.1418 → 0.0279`)**, whereas unblended receding-horizon execution collapses completely to `0.0%`.
+### 4.6 Orthogonal $2^4$ Factorial ANOVA: What Actually Breaks OOD Manipulation?
+When a policy drops from `75%–95%` in ID-DR to `20%–45%` under True OOD, intuition often blames payload mass or Coulomb friction. Running a balanced **$2^4$ full-factorial design** (`sim2real sensitivity-analysis`, 48 episodes with Common Random Numbers across `mass_scale ∈ {0.85, 2.00}`, `friction_scale ∈ {0.35, 1.15}`, `damping_scale ∈ {0.90, 1.50}`, and `spatial_shift_m ∈ {0.00, 0.07}`) yields an exact orthogonal variance partition ($\eta^2$):
+
+| Factor (Low → High) | `bc_pick_place.pt` Grasp $\Delta$ ($\eta^2$) | `bc_pick_place.pt` Task $\Delta$ ($\eta^2$) | `bc_tcp_frame_45ep.pt` Grasp $\Delta$ ($\eta^2$) | `bc_tcp_frame_45ep.pt` Task $\Delta$ ($\eta^2$) |
+| :--- | :---: | :---: | :---: | :---: |
+| **`damping_scale` (`0.90 → 1.50`)** | **-100.0 pp (`100.0%`)** | **-91.7 pp (`84.6%`)** | **-83.3 pp (`71.4%`)** | **-75.0 pp (`56.6%`)** |
+| **`spatial_shift_m` (`0.00 → 0.07`)** | `+0.0 pp` (`0.0%`) | `+8.3 pp` (`0.7%`) | `+16.7 pp` (`2.9%`) | `+25.0 pp` (`6.3%`) |
+| **`friction_scale` (`0.35 → 1.15`)** | `+0.0 pp` (`0.0%`) | `+0.0 pp` (`0.0%`) | `+0.0 pp` (`0.0%`) | `-8.3 pp` (`0.7%`) |
+| **`mass_scale` (`0.85 → 2.00`)** | `+0.0 pp` (`0.0%`) | `+8.3 pp` (`0.7%`) | `+0.0 pp` (`0.0%`) | `+0.0 pp` (`0.0%`) |
+
+**Engineering Breakthrough:** **`damping_scale` accounts for `71.4%–100.0%` of grasp failure variance**, inflating reach proximity error by `+48.77 mm` (`bc_tcp_frame_45ep.pt`) to `+63.61 mm` (`bc_pick_place.pt`), while mass and friction variations contributed `0.0%` grasp variance! Physically, higher joint viscous damping slows the PD controller's transient step response so the arm runs out of the 120-step (2.4 s) episode horizon before completing descent. Without orthogonal ANOVA attribution, an engineer would waste weeks tweaking friction or grip force instead of addressing controller bandwidth and damping compensation.
 
 ![Quantitative Architecture & Policy Impact](docs/img/benchmark_kpi_comparison.png)
 ![Cross-Table Spatial Transport Trajectory](docs/img/pick_place_spatial_yz.png)
@@ -255,9 +249,9 @@ When scaling training on our demonstration transitions (`50,213` in Phase 1; exp
 | **Total Epochs** | 50 epochs | 45 epochs | Comparable training budget |
 | **Wall-Clock Training Time** | **109.56 s** (~20.6k samples/s) | 177.05 s (`TCP` 45ep, 12,352 samples/s) / 178.59 s (`World`) | BS 128 has ~1.7x higher GPU throughput |
 | **Initial Loss → Final Val Loss** | `3.6057 → 0.0098` (-99.7%) | `3.4918 → 0.0091–0.0092` (-99.7%) | Open-loop loss delta is negligible |
-| **Closed-Loop Task Success Rate** | **5.0% - 10.0% (Severe Collapse)** | **95.0%–100.0% TCP / 75.0% World** | **Up to 16x higher real-world task success** |
+| **Closed-Loop Task Success Rate** | **5.0% - 10.0% (Severe Collapse)** | **95.0%–100.0% TCP (legacy) / 60%–70% (held-out 50 ep)** | **Up to 10x+ higher closed-loop task success** |
 | **Mean Payload Transport Distance** | 24.2 mm (fails grasp) | **147.3–150.2 mm (TCP)** | BS 64 reliably resolves jaw compression |
-| **OOD Retention under Physics Shifts** | 0.0% retention | **95.0% TCP / 100% relative World retention** | BS 64 generalizes across mass/friction |
+| **ID-DR Retention under Physics Shifts** | 0.0% retention | **95.0% TCP / 100% relative World retention (ID-DR)** | BS 64 generalizes across training DR bounds |
 
 #### Why did Batch Size 128 collapse in closed-loop execution?
 
@@ -322,26 +316,27 @@ Robotic manipulation is transitioning from proof-of-concept research to determin
 The complete codebase, documentation, ADRs, and verification test suites are open-source:
 
 ```bash
-# 1. Clone and verify test suite (99 tests passing, mypy --strict clean across 43 Python files in src/ and tests/)
+# 1. Clone and verify test suite (119 tests passing, mypy --strict clean across 34 source files)
 git clone https://github.com/LeanoA/sim2real-data-engine.git
 cd sim2real-data-engine
 uv sync
 uv run pytest -v
 
-# 2. Train 30D-to-7D reactive policy on Apple Silicon Metal GPU (45 epochs)
-uv run sim2real train-policy --dataset-dir datasets/sim2real_pick_place --epochs 45 --output-model checkpoints/bc_pick_place.pt
+# 2. Train 30D TCP-frame or 20D pure ego-centric SE(3) policy with episode-grouped split
+uv run sim2real train-policy --dataset-dir datasets/sim2real_pick_place --epochs 45 --tcp-frame --output-model checkpoints/bc_tcp_m1_45ep.pt
+uv run sim2real train-policy --dataset-dir datasets/sim2real_pick_place --epochs 45 --ego-centric --output-model checkpoints/bc_ego_se3_45ep.pt
 
-# 3. Train TCP-equivariant policy in end-effector coordinate frame (ADR-09)
-uv run sim2real train-policy --dataset-dir datasets/sim2real_pick_place --epochs 45 --tcp-frame --output-model checkpoints/bc_tcp_frame_45ep.pt
+# 3. Launch native desktop MuJoCo 4.0 3D viewer with live mouse perturbations
+uv run sim2real view-physics --model-path checkpoints/bc_tcp_frame_45ep.pt
 
-# 4. Launch native desktop MuJoCo 4.0 3D viewer with live mouse perturbations
-uv run sim2real view-physics --model-path checkpoints/bc_pick_place.pt
+# 4. Run ID vs. True OOD benchmark with spectral FFT, physical jerk, contact & slip telemetry
+uv run sim2real eval-policy --model-path checkpoints/bc_tcp_frame_45ep.pt --dr --compare-ensembling --episodes 20
 
-# 5. Run Decoupled Surgical Telemetry & OOD Domain Randomization benchmark (ADR-08)
-uv run sim2real eval-policy --model-path checkpoints/bc_pick_place.pt --dr --compare-ensembling --episodes 5
+# 5. Run 2^4 orthogonal ANOVA sensitivity analysis to isolate dominant OOD bottlenecks
+uv run sim2real sensitivity-analysis --model-path checkpoints/bc_tcp_frame_45ep.pt --episodes-per-cell 3 --include-oat
 
-# 6. Execute Perception Noise Sensitivity Sweep (ADR-10, σ ∈ [0, 20] mm)
-uv run sim2real sweep-perception-noise --model-path checkpoints/bc_pick_place.pt --episodes 10 --json > results/perception_noise_sweep.json
+# 6. Execute Perception Noise Sensitivity Sweep (σ ∈ [0, 20] mm, Wilson CIs + psychometric σ_50)
+uv run sim2real sweep-perception-noise --model-path checkpoints/bc_tcp_frame_45ep.pt --episodes 20 --json > results/perception_noise_sweep.json
 
 # 7. Generate interactive Multi-Model WebGL 3D comparison dashboard (ADR-11)
 uv run sim2real visualize \
