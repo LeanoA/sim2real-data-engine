@@ -126,7 +126,6 @@ class MuJoCoKinematicAdapter:
         perturbation: EpisodePerturbation | None = None,
     ) -> tuple[JointState, SE3Pose, SE3Pose]:
         """Reset manipulator to home configuration and sample a seeded object target pose."""
-        del perturbation
         rng = np.random.Generator(np.random.PCG64(np.random.SeedSequence(seed)))
         self._q = self._home_q.copy()
         self._dq = np.zeros(self._dof, dtype=np.float64)
@@ -139,10 +138,15 @@ class MuJoCoKinematicAdapter:
         # (tabletop is at z = 0.05, box half-size is 0.02 -> nominal z = 0.07)
         obj_x = 0.38 + float(rng.uniform(-0.04, 0.04))
         obj_y = 0.05 + float(rng.uniform(-0.05, 0.05))
+        obj_yaw = 0.0
+        if perturbation is not None:
+            obj_x = float(np.clip(obj_x + perturbation.object_x_offset_m, 0.26, 0.64))
+            obj_y = float(np.clip(obj_y + perturbation.object_y_offset_m, -0.26, 0.26))
+            obj_yaw = perturbation.object_yaw_rad
         obj_z = 0.07
         self._object_pose = SE3Pose(
             position=(obj_x, obj_y, obj_z),
-            quaternion_wxyz=(1.0, 0.0, 0.0, 0.0),
+            quaternion_wxyz=(math.cos(0.5 * obj_yaw), 0.0, 0.0, math.sin(0.5 * obj_yaw)),
         )
 
         ee_home = self._forward_kinematics(self._q)

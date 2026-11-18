@@ -149,6 +149,43 @@ def test_cli_sample_dr_plain_text(capsys: pytest.CaptureFixture[str]) -> None:
     assert "- Ep 1:" in captured.out
 
 
+def test_workspace_shift_range_and_physics_reset_placement() -> None:
+    """Spatial OOD offsets preserve earlier PRNG draws and shift payload pose on reset."""
+    from sim2real_engine.simulators.mujoco_native import MuJoCoPhysicsAdapter
+
+    id_cfg = DomainRandomizationConfig(seed=42)
+    ood_cfg = DomainRandomizationConfig(
+        seed=42,
+        workspace_x_shift_range=(-0.05, 0.05),
+        workspace_y_shift_range=(0.04, 0.09),
+    )
+
+    p_id = DomainRandomizer(id_cfg).sample_episode(0)
+    p_ood = DomainRandomizer(ood_cfg).sample_episode(0)
+
+    assert p_id.object_x_offset_m == 0.0
+    assert p_id.object_y_offset_m == 0.0
+    # Existing RNG draws remain bit-identical
+    assert math.isclose(p_id.mass_scale, p_ood.mass_scale, abs_tol=1e-12)
+    assert math.isclose(p_id.friction_scale, p_ood.friction_scale, abs_tol=1e-12)
+    assert -0.05 <= p_ood.object_x_offset_m <= 0.05
+    assert 0.04 <= p_ood.object_y_offset_m <= 0.09
+
+    sim = MuJoCoPhysicsAdapter()
+    _, _, obj_nom = sim.reset(seed=10, perturbation=p_id)
+    _, _, obj_shifted = sim.reset(seed=10, perturbation=p_ood)
+
+    assert obj_shifted.position[0] == pytest.approx(
+        obj_nom.position[0] + p_ood.object_x_offset_m, abs=1e-4
+    )
+    assert obj_shifted.position[1] == pytest.approx(
+        obj_nom.position[1] + p_ood.object_y_offset_m, abs=1e-4
+    )
+    # Clamped within physical tabletop bounds
+    assert 0.26 <= obj_shifted.position[0] <= 0.64
+    assert -0.26 <= obj_shifted.position[1] <= 0.26
+
+
 def test_cli_sample_dr_invalid_episodes(capsys: pytest.CaptureFixture[str]) -> None:
     """`sim2real sample-dr --episodes 0` exits with non-zero error."""
     ret = main(["sample-dr", "--episodes", "0"])

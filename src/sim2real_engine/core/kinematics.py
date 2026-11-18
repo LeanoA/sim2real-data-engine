@@ -50,6 +50,82 @@ def so3_log_map(rotation_error: NDArray[np.float64]) -> NDArray[np.float64]:
     return scale * vee
 
 
+def so3_exp_map(
+    rotvec: NDArray[np.float64] | tuple[float, float, float],
+) -> tuple[float, float, float, float]:
+    """Exponential map from so(3) axis-angle vector (rad) to unit quaternion (w, x, y, z)."""
+    vec = np.asarray(rotvec, dtype=np.float64).ravel()
+    if vec.shape != (3,):
+        msg = f"Expected 3D rotation vector; got shape {vec.shape}"
+        raise ValueError(msg)
+
+    theta = float(np.linalg.norm(vec))
+    if theta < 1e-12:
+        return (1.0, 0.0, 0.0, 0.0)
+
+    half_theta = 0.5 * theta
+    scale = math.sin(half_theta) / theta
+    return (
+        float(math.cos(half_theta)),
+        float(vec[0] * scale),
+        float(vec[1] * scale),
+        float(vec[2] * scale),
+    )
+
+
+def quat_conjugate_wxyz(
+    q_wxyz: tuple[float, float, float, float] | NDArray[np.float64],
+) -> tuple[float, float, float, float]:
+    """Return conjugate (inverse for unit quaternions) of scalar-first quaternion (w, x, y, z)."""
+    q = np.asarray(q_wxyz, dtype=np.float64).ravel()
+    norm = float(np.linalg.norm(q))
+    if norm < 1e-12:
+        return (1.0, 0.0, 0.0, 0.0)
+    q = q / norm
+    return (float(q[0]), float(-q[1]), float(-q[2]), float(-q[3]))
+
+
+def quat_multiply_wxyz(
+    q1_wxyz: tuple[float, float, float, float] | NDArray[np.float64],
+    q2_wxyz: tuple[float, float, float, float] | NDArray[np.float64],
+) -> tuple[float, float, float, float]:
+    """Hamilton product q1 * q2 for scalar-first quaternions (w, x, y, z), normalized."""
+    w1, x1, y1, z1 = (float(v) for v in np.asarray(q1_wxyz, dtype=np.float64).ravel())
+    w2, x2, y2, z2 = (float(v) for v in np.asarray(q2_wxyz, dtype=np.float64).ravel())
+
+    out = np.array(
+        [
+            w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
+            w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+            w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
+            w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
+        ],
+        dtype=np.float64,
+    )
+    norm = float(np.linalg.norm(out))
+    if norm < 1e-12:
+        return (1.0, 0.0, 0.0, 0.0)
+    out /= norm
+    return (float(out[0]), float(out[1]), float(out[2]), float(out[3]))
+
+
+def quat_canonicalize_wxyz(
+    q_wxyz: tuple[float, float, float, float] | NDArray[np.float64],
+) -> tuple[float, float, float, float]:
+    """Canonicalize unit quaternion onto the positive-w hemisphere (q ~ -q on S^3/Z_2)."""
+    q = np.asarray(q_wxyz, dtype=np.float64).ravel()
+    norm = float(np.linalg.norm(q))
+    if norm < 1e-12:
+        return (1.0, 0.0, 0.0, 0.0)
+    q = q / norm
+    for comp in q:
+        if abs(float(comp)) > 1e-9:
+            if comp < 0.0:
+                q = -q
+            break
+    return (float(q[0]), float(q[1]), float(q[2]), float(q[3]))
+
+
 def quat_slerp(
     q0_wxyz: tuple[float, float, float, float],
     q1_wxyz: tuple[float, float, float, float],

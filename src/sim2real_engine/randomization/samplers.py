@@ -45,6 +45,23 @@ class EpisodePerturbation(BaseModel):
         ...,
         description="Camera extrinsic SE(3) spatial perturbation relative to nominal mount.",
     )
+    object_x_offset_m: float = Field(
+        default=0.0,
+        description="Additive payload X spawn shift relative to training workspace box (m).",
+    )
+    object_y_offset_m: float = Field(
+        default=0.0,
+        description="Additive payload Y spawn shift relative to training workspace box (m).",
+    )
+    object_yaw_rad: float = Field(
+        default=0.0,
+        description="Initial payload Z-axis yaw orientation in radians.",
+    )
+    gravity_comp_gain: float = Field(
+        default=1.0,
+        gt=0.0,
+        description="Feedforward bias torque cancellation gain (1.0 = exact, <1.0 = undercomp).",
+    )
 
 
 class DomainRandomizer:
@@ -117,6 +134,17 @@ class DomainRandomizer:
             quaternion_wxyz=quat_wxyz,
         )
 
+        x_low, x_high = self.config.workspace_x_shift_range
+        y_low, y_high = self.config.workspace_y_shift_range
+        yaw_low, yaw_high = self.config.object_yaw_range_rad
+        grav_low, grav_high = self.config.gravity_comp_gain_range
+        obj_x_offset = float(rng.uniform(x_low, x_high)) if x_low < x_high else float(x_low)
+        obj_y_offset = float(rng.uniform(y_low, y_high)) if y_low < y_high else float(y_low)
+        obj_yaw = float(rng.uniform(yaw_low, yaw_high)) if yaw_low < yaw_high else float(yaw_low)
+        grav_gain = (
+            float(rng.uniform(grav_low, grav_high)) if grav_low < grav_high else float(grav_low)
+        )
+
         return EpisodePerturbation(
             episode_id=episode_id,
             derived_seed=derived_seed,
@@ -125,6 +153,10 @@ class DomainRandomizer:
             damping_scale=damping_scale,
             lighting_intensity=lighting_intensity,
             camera_pose_offset=camera_pose_offset,
+            object_x_offset_m=obj_x_offset,
+            object_y_offset_m=obj_y_offset,
+            object_yaw_rad=obj_yaw,
+            gravity_comp_gain=grav_gain,
         )
 
     def sample_batch(self, num_episodes: int) -> list[EpisodePerturbation]:

@@ -137,19 +137,46 @@ class DomainRandomizationConfig(BaseModel):
         default=(0.60, 1.40),
         description="Relative scene illumination multiplier bounds (min, max).",
     )
+    workspace_x_shift_range: tuple[float, float] = Field(
+        default=(0.0, 0.0),
+        description="Additive payload X spawn shift bounds in meters for spatial OOD testing.",
+    )
+    workspace_y_shift_range: tuple[float, float] = Field(
+        default=(0.0, 0.0),
+        description="Additive payload Y spawn shift bounds in meters for spatial OOD testing.",
+    )
+    object_yaw_range_rad: tuple[float, float] = Field(
+        default=(0.0, 0.0),
+        description="Initial payload Z-axis yaw rotation bounds in radians (SO(3) randomization).",
+    )
+    gravity_comp_gain_range: tuple[float, float] = Field(
+        default=(1.0, 1.0),
+        description="Feedforward gravity/Coriolis compensation multiplier bounds (1.0 = exact).",
+    )
 
     @model_validator(mode="after")
     def _validate_ranges(self) -> Self:
-        ranges = {
+        positive_ranges = {
             "mass_scale_range": self.mass_scale_range,
             "friction_scale_range": self.friction_scale_range,
             "damping_scale_range": self.damping_scale_range,
             "lighting_intensity_range": self.lighting_intensity_range,
+            "gravity_comp_gain_range": self.gravity_comp_gain_range,
         }
-        for field_name, (low, high) in ranges.items():
+        for field_name, (low, high) in positive_ranges.items():
             if low <= 0.0 or high <= 0.0:
                 msg = f"{field_name} bounds must be strictly positive; got ({low}, {high})"
                 raise ValueError(msg)
+            if low > high:
+                msg = f"{field_name} lower bound {low} exceeds upper bound {high}"
+                raise ValueError(msg)
+
+        signed_ranges = {
+            "workspace_x_shift_range": self.workspace_x_shift_range,
+            "workspace_y_shift_range": self.workspace_y_shift_range,
+            "object_yaw_range_rad": self.object_yaw_range_rad,
+        }
+        for field_name, (low, high) in signed_ranges.items():
             if low > high:
                 msg = f"{field_name} lower bound {low} exceeds upper bound {high}"
                 raise ValueError(msg)
@@ -177,6 +204,15 @@ class EpisodeStepRecord(BaseModel):
             "Normalized physical gripper closure state in [0.0, 1.0] (0.0 = open, 1.0 = closed) "
             "at the time of the observation stored in this record. Distinct from commanded action."
         ),
+    )
+    contact_force_n: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="Total normal fingertip contact force (N) from touch sensors.",
+    )
+    mechanical_energy_j: float | None = Field(
+        default=None,
+        description="Total MuJoCo mechanical energy (potential + kinetic) in Joules.",
     )
 
     @model_validator(mode="after")

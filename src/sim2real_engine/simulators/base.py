@@ -251,6 +251,8 @@ class PrivilegedPickPlaceExpert:
                 action_joint_targets_rad=action_targets,
                 is_terminal=False,
                 gripper_state=pre_gripper_state,
+                contact_force_n=step_record.contact_force_n,
+                mechanical_energy_j=step_record.mechanical_energy_j,
             )
 
             if self._stage == "COMPLETED":
@@ -276,6 +278,8 @@ class PrivilegedPickPlaceExpert:
                         action_joint_targets_rad=release_action,
                         is_terminal=(settle_idx == 4),
                         gripper_state=settle_pre_grip,
+                        contact_force_n=step_record.contact_force_n,
+                        mechanical_energy_j=step_record.mechanical_energy_j,
                     )
                     records.append(settle_rec)
                 break

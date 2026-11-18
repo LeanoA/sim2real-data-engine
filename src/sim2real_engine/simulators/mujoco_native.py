@@ -28,6 +28,8 @@ class MuJoCoPhysicsAdapter:
 
         self.model, self.data = load_robot_mjcf()
         self.model.opt.timestep = control_dt / physics_substeps
+        self.model.opt.enableflags |= mujoco.mjtEnableBit.mjENBL_ENERGY
+        self._gravity_comp_gain: float = 1.0
 
         # Named entity identifiers conforming to modern MuJoCo Python conventions
         self._ee_body_id = self.model.body("end_effector").id
@@ -89,6 +91,7 @@ class MuJoCoPhysicsAdapter:
             self._nominal_finger_right_friction[2] * perturbation.friction_scale,
         ]
         self.model.dof_damping[:6] = self._nominal_dof_damping * perturbation.damping_scale
+        self._gravity_comp_gain = perturbation.gravity_comp_gain
         mujoco.mj_setConst(self.model, self.data)
 
     def restore_nominal_physics(self) -> None:
@@ -98,6 +101,7 @@ class MuJoCoPhysicsAdapter:
         self.model.geom("finger_left").friction = list(self._nominal_finger_left_friction)
         self.model.geom("finger_right").friction = list(self._nominal_finger_right_friction)
         self.model.dof_damping[:6] = self._nominal_dof_damping.copy()
+        self._gravity_comp_gain = 1.0
         mujoco.mj_setConst(self.model, self.data)
 
     def reset(
@@ -122,9 +126,16 @@ class MuJoCoPhysicsAdapter:
         # Perturb object on table surface (tabletop is at z = 0.05, box half-size is 0.02)
         obj_x = 0.38 + float(rng.uniform(-0.04, 0.04))
         obj_y = 0.05 + float(rng.uniform(-0.05, 0.05))
+        obj_yaw = 0.0
+        if perturbation is not None:
+            obj_x = float(np.clip(obj_x + perturbation.object_x_offset_m, 0.26, 0.64))
+            obj_y = float(np.clip(obj_y + perturbation.object_y_offset_m, -0.26, 0.26))
+            obj_yaw = perturbation.object_yaw_rad
         obj_z = 0.07
 
-        qpos_obj = np.array([obj_x, obj_y, obj_z, 1.0, 0.0, 0.0, 0.0], dtype=np.float64)
+        qw = math.cos(0.5 * obj_yaw)
+        qz = math.sin(0.5 * obj_yaw)
+        qpos_obj = np.array([obj_x, obj_y, obj_z, qw, 0.0, 0.0, qz], dtype=np.float64)
         self.data.joint("payload_freejoint").qpos[:] = qpos_obj
 
         # Compute forward kinematics & contact state
@@ -232,14 +243,16 @@ class MuJoCoPhysicsAdapter:
         self.data.actuator("act_gripper").ctrl[0] = self._gripper_target * self._gripper_ctrl_max
 
         for _ in range(self._physics_substeps):
-            # Feedforward gravity compensation for high-precision articulated trajectory tracking
-            self.data.qfrc_applied[:6] = self.data.qfrc_bias[:6]
+            # Feedforward gravity/Coriolis compensation (scaled by gravity_comp_gain)
+            self.data.qfrc_applied[:6] = self._gravity_comp_gain * self.data.qfrc_bias[:6]
             mujoco.mj_step(self.model, self.data)
 
         self._step_index += 1
 
         ee_pose = self.get_current_ee_pose()
         obj_pose = self.get_target_pose()
+        contact_force = max(0.0, self.gripper_contact_force)
+        total_energy = float(self.data.energy[0] + self.data.energy[1])
 
         joint_state = JointState(
             positions_rad=tuple(float(v) for v in self.data.qpos[:6]),
@@ -257,4 +270,6 @@ class MuJoCoPhysicsAdapter:
             action_joint_targets_rad=joint_targets_rad,
             is_terminal=False,
             gripper_state=self.gripper_state,
+            contact_force_n=round(contact_force, 4),
+            mechanical_energy_j=round(total_energy, 5),
         )
