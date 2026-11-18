@@ -1,0 +1,20 @@
+{
+  "status": "success",
+  "model_path": "/tmp/bc_cloud_ego_se3_45ep.pt",
+  "summary": {
+    "initial_loss": 3.308619,
+    "final_train_loss": 0.006501,
+    "final_val_loss": 0.004492,
+    "loss_reduction_pct": 99.86,
+    "total_epochs": 45,
+    "total_samples": 53998,
+    "training_time_s": 97.2329,
+    "throughput_samples_per_s": 22488.7,
+    "device_used": "cuda",
+    "split_strategy": "episode_grouped",
+    "train_episodes": 450,
+    "val_episodes": 50,
+    "train_samples": 48592,
+    "val_samples": 5406
+  }
+}

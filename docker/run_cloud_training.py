@@ -83,8 +83,8 @@ uv run sim2real sim2sim-eval \\
   --episodes 20 \\
   --json > /tmp/isaac_sim2sim_results.json || true
 
-# Run policy training on NVIDIA A10G GPU
-echo "Executing policy training on NVIDIA A10G (CUDA)..."
+# Run policy trainings on NVIDIA A10G GPU (World 30D, TCP-Frame 30D, Ego-Centric SE(3) 20D)
+echo "Executing policy trainings on NVIDIA A10G (CUDA)..."
 uv run sim2real train-policy \\
   --dataset-dir ./datasets/sim2real_pick_place \\
   --epochs 45 \\
@@ -94,13 +94,47 @@ uv run sim2real train-policy \\
   --output-model /tmp/bc_cloud_policy.pt \\
   --json > /tmp/training_results.json || true
 
+uv run sim2real train-policy \\
+  --dataset-dir ./datasets/sim2real_pick_place \\
+  --epochs 45 \\
+  --horizon 8 \\
+  --batch-size 64 \\
+  --tcp-frame \\
+  --device cuda \\
+  --output-model /tmp/bc_cloud_tcp_45ep.pt \\
+  --json > /tmp/training_tcp_results.json || true
+
+uv run sim2real train-policy \\
+  --dataset-dir ./datasets/sim2real_pick_place \\
+  --epochs 45 \\
+  --horizon 8 \\
+  --batch-size 64 \\
+  --ego-centric \\
+  --device cuda \\
+  --output-model /tmp/bc_cloud_ego_se3_45ep.pt \\
+  --json > /tmp/training_ego_results.json || true
+
+# Run Modules 1-4 evaluations (ID vs True OOD, 2^4 ANOVA sensitivity, psychometric noise sweep)
+echo "Executing Modules 1-4 statistical & robustness evaluations..."
+uv run sim2real eval-policy \\
+  --model-path /tmp/bc_cloud_tcp_45ep.pt \\
+  --dr --compare-ensembling --episodes 20 \\
+  --json > /tmp/eval_tcp_ood.json || true
+
+uv run sim2real sensitivity-analysis \\
+  --model-path /tmp/bc_cloud_tcp_45ep.pt \\
+  --episodes-per-cell 3 --include-oat \\
+  --json > /tmp/sensitivity_tcp.json || true
+
+uv run sim2real sweep-perception-noise \\
+  --model-path /tmp/bc_cloud_tcp_45ep.pt \\
+  --episodes 20 \\
+  --json > /tmp/sweep_perception_tcp.json || true
+
 # Upload results to S3
-aws s3 cp /tmp/isaac_sim2sim_results.json \\
-  s3://{BUCKET}/results/isaac_sim2sim_results.json --region {REGION} || true
-aws s3 cp /tmp/training_results.json \\
-  s3://{BUCKET}/results/training_results.json --region {REGION} || true
-aws s3 cp /tmp/bc_cloud_policy.pt \\
-  s3://{BUCKET}/results/bc_cloud_policy.pt --region {REGION} || true
+for f in /tmp/isaac_sim2sim_results.json /tmp/training_results.json /tmp/training_tcp_results.json /tmp/training_ego_results.json /tmp/eval_tcp_ood.json /tmp/sensitivity_tcp.json /tmp/sweep_perception_tcp.json /tmp/bc_cloud_policy.pt /tmp/bc_cloud_tcp_45ep.pt /tmp/bc_cloud_ego_se3_45ep.pt; do
+  [ -f "$f" ] && aws s3 cp "$f" "s3://{BUCKET}/results/$(basename "$f")" --region {REGION} || true
+done
 aws s3 cp /var/log/user-data.log s3://{BUCKET}/logs/user-data.log --region {REGION} || true
 
 echo "=== Sim2Real Isaac Sim Cloud Job Completed at $(date) ==="

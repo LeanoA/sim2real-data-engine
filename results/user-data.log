@@ -1,12 +1,12 @@
 ++ date
-+ echo '=== Starting Sim2Real Isaac Sim Cloud Job at Wed Nov 18 05:27:06 UTC 2026 ==='
-=== Starting Sim2Real Isaac Sim Cloud Job at Wed Nov 18 05:27:06 UTC 2026 ===
++ echo '=== Starting Sim2Real Isaac Sim Cloud Job at Wed Nov 18 17:45:01 UTC 2026 ==='
+=== Starting Sim2Real Isaac Sim Cloud Job at Wed Nov 18 17:45:01 UTC 2026 ===
 + export HOME=/root
 + HOME=/root
 + export DEBIAN_FRONTEND=noninteractive
 + DEBIAN_FRONTEND=noninteractive
 + nvidia-smi
-Wed Nov 18 05:27:06 2026       
+Wed Nov 18 17:45:01 2026       
 +-----------------------------------------------------------------------------------------+
 | NVIDIA-SMI 580.126.09             Driver Version: 580.126.09     CUDA Version: 13.0     |
 +-----------------------------------------+------------------------+----------------------+
@@ -15,7 +15,7 @@ Wed Nov 18 05:27:06 2026
 |                                         |                        |               MIG M. |
 |=========================================+========================+======================|
 |   0  NVIDIA A10G                    On  |   00000000:00:1E.0 Off |                    0 |
-|  0%   27C    P0             57W /  300W |       0MiB /  23028MiB |      0%      Default |
+|  0%   31C    P0             60W /  300W |       0MiB /  23028MiB |      0%      Default |
 |                                         |                        |                  N/A |
 +-----------------------------------------+------------------------+----------------------+
 
@@ -29,7 +29,7 @@ Wed Nov 18 05:27:06 2026
 + mkdir -p /opt/sim2real-data-engine
 + cd /opt/sim2real-data-engine
 + aws s3 cp s3://sim2real-artifacts-592033927220-us-east-2/code/sim2real-bundle.tar.gz /tmp/sim2real-bundle.tar.gz --region us-east-2
-Completed 256.0 KiB/15.6 MiB (1.5 MiB/s) with 1 file(s) remainingCompleted 512.0 KiB/15.6 MiB (3.0 MiB/s) with 1 file(s) remainingCompleted 768.0 KiB/15.6 MiB (4.4 MiB/s) with 1 file(s) remainingCompleted 1.0 MiB/15.6 MiB (5.9 MiB/s) with 1 file(s) remaining  Completed 1.2 MiB/15.6 MiB (7.3 MiB/s) with 1 file(s) remaining  Completed 1.5 MiB/15.6 MiB (8.7 MiB/s) with 1 file(s) remaining  Completed 1.8 MiB/15.6 MiB (10.1 MiB/s) with 1 file(s) remaining Completed 2.0 MiB/15.6 MiB (11.5 MiB/s) with 1 file(s) remaining Completed 2.2 MiB/15.6 MiB (12.9 MiB/s) with 1 file(s) remaining Completed 2.5 MiB/15.6 MiB (14.3 MiB/s) with 1 file(s) remaining Completed 2.8 MiB/15.6 MiB (15.7 MiB/s) with 1 file(s) remaining Completed 3.0 MiB/15.6 MiB (17.0 MiB/s) with 1 file(s) remaining Completed 3.2 MiB/15.6 MiB (18.4 MiB/s) with 1 file(s) remaining Completed 3.5 MiB/15.6 MiB (19.7 MiB/s) with 1 file(s) remaining Completed 3.8 MiB/15.6 MiB (21.1 MiB/s) with 1 file(s) remaining Completed 4.0 MiB/15.6 MiB (22.4 MiB/s) with 1 file(s) remaining Completed 4.2 MiB/15.6 MiB (23.3 MiB/s) with 1 file(s) remaining Completed 4.5 MiB/15.6 MiB (23.3 MiB/s) with 1 file(s) remaining Completed 4.8 MiB/15.6 MiB (24.5 MiB/s) with 1 file(s) remaining Completed 5.0 MiB/15.6 MiB (25.7 MiB/s) with 1 file(s) remaining Completed 5.2 MiB/15.6 MiB (26.9 MiB/s) with 1 file(s) remaining Completed 5.5 MiB/15.6 MiB (28.1 MiB/s) with 1 file(s) remaining Completed 5.8 MiB/15.6 MiB (29.3 MiB/s) with 1 file(s) remaining Completed 6.0 MiB/15.6 MiB (30.5 MiB/s) with 1 file(s) remaining Completed 6.2 MiB/15.6 MiB (31.6 MiB/s) with 1 file(s) remaining Completed 6.5 MiB/15.6 MiB (32.8 MiB/s) with 1 file(s) remaining Completed 6.8 MiB/15.6 MiB (33.9 MiB/s) with 1 file(s) remaining Completed 7.0 MiB/15.6 MiB (35.1 MiB/s) with 1 file(s) remaining Completed 7.2 MiB/15.6 MiB (36.3 MiB/s) with 1 file(s) remaining Completed 7.5 MiB/15.6 MiB (37.4 MiB/s) with 1 file(s) remaining Completed 7.8 MiB/15.6 MiB (38.6 MiB/s) with 1 file(s) remaining Completed 8.0 MiB/15.6 MiB (37.1 MiB/s) with 1 file(s) remaining Completed 8.2 MiB/15.6 MiB (38.2 MiB/s) with 1 file(s) remaining Completed 8.5 MiB/15.6 MiB (39.3 MiB/s) with 1 file(s) remaining Completed 8.8 MiB/15.6 MiB (40.4 MiB/s) with 1 file(s) remaining Completed 9.0 MiB/15.6 MiB (41.4 MiB/s) with 1 file(s) remaining Completed 9.2 MiB/15.6 MiB (42.5 MiB/s) with 1 file(s) remaining Completed 9.5 MiB/15.6 MiB (43.6 MiB/s) with 1 file(s) remaining Completed 9.8 MiB/15.6 MiB (44.6 MiB/s) with 1 file(s) remaining Completed 10.0 MiB/15.6 MiB (45.7 MiB/s) with 1 file(s) remainingCompleted 10.2 MiB/15.6 MiB (46.7 MiB/s) with 1 file(s) remainingCompleted 10.5 MiB/15.6 MiB (47.8 MiB/s) with 1 file(s) remainingCompleted 10.8 MiB/15.6 MiB (48.8 MiB/s) with 1 file(s) remainingCompleted 11.0 MiB/15.6 MiB (49.9 MiB/s) with 1 file(s) remainingCompleted 11.2 MiB/15.6 MiB (50.9 MiB/s) with 1 file(s) remainingCompleted 11.5 MiB/15.6 MiB (52.0 MiB/s) with 1 file(s) remainingCompleted 11.8 MiB/15.6 MiB (53.0 MiB/s) with 1 file(s) remainingCompleted 12.0 MiB/15.6 MiB (54.0 MiB/s) with 1 file(s) remainingCompleted 12.2 MiB/15.6 MiB (54.9 MiB/s) with 1 file(s) remainingCompleted 12.5 MiB/15.6 MiB (55.9 MiB/s) with 1 file(s) remainingCompleted 12.8 MiB/15.6 MiB (56.9 MiB/s) with 1 file(s) remainingCompleted 13.0 MiB/15.6 MiB (57.8 MiB/s) with 1 file(s) remainingCompleted 13.2 MiB/15.6 MiB (58.8 MiB/s) with 1 file(s) remainingCompleted 13.5 MiB/15.6 MiB (59.7 MiB/s) with 1 file(s) remainingCompleted 13.8 MiB/15.6 MiB (60.7 MiB/s) with 1 file(s) remainingCompleted 14.0 MiB/15.6 MiB (61.6 MiB/s) with 1 file(s) remainingCompleted 14.2 MiB/15.6 MiB (62.5 MiB/s) with 1 file(s) remainingCompleted 14.5 MiB/15.6 MiB (63.5 MiB/s) with 1 file(s) remainingCompleted 14.8 MiB/15.6 MiB (64.4 MiB/s) with 1 file(s) remainingCompleted 15.0 MiB/15.6 MiB (63.3 MiB/s) with 1 file(s) remainingCompleted 15.2 MiB/15.6 MiB (64.2 MiB/s) with 1 file(s) remainingCompleted 15.5 MiB/15.6 MiB (65.1 MiB/s) with 1 file(s) remainingCompleted 15.6 MiB/15.6 MiB (65.5 MiB/s) with 1 file(s) remainingdownload: s3://sim2real-artifacts-592033927220-us-east-2/code/sim2real-bundle.tar.gz to ../../tmp/sim2real-bundle.tar.gz
+Completed 256.0 KiB/15.6 MiB (1.5 MiB/s) with 1 file(s) remainingCompleted 512.0 KiB/15.6 MiB (3.0 MiB/s) with 1 file(s) remainingCompleted 768.0 KiB/15.6 MiB (4.5 MiB/s) with 1 file(s) remainingCompleted 1.0 MiB/15.6 MiB (6.0 MiB/s) with 1 file(s) remaining  Completed 1.2 MiB/15.6 MiB (7.4 MiB/s) with 1 file(s) remaining  Completed 1.5 MiB/15.6 MiB (8.8 MiB/s) with 1 file(s) remaining  Completed 1.8 MiB/15.6 MiB (10.3 MiB/s) with 1 file(s) remaining Completed 2.0 MiB/15.6 MiB (11.7 MiB/s) with 1 file(s) remaining Completed 2.2 MiB/15.6 MiB (13.1 MiB/s) with 1 file(s) remaining Completed 2.5 MiB/15.6 MiB (14.5 MiB/s) with 1 file(s) remaining Completed 2.8 MiB/15.6 MiB (15.9 MiB/s) with 1 file(s) remaining Completed 3.0 MiB/15.6 MiB (17.3 MiB/s) with 1 file(s) remaining Completed 3.2 MiB/15.6 MiB (18.6 MiB/s) with 1 file(s) remaining Completed 3.5 MiB/15.6 MiB (20.0 MiB/s) with 1 file(s) remaining Completed 3.8 MiB/15.6 MiB (21.3 MiB/s) with 1 file(s) remaining Completed 4.0 MiB/15.6 MiB (22.7 MiB/s) with 1 file(s) remaining Completed 4.2 MiB/15.6 MiB (23.9 MiB/s) with 1 file(s) remaining Completed 4.5 MiB/15.6 MiB (25.3 MiB/s) with 1 file(s) remaining Completed 4.8 MiB/15.6 MiB (26.5 MiB/s) with 1 file(s) remaining Completed 5.0 MiB/15.6 MiB (27.8 MiB/s) with 1 file(s) remaining Completed 5.2 MiB/15.6 MiB (29.1 MiB/s) with 1 file(s) remaining Completed 5.5 MiB/15.6 MiB (30.4 MiB/s) with 1 file(s) remaining Completed 5.8 MiB/15.6 MiB (31.6 MiB/s) with 1 file(s) remaining Completed 6.0 MiB/15.6 MiB (32.9 MiB/s) with 1 file(s) remaining Completed 6.2 MiB/15.6 MiB (34.1 MiB/s) with 1 file(s) remaining Completed 6.5 MiB/15.6 MiB (35.4 MiB/s) with 1 file(s) remaining Completed 6.8 MiB/15.6 MiB (36.6 MiB/s) with 1 file(s) remaining Completed 7.0 MiB/15.6 MiB (37.9 MiB/s) with 1 file(s) remaining Completed 7.2 MiB/15.6 MiB (39.0 MiB/s) with 1 file(s) remaining Completed 7.5 MiB/15.6 MiB (40.3 MiB/s) with 1 file(s) remaining Completed 7.8 MiB/15.6 MiB (41.4 MiB/s) with 1 file(s) remaining Completed 8.0 MiB/15.6 MiB (42.6 MiB/s) with 1 file(s) remaining Completed 8.2 MiB/15.6 MiB (43.8 MiB/s) with 1 file(s) remaining Completed 8.5 MiB/15.6 MiB (45.0 MiB/s) with 1 file(s) remaining Completed 8.8 MiB/15.6 MiB (46.2 MiB/s) with 1 file(s) remaining Completed 9.0 MiB/15.6 MiB (47.4 MiB/s) with 1 file(s) remaining Completed 9.2 MiB/15.6 MiB (48.5 MiB/s) with 1 file(s) remaining Completed 9.5 MiB/15.6 MiB (49.7 MiB/s) with 1 file(s) remaining Completed 9.8 MiB/15.6 MiB (50.8 MiB/s) with 1 file(s) remaining Completed 10.0 MiB/15.6 MiB (51.9 MiB/s) with 1 file(s) remainingCompleted 10.2 MiB/15.6 MiB (53.0 MiB/s) with 1 file(s) remainingCompleted 10.5 MiB/15.6 MiB (54.1 MiB/s) with 1 file(s) remainingCompleted 10.8 MiB/15.6 MiB (55.1 MiB/s) with 1 file(s) remainingCompleted 11.0 MiB/15.6 MiB (56.1 MiB/s) with 1 file(s) remainingCompleted 11.2 MiB/15.6 MiB (57.1 MiB/s) with 1 file(s) remainingCompleted 11.4 MiB/15.6 MiB (57.1 MiB/s) with 1 file(s) remainingCompleted 11.6 MiB/15.6 MiB (53.1 MiB/s) with 1 file(s) remainingCompleted 11.9 MiB/15.6 MiB (54.0 MiB/s) with 1 file(s) remainingCompleted 12.1 MiB/15.6 MiB (55.0 MiB/s) with 1 file(s) remainingCompleted 12.4 MiB/15.6 MiB (56.0 MiB/s) with 1 file(s) remainingCompleted 12.6 MiB/15.6 MiB (56.9 MiB/s) with 1 file(s) remainingCompleted 12.9 MiB/15.6 MiB (57.9 MiB/s) with 1 file(s) remainingCompleted 13.1 MiB/15.6 MiB (58.9 MiB/s) with 1 file(s) remainingCompleted 13.4 MiB/15.6 MiB (59.9 MiB/s) with 1 file(s) remainingCompleted 13.6 MiB/15.6 MiB (60.8 MiB/s) with 1 file(s) remainingCompleted 13.9 MiB/15.6 MiB (61.8 MiB/s) with 1 file(s) remainingCompleted 14.1 MiB/15.6 MiB (62.7 MiB/s) with 1 file(s) remainingCompleted 14.4 MiB/15.6 MiB (63.6 MiB/s) with 1 file(s) remainingCompleted 14.6 MiB/15.6 MiB (64.6 MiB/s) with 1 file(s) remainingCompleted 14.9 MiB/15.6 MiB (65.6 MiB/s) with 1 file(s) remainingCompleted 15.1 MiB/15.6 MiB (66.5 MiB/s) with 1 file(s) remainingCompleted 15.4 MiB/15.6 MiB (67.5 MiB/s) with 1 file(s) remainingCompleted 15.6 MiB/15.6 MiB (68.4 MiB/s) with 1 file(s) remainingdownload: s3://sim2real-artifacts-592033927220-us-east-2/code/sim2real-bundle.tar.gz to ../../tmp/sim2real-bundle.tar.gz
 + tar -xzf /tmp/sim2real-bundle.tar.gz -C /opt/sim2real-data-engine
 + which uv
 + curl -LsSf https://astral.sh/uv/install.sh
@@ -54,50 +54,50 @@ Downloading cpython-3.15.2-linux-x86_64-gnu (download) (36.6MiB)
 Using CPython 3.15.2
 Creating virtual environment at: .venv
    Building sim2real-engine @ file:///opt/sim2real-data-engine
-Downloading nvidia-nvshmem-cu13 (129.1MiB)
-Downloading ruff (10.1MiB)
-Downloading nvidia-cuda-cupti (11.4MiB)
-Downloading nvidia-nccl-cu13 (206.0MiB)
-Downloading pyarrow (52.5MiB)
-Downloading pygments (1.2MiB)
-Downloading nvidia-cuda-runtime (2.2MiB)
-Downloading nvidia-cudnn-cu13 (495.1MiB)
-Downloading nvidia-cufft (208.1MiB)
-Downloading sympy (6.0MiB)
-Downloading pyopengl (3.0MiB)
-Downloading networkx (2.0MiB)
-Downloading triton (272.4MiB)
-Downloading nvidia-cusparselt-cu13 (162.3MiB)
-Downloading nvidia-cuda-nvrtc (44.8MiB)
-Downloading mujoco-studio (12.2MiB)
-Downloading ast-serialize (1.2MiB)
-Downloading pydantic-core (2.2MiB)
-Downloading nvidia-cusparse (144.0MiB)
-Downloading nvidia-cuda-cccl (3.9MiB)
-Downloading nvidia-cusolver (217.4MiB)
-Downloading nvidia-cublas (386.1MiB)
 Downloading nvidia-nvjitlink (44.5MiB)
-Downloading torch (514.2MiB)
-Downloading nvidia-cufile (1.3MiB)
 Downloading mypy (14.7MiB)
+Downloading nvidia-cuda-cupti (11.4MiB)
+Downloading ruff (10.1MiB)
+Downloading nvidia-cuda-cccl (3.9MiB)
+Downloading pyopengl (3.0MiB)
+Downloading nvidia-cuda-runtime (2.2MiB)
+Downloading pydantic-core (2.2MiB)
+Downloading networkx (2.0MiB)
+Downloading nvidia-cufile (1.3MiB)
+Downloading ast-serialize (1.2MiB)
+Downloading pygments (1.2MiB)
+Downloading nvidia-nvshmem-cu13 (129.1MiB)
+Downloading nvidia-cublas (386.1MiB)
+Downloading pyarrow (52.5MiB)
+Downloading nvidia-cuda-nvrtc (44.8MiB)
+Downloading triton (272.4MiB)
+Downloading torch (514.2MiB)
+Downloading nvidia-nccl-cu13 (206.0MiB)
+Downloading nvidia-cudnn-cu13 (495.1MiB)
+Downloading nvidia-cusparse (144.0MiB)
+Downloading nvidia-cusolver (217.4MiB)
+Downloading nvidia-cusparselt-cu13 (162.3MiB)
+Downloading sympy (6.0MiB)
+Downloading nvidia-cufft (208.1MiB)
 Downloading numpy (15.9MiB)
+Downloading mujoco-studio (12.2MiB)
 Downloading mujoco-core (9.2MiB)
- Downloaded pygments
  Downloaded ast-serialize
  Downloaded nvidia-cufile
+ Downloaded pygments
+ Downloaded networkx
  Downloaded pydantic-core
  Downloaded nvidia-cuda-runtime
- Downloaded networkx
  Downloaded nvidia-cuda-cccl
  Downloaded pyopengl
  Downloaded sympy
  Downloaded ruff
- Downloaded mujoco-core
  Downloaded nvidia-cuda-cupti
       Built sim2real-engine @ file:///opt/sim2real-data-engine
+ Downloaded mujoco-core
+ Downloaded numpy
  Downloaded mypy
  Downloaded mujoco-studio
- Downloaded numpy
  Downloaded nvidia-nvjitlink
  Downloaded nvidia-cuda-nvrtc
  Downloaded pyarrow
@@ -111,14 +111,65 @@ Downloading mujoco-core (9.2MiB)
  Downloaded nvidia-cublas
  Downloaded nvidia-cudnn-cu13
  Downloaded torch
-Installed 51 packages in 492ms
-+ echo 'Executing policy training on NVIDIA A10G (CUDA)...'
-Executing policy training on NVIDIA A10G (CUDA)...
+Installed 51 packages in 598ms
++ echo 'Executing policy trainings on NVIDIA A10G (CUDA)...'
+Executing policy trainings on NVIDIA A10G (CUDA)...
 + uv run sim2real train-policy --dataset-dir ./datasets/sim2real_pick_place --epochs 45 --horizon 8 --batch-size 64 --device cuda --output-model /tmp/bc_cloud_policy.pt --json
++ uv run sim2real train-policy --dataset-dir ./datasets/sim2real_pick_place --epochs 45 --horizon 8 --batch-size 64 --tcp-frame --device cuda --output-model /tmp/bc_cloud_tcp_45ep.pt --json
++ uv run sim2real train-policy --dataset-dir ./datasets/sim2real_pick_place --epochs 45 --horizon 8 --batch-size 64 --ego-centric --device cuda --output-model /tmp/bc_cloud_ego_se3_45ep.pt --json
++ echo 'Executing Modules 1-4 statistical & robustness evaluations...'
+Executing Modules 1-4 statistical & robustness evaluations...
++ uv run sim2real eval-policy --model-path /tmp/bc_cloud_tcp_45ep.pt --dr --compare-ensembling --episodes 20 --json
++ uv run sim2real sensitivity-analysis --model-path /tmp/bc_cloud_tcp_45ep.pt --episodes-per-cell 3 --include-oat --json
++ uv run sim2real sweep-perception-noise --model-path /tmp/bc_cloud_tcp_45ep.pt --episodes 20 --json
++ for f in /tmp/isaac_sim2sim_results.json /tmp/training_results.json /tmp/training_tcp_results.json /tmp/training_ego_results.json /tmp/eval_tcp_ood.json /tmp/sensitivity_tcp.json /tmp/sweep_perception_tcp.json /tmp/bc_cloud_policy.pt /tmp/bc_cloud_tcp_45ep.pt /tmp/bc_cloud_ego_se3_45ep.pt
++ '[' -f /tmp/isaac_sim2sim_results.json ']'
+++ basename /tmp/isaac_sim2sim_results.json
 + aws s3 cp /tmp/isaac_sim2sim_results.json s3://sim2real-artifacts-592033927220-us-east-2/results/isaac_sim2sim_results.json --region us-east-2
-Completed 234 Bytes/234 Bytes (2.0 KiB/s) with 1 file(s) remainingupload: ../../tmp/isaac_sim2sim_results.json to s3://sim2real-artifacts-592033927220-us-east-2/results/isaac_sim2sim_results.json
+Completed 1.1 KiB/1.1 KiB (10.2 KiB/s) with 1 file(s) remainingupload: ../../tmp/isaac_sim2sim_results.json to s3://sim2real-artifacts-592033927220-us-east-2/results/isaac_sim2sim_results.json
++ for f in /tmp/isaac_sim2sim_results.json /tmp/training_results.json /tmp/training_tcp_results.json /tmp/training_ego_results.json /tmp/eval_tcp_ood.json /tmp/sensitivity_tcp.json /tmp/sweep_perception_tcp.json /tmp/bc_cloud_policy.pt /tmp/bc_cloud_tcp_45ep.pt /tmp/bc_cloud_ego_se3_45ep.pt
++ '[' -f /tmp/training_results.json ']'
+++ basename /tmp/training_results.json
 + aws s3 cp /tmp/training_results.json s3://sim2real-artifacts-592033927220-us-east-2/results/training_results.json --region us-east-2
-Completed 369 Bytes/369 Bytes (3.6 KiB/s) with 1 file(s) remainingupload: ../../tmp/training_results.json to s3://sim2real-artifacts-592033927220-us-east-2/results/training_results.json
+Completed 514 Bytes/514 Bytes (4.7 KiB/s) with 1 file(s) remainingupload: ../../tmp/training_results.json to s3://sim2real-artifacts-592033927220-us-east-2/results/training_results.json
++ for f in /tmp/isaac_sim2sim_results.json /tmp/training_results.json /tmp/training_tcp_results.json /tmp/training_ego_results.json /tmp/eval_tcp_ood.json /tmp/sensitivity_tcp.json /tmp/sweep_perception_tcp.json /tmp/bc_cloud_policy.pt /tmp/bc_cloud_tcp_45ep.pt /tmp/bc_cloud_ego_se3_45ep.pt
++ '[' -f /tmp/training_tcp_results.json ']'
+++ basename /tmp/training_tcp_results.json
++ aws s3 cp /tmp/training_tcp_results.json s3://sim2real-artifacts-592033927220-us-east-2/results/training_tcp_results.json --region us-east-2
+Completed 516 Bytes/516 Bytes (5.1 KiB/s) with 1 file(s) remainingupload: ../../tmp/training_tcp_results.json to s3://sim2real-artifacts-592033927220-us-east-2/results/training_tcp_results.json
++ for f in /tmp/isaac_sim2sim_results.json /tmp/training_results.json /tmp/training_tcp_results.json /tmp/training_ego_results.json /tmp/eval_tcp_ood.json /tmp/sensitivity_tcp.json /tmp/sweep_perception_tcp.json /tmp/bc_cloud_policy.pt /tmp/bc_cloud_tcp_45ep.pt /tmp/bc_cloud_ego_se3_45ep.pt
++ '[' -f /tmp/training_ego_results.json ']'
+++ basename /tmp/training_ego_results.json
++ aws s3 cp /tmp/training_ego_results.json s3://sim2real-artifacts-592033927220-us-east-2/results/training_ego_results.json --region us-east-2
+Completed 520 Bytes/520 Bytes (5.1 KiB/s) with 1 file(s) remainingupload: ../../tmp/training_ego_results.json to s3://sim2real-artifacts-592033927220-us-east-2/results/training_ego_results.json
++ for f in /tmp/isaac_sim2sim_results.json /tmp/training_results.json /tmp/training_tcp_results.json /tmp/training_ego_results.json /tmp/eval_tcp_ood.json /tmp/sensitivity_tcp.json /tmp/sweep_perception_tcp.json /tmp/bc_cloud_policy.pt /tmp/bc_cloud_tcp_45ep.pt /tmp/bc_cloud_ego_se3_45ep.pt
++ '[' -f /tmp/eval_tcp_ood.json ']'
+++ basename /tmp/eval_tcp_ood.json
++ aws s3 cp /tmp/eval_tcp_ood.json s3://sim2real-artifacts-592033927220-us-east-2/results/eval_tcp_ood.json --region us-east-2
+Completed 21.4 KiB/21.4 KiB (187.7 KiB/s) with 1 file(s) remainingupload: ../../tmp/eval_tcp_ood.json to s3://sim2real-artifacts-592033927220-us-east-2/results/eval_tcp_ood.json
++ for f in /tmp/isaac_sim2sim_results.json /tmp/training_results.json /tmp/training_tcp_results.json /tmp/training_ego_results.json /tmp/eval_tcp_ood.json /tmp/sensitivity_tcp.json /tmp/sweep_perception_tcp.json /tmp/bc_cloud_policy.pt /tmp/bc_cloud_tcp_45ep.pt /tmp/bc_cloud_ego_se3_45ep.pt
++ '[' -f /tmp/sensitivity_tcp.json ']'
+++ basename /tmp/sensitivity_tcp.json
++ aws s3 cp /tmp/sensitivity_tcp.json s3://sim2real-artifacts-592033927220-us-east-2/results/sensitivity_tcp.json --region us-east-2
+Completed 22.6 KiB/22.6 KiB (213.1 KiB/s) with 1 file(s) remainingupload: ../../tmp/sensitivity_tcp.json to s3://sim2real-artifacts-592033927220-us-east-2/results/sensitivity_tcp.json
++ for f in /tmp/isaac_sim2sim_results.json /tmp/training_results.json /tmp/training_tcp_results.json /tmp/training_ego_results.json /tmp/eval_tcp_ood.json /tmp/sensitivity_tcp.json /tmp/sweep_perception_tcp.json /tmp/bc_cloud_policy.pt /tmp/bc_cloud_tcp_45ep.pt /tmp/bc_cloud_ego_se3_45ep.pt
++ '[' -f /tmp/sweep_perception_tcp.json ']'
+++ basename /tmp/sweep_perception_tcp.json
++ aws s3 cp /tmp/sweep_perception_tcp.json s3://sim2real-artifacts-592033927220-us-east-2/results/sweep_perception_tcp.json --region us-east-2
+Completed 10.6 KiB/10.6 KiB (106.8 KiB/s) with 1 file(s) remainingupload: ../../tmp/sweep_perception_tcp.json to s3://sim2real-artifacts-592033927220-us-east-2/results/sweep_perception_tcp.json
++ for f in /tmp/isaac_sim2sim_results.json /tmp/training_results.json /tmp/training_tcp_results.json /tmp/training_ego_results.json /tmp/eval_tcp_ood.json /tmp/sensitivity_tcp.json /tmp/sweep_perception_tcp.json /tmp/bc_cloud_policy.pt /tmp/bc_cloud_tcp_45ep.pt /tmp/bc_cloud_ego_se3_45ep.pt
++ '[' -f /tmp/bc_cloud_policy.pt ']'
+++ basename /tmp/bc_cloud_policy.pt
 + aws s3 cp /tmp/bc_cloud_policy.pt s3://sim2real-artifacts-592033927220-us-east-2/results/bc_cloud_policy.pt --region us-east-2
-Completed 1.0 MiB/1.1 MiB (17.7 MiB/s) with 1 file(s) remainingCompleted 1.1 MiB/1.1 MiB (8.8 MiB/s) with 1 file(s) remaining upload: ../../tmp/bc_cloud_policy.pt to s3://sim2real-artifacts-592033927220-us-east-2/results/bc_cloud_policy.pt
+Completed 1.0 MiB/1.1 MiB (17.8 MiB/s) with 1 file(s) remainingCompleted 1.1 MiB/1.1 MiB (9.4 MiB/s) with 1 file(s) remaining upload: ../../tmp/bc_cloud_policy.pt to s3://sim2real-artifacts-592033927220-us-east-2/results/bc_cloud_policy.pt
++ for f in /tmp/isaac_sim2sim_results.json /tmp/training_results.json /tmp/training_tcp_results.json /tmp/training_ego_results.json /tmp/eval_tcp_ood.json /tmp/sensitivity_tcp.json /tmp/sweep_perception_tcp.json /tmp/bc_cloud_policy.pt /tmp/bc_cloud_tcp_45ep.pt /tmp/bc_cloud_ego_se3_45ep.pt
++ '[' -f /tmp/bc_cloud_tcp_45ep.pt ']'
+++ basename /tmp/bc_cloud_tcp_45ep.pt
++ aws s3 cp /tmp/bc_cloud_tcp_45ep.pt s3://sim2real-artifacts-592033927220-us-east-2/results/bc_cloud_tcp_45ep.pt --region us-east-2
+Completed 1.0 MiB/1.1 MiB (17.3 MiB/s) with 1 file(s) remainingCompleted 1.1 MiB/1.1 MiB (9.6 MiB/s) with 1 file(s) remaining upload: ../../tmp/bc_cloud_tcp_45ep.pt to s3://sim2real-artifacts-592033927220-us-east-2/results/bc_cloud_tcp_45ep.pt
++ for f in /tmp/isaac_sim2sim_results.json /tmp/training_results.json /tmp/training_tcp_results.json /tmp/training_ego_results.json /tmp/eval_tcp_ood.json /tmp/sensitivity_tcp.json /tmp/sweep_perception_tcp.json /tmp/bc_cloud_policy.pt /tmp/bc_cloud_tcp_45ep.pt /tmp/bc_cloud_ego_se3_45ep.pt
++ '[' -f /tmp/bc_cloud_ego_se3_45ep.pt ']'
+++ basename /tmp/bc_cloud_ego_se3_45ep.pt
++ aws s3 cp /tmp/bc_cloud_ego_se3_45ep.pt s3://sim2real-artifacts-592033927220-us-east-2/results/bc_cloud_ego_se3_45ep.pt --region us-east-2
+Completed 1.0 MiB/1.1 MiB (17.2 MiB/s) with 1 file(s) remainingCompleted 1.1 MiB/1.1 MiB (8.8 MiB/s) with 1 file(s) remaining upload: ../../tmp/bc_cloud_ego_se3_45ep.pt to s3://sim2real-artifacts-592033927220-us-east-2/results/bc_cloud_ego_se3_45ep.pt
 + aws s3 cp /var/log/user-data.log s3://sim2real-artifacts-592033927220-us-east-2/logs/user-data.log --region us-east-2

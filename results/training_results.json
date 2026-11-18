@@ -2,14 +2,19 @@
   "status": "success",
   "model_path": "/tmp/bc_cloud_policy.pt",
   "summary": {
-    "initial_loss": 3.491773,
-    "final_train_loss": 0.006706,
-    "final_val_loss": 0.009259,
-    "loss_reduction_pct": 99.73,
+    "initial_loss": 3.473152,
+    "final_train_loss": 0.006497,
+    "final_val_loss": 0.004286,
+    "loss_reduction_pct": 99.88,
     "total_epochs": 45,
     "total_samples": 53998,
-    "training_time_s": 96.3908,
-    "throughput_samples_per_s": 22688.4,
-    "device_used": "cuda"
+    "training_time_s": 96.2411,
+    "throughput_samples_per_s": 22720.4,
+    "device_used": "cuda",
+    "split_strategy": "episode_grouped",
+    "train_episodes": 450,
+    "val_episodes": 50,
+    "train_samples": 48592,
+    "val_samples": 5406
   }
 }

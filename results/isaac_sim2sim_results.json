@@ -5,5 +5,47 @@
   "mean_trajectory_rmse": 0.663534,
   "mean_ee_divergence_m": 0.010617,
   "success_rate_reference": 0.95,
-  "success_rate_target": 1.0
+  "success_rate_target": 1.0,
+  "trajectory_rmse_stats": {
+    "n": 20,
+    "mean": 0.663534,
+    "std": 0.054206,
+    "median": 0.662224,
+    "q25": 0.627878,
+    "q75": 0.70298,
+    "iqr": 0.075102,
+    "ci95_low": 0.640661,
+    "ci95_high": 0.685867,
+    "min_val": 0.56255,
+    "max_val": 0.751663
+  },
+  "ee_divergence_stats": {
+    "n": 20,
+    "mean": 0.010617,
+    "std": 0.038273,
+    "median": 0.002056,
+    "q25": 0.001922,
+    "q75": 0.002219,
+    "iqr": 0.000297,
+    "ci95_low": 0.00198,
+    "ci95_high": 0.027789,
+    "min_val": 0.001621,
+    "max_val": 0.173219
+  },
+  "reference_success_ci": {
+    "rate": 0.95,
+    "ci_low": 0.7639,
+    "ci_high": 0.9911,
+    "successes": 19,
+    "trials": 20,
+    "confidence": 0.95
+  },
+  "target_success_ci": {
+    "rate": 1.0,
+    "ci_low": 0.8389,
+    "ci_high": 1.0,
+    "successes": 20,
+    "trials": 20,
+    "confidence": 0.95
+  }
 }

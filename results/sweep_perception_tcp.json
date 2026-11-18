@@ -1,0 +1,453 @@
+{
+  "model_path": "/tmp/bc_cloud_tcp_45ep.pt",
+  "backend": "mujoco_native",
+  "noise_mode": "per_episode",
+  "num_episodes_per_point": 20,
+  "noise_points": [
+    {
+      "sigma_mm": 0.0,
+      "sigma_m": 0.0,
+      "num_episodes": 20,
+      "grasp_success_rate": 0.6,
+      "placement_success_rate": 0.6,
+      "chained_success_rate": 0.6,
+      "mean_min_reach_error_mm": 23.64,
+      "mean_placement_error_mm": 54.21,
+      "mean_hunting_oscillations": 2.7,
+      "grasp_ci": {
+        "rate": 0.6,
+        "ci_low": 0.3866,
+        "ci_high": 0.7812,
+        "successes": 12,
+        "trials": 20,
+        "confidence": 0.95
+      },
+      "placement_ci": {
+        "rate": 0.6,
+        "ci_low": 0.3866,
+        "ci_high": 0.7812,
+        "successes": 12,
+        "trials": 20,
+        "confidence": 0.95
+      },
+      "chained_ci": {
+        "rate": 0.6,
+        "ci_low": 0.3866,
+        "ci_high": 0.7812,
+        "successes": 12,
+        "trials": 20,
+        "confidence": 0.95
+      },
+      "min_reach_error_stats": {
+        "n": 20,
+        "mean": 23.64,
+        "std": 26.68,
+        "median": 10.92,
+        "q25": 2.5,
+        "q75": 38.43,
+        "iqr": 35.93,
+        "ci95_low": 12.62,
+        "ci95_high": 35.25,
+        "min_val": 0.96,
+        "max_val": 77.78
+      }
+    },
+    {
+      "sigma_mm": 2.5,
+      "sigma_m": 0.0025,
+      "num_episodes": 20,
+      "grasp_success_rate": 0.65,
+      "placement_success_rate": 0.5,
+      "chained_success_rate": 0.5,
+      "mean_min_reach_error_mm": 23.09,
+      "mean_placement_error_mm": 53.87,
+      "mean_hunting_oscillations": 2.4,
+      "grasp_ci": {
+        "rate": 0.65,
+        "ci_low": 0.4329,
+        "ci_high": 0.8188,
+        "successes": 13,
+        "trials": 20,
+        "confidence": 0.95
+      },
+      "placement_ci": {
+        "rate": 0.5,
+        "ci_low": 0.2993,
+        "ci_high": 0.7007,
+        "successes": 10,
+        "trials": 20,
+        "confidence": 0.95
+      },
+      "chained_ci": {
+        "rate": 0.5,
+        "ci_low": 0.2993,
+        "ci_high": 0.7007,
+        "successes": 10,
+        "trials": 20,
+        "confidence": 0.95
+      },
+      "min_reach_error_stats": {
+        "n": 20,
+        "mean": 23.09,
+        "std": 20.54,
+        "median": 16.73,
+        "q25": 9.55,
+        "q75": 34.28,
+        "iqr": 24.73,
+        "ci95_low": 14.84,
+        "ci95_high": 32.57,
+        "min_val": 0.69,
+        "max_val": 72.04
+      }
+    },
+    {
+      "sigma_mm": 5.0,
+      "sigma_m": 0.005,
+      "num_episodes": 20,
+      "grasp_success_rate": 0.3,
+      "placement_success_rate": 0.25,
+      "chained_success_rate": 0.25,
+      "mean_min_reach_error_mm": 33.11,
+      "mean_placement_error_mm": 94.35,
+      "mean_hunting_oscillations": 2.1,
+      "grasp_ci": {
+        "rate": 0.3,
+        "ci_low": 0.1455,
+        "ci_high": 0.519,
+        "successes": 6,
+        "trials": 20,
+        "confidence": 0.95
+      },
+      "placement_ci": {
+        "rate": 0.25,
+        "ci_low": 0.1119,
+        "ci_high": 0.4687,
+        "successes": 5,
+        "trials": 20,
+        "confidence": 0.95
+      },
+      "chained_ci": {
+        "rate": 0.25,
+        "ci_low": 0.1119,
+        "ci_high": 0.4687,
+        "successes": 5,
+        "trials": 20,
+        "confidence": 0.95
+      },
+      "min_reach_error_stats": {
+        "n": 20,
+        "mean": 33.11,
+        "std": 20.02,
+        "median": 34.9,
+        "q25": 19.58,
+        "q75": 43.4,
+        "iqr": 23.82,
+        "ci95_low": 24.83,
+        "ci95_high": 41.86,
+        "min_val": 1.45,
+        "max_val": 82.79
+      }
+    },
+    {
+      "sigma_mm": 7.5,
+      "sigma_m": 0.0075,
+      "num_episodes": 20,
+      "grasp_success_rate": 0.45,
+      "placement_success_rate": 0.4,
+      "chained_success_rate": 0.4,
+      "mean_min_reach_error_mm": 23.15,
+      "mean_placement_error_mm": 82.81,
+      "mean_hunting_oscillations": 1.9,
+      "grasp_ci": {
+        "rate": 0.45,
+        "ci_low": 0.2582,
+        "ci_high": 0.6579,
+        "successes": 9,
+        "trials": 20,
+        "confidence": 0.95
+      },
+      "placement_ci": {
+        "rate": 0.4,
+        "ci_low": 0.2188,
+        "ci_high": 0.6134,
+        "successes": 8,
+        "trials": 20,
+        "confidence": 0.95
+      },
+      "chained_ci": {
+        "rate": 0.4,
+        "ci_low": 0.2188,
+        "ci_high": 0.6134,
+        "successes": 8,
+        "trials": 20,
+        "confidence": 0.95
+      },
+      "min_reach_error_stats": {
+        "n": 20,
+        "mean": 23.15,
+        "std": 19.96,
+        "median": 17.59,
+        "q25": 7.72,
+        "q75": 35.5,
+        "iqr": 27.79,
+        "ci95_low": 15.5,
+        "ci95_high": 32.39,
+        "min_val": 1.52,
+        "max_val": 81.82
+      }
+    },
+    {
+      "sigma_mm": 10.0,
+      "sigma_m": 0.01,
+      "num_episodes": 20,
+      "grasp_success_rate": 0.4,
+      "placement_success_rate": 0.35,
+      "chained_success_rate": 0.35,
+      "mean_min_reach_error_mm": 27.72,
+      "mean_placement_error_mm": 93.15,
+      "mean_hunting_oscillations": 3.0,
+      "grasp_ci": {
+        "rate": 0.4,
+        "ci_low": 0.2188,
+        "ci_high": 0.6134,
+        "successes": 8,
+        "trials": 20,
+        "confidence": 0.95
+      },
+      "placement_ci": {
+        "rate": 0.35,
+        "ci_low": 0.1812,
+        "ci_high": 0.5671,
+        "successes": 7,
+        "trials": 20,
+        "confidence": 0.95
+      },
+      "chained_ci": {
+        "rate": 0.35,
+        "ci_low": 0.1812,
+        "ci_high": 0.5671,
+        "successes": 7,
+        "trials": 20,
+        "confidence": 0.95
+      },
+      "min_reach_error_stats": {
+        "n": 20,
+        "mean": 27.72,
+        "std": 20.25,
+        "median": 33.92,
+        "q25": 6.92,
+        "q75": 42.0,
+        "iqr": 35.07,
+        "ci95_low": 18.54,
+        "ci95_high": 36.27,
+        "min_val": 1.31,
+        "max_val": 70.46
+      }
+    },
+    {
+      "sigma_mm": 12.5,
+      "sigma_m": 0.0125,
+      "num_episodes": 20,
+      "grasp_success_rate": 0.4,
+      "placement_success_rate": 0.3,
+      "chained_success_rate": 0.3,
+      "mean_min_reach_error_mm": 28.07,
+      "mean_placement_error_mm": 95.87,
+      "mean_hunting_oscillations": 2.0,
+      "grasp_ci": {
+        "rate": 0.4,
+        "ci_low": 0.2188,
+        "ci_high": 0.6134,
+        "successes": 8,
+        "trials": 20,
+        "confidence": 0.95
+      },
+      "placement_ci": {
+        "rate": 0.3,
+        "ci_low": 0.1455,
+        "ci_high": 0.519,
+        "successes": 6,
+        "trials": 20,
+        "confidence": 0.95
+      },
+      "chained_ci": {
+        "rate": 0.3,
+        "ci_low": 0.1455,
+        "ci_high": 0.519,
+        "successes": 6,
+        "trials": 20,
+        "confidence": 0.95
+      },
+      "min_reach_error_stats": {
+        "n": 20,
+        "mean": 28.07,
+        "std": 16.33,
+        "median": 32.39,
+        "q25": 14.56,
+        "q75": 40.46,
+        "iqr": 25.91,
+        "ci95_low": 20.98,
+        "ci95_high": 35.13,
+        "min_val": 1.07,
+        "max_val": 56.98
+      }
+    },
+    {
+      "sigma_mm": 15.0,
+      "sigma_m": 0.015,
+      "num_episodes": 20,
+      "grasp_success_rate": 0.25,
+      "placement_success_rate": 0.15,
+      "chained_success_rate": 0.15,
+      "mean_min_reach_error_mm": 32.79,
+      "mean_placement_error_mm": 111.51,
+      "mean_hunting_oscillations": 2.2,
+      "grasp_ci": {
+        "rate": 0.25,
+        "ci_low": 0.1119,
+        "ci_high": 0.4687,
+        "successes": 5,
+        "trials": 20,
+        "confidence": 0.95
+      },
+      "placement_ci": {
+        "rate": 0.15,
+        "ci_low": 0.0524,
+        "ci_high": 0.3604,
+        "successes": 3,
+        "trials": 20,
+        "confidence": 0.95
+      },
+      "chained_ci": {
+        "rate": 0.15,
+        "ci_low": 0.0524,
+        "ci_high": 0.3604,
+        "successes": 3,
+        "trials": 20,
+        "confidence": 0.95
+      },
+      "min_reach_error_stats": {
+        "n": 20,
+        "mean": 32.79,
+        "std": 15.64,
+        "median": 37.44,
+        "q25": 26.03,
+        "q75": 41.02,
+        "iqr": 14.99,
+        "ci95_low": 25.77,
+        "ci95_high": 39.32,
+        "min_val": 2.82,
+        "max_val": 66.94
+      }
+    },
+    {
+      "sigma_mm": 17.5,
+      "sigma_m": 0.0175,
+      "num_episodes": 20,
+      "grasp_success_rate": 0.35,
+      "placement_success_rate": 0.2,
+      "chained_success_rate": 0.2,
+      "mean_min_reach_error_mm": 32.69,
+      "mean_placement_error_mm": 102.9,
+      "mean_hunting_oscillations": 1.9,
+      "grasp_ci": {
+        "rate": 0.35,
+        "ci_low": 0.1812,
+        "ci_high": 0.5671,
+        "successes": 7,
+        "trials": 20,
+        "confidence": 0.95
+      },
+      "placement_ci": {
+        "rate": 0.2,
+        "ci_low": 0.0807,
+        "ci_high": 0.416,
+        "successes": 4,
+        "trials": 20,
+        "confidence": 0.95
+      },
+      "chained_ci": {
+        "rate": 0.2,
+        "ci_low": 0.0807,
+        "ci_high": 0.416,
+        "successes": 4,
+        "trials": 20,
+        "confidence": 0.95
+      },
+      "min_reach_error_stats": {
+        "n": 20,
+        "mean": 32.69,
+        "std": 15.81,
+        "median": 38.55,
+        "q25": 20.85,
+        "q75": 47.77,
+        "iqr": 26.92,
+        "ci95_low": 25.96,
+        "ci95_high": 38.95,
+        "min_val": 2.46,
+        "max_val": 52.63
+      }
+    },
+    {
+      "sigma_mm": 20.0,
+      "sigma_m": 0.02,
+      "num_episodes": 20,
+      "grasp_success_rate": 0.25,
+      "placement_success_rate": 0.25,
+      "chained_success_rate": 0.25,
+      "mean_min_reach_error_mm": 34.95,
+      "mean_placement_error_mm": 110.85,
+      "mean_hunting_oscillations": 2.5,
+      "grasp_ci": {
+        "rate": 0.25,
+        "ci_low": 0.1119,
+        "ci_high": 0.4687,
+        "successes": 5,
+        "trials": 20,
+        "confidence": 0.95
+      },
+      "placement_ci": {
+        "rate": 0.25,
+        "ci_low": 0.1119,
+        "ci_high": 0.4687,
+        "successes": 5,
+        "trials": 20,
+        "confidence": 0.95
+      },
+      "chained_ci": {
+        "rate": 0.25,
+        "ci_low": 0.1119,
+        "ci_high": 0.4687,
+        "successes": 5,
+        "trials": 20,
+        "confidence": 0.95
+      },
+      "min_reach_error_stats": {
+        "n": 20,
+        "mean": 34.95,
+        "std": 21.01,
+        "median": 40.09,
+        "q25": 25.59,
+        "q75": 46.89,
+        "iqr": 21.3,
+        "ci95_low": 26.17,
+        "ci95_high": 43.31,
+        "min_val": 2.06,
+        "max_val": 82.29
+      }
+    }
+  ],
+  "breakdown_threshold_mm": 5.0,
+  "zero_noise_grasp_rate": 0.6,
+  "mechanical_clearance_mm": 7.0,
+  "psychometric_fit": {
+    "converged": true,
+    "sigma_50_mm": 4.248,
+    "sigma_90_mm": -27.24,
+    "sigma_10_mm": 35.736,
+    "transition_width_mm": 62.976,
+    "slope_per_mm": 0.0698,
+    "intercept": 0.2964,
+    "pseudo_r2": 0.0346
+  }
+}
