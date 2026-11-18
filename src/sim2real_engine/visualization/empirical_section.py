@@ -110,6 +110,9 @@ def _build_anova_traces(sensitivity: dict[str, Any]) -> list[dict[str, Any]]:
             "name": "Grasp Clamping η² (%)",
             "y": labels,
             "x": grasp_vals,
+            "text": [f"{v:.1f}%" for v in grasp_vals],
+            "textposition": "outside",
+            "cliponaxis": False,
             "marker": {"color": "#06b6d4"},
             "hovertemplate": "%{y}<br>Grasp variance η²: <b>%{x:.1f}%</b><extra></extra>",
         },
@@ -119,6 +122,9 @@ def _build_anova_traces(sensitivity: dict[str, Any]) -> list[dict[str, Any]]:
             "name": "Chained Task η² (%)",
             "y": labels,
             "x": task_vals,
+            "text": [f"{v:.1f}%" for v in task_vals],
+            "textposition": "outside",
+            "cliponaxis": False,
             "marker": {"color": "#8b5cf6"},
             "hovertemplate": "%{y}<br>Task variance η²: <b>%{x:.1f}%</b><extra></extra>",
         },
@@ -278,14 +284,43 @@ def build_empirical_section_html_and_js(results_dir: Path | None = None) -> tupl
         "xaxis": {"gridcolor": "#1e293b"},
         "legend": {"orientation": "h", "y": 1.15, "font": {"size": 10}},
     }
+    anova_annotations: list[dict[str, Any]] = []
+    if anova_data and anova_data[0]["y"]:
+        for idx, lbl in enumerate(anova_data[0]["y"]):
+            g_val = float(anova_data[0]["x"][idx])
+            t_val = float(anova_data[1]["x"][idx])
+            if "(2-Way)" in lbl and g_val > t_val:
+                anova_annotations.append(
+                    {
+                        "x": min(59.0, max(g_val, t_val) + 6.5),
+                        "y": lbl,
+                        "text": "<b>Inverts: Grasp &gt; Task (4× shift)</b>",
+                        "showarrow": False,
+                        "xanchor": "left",
+                        "font": {"color": "#38bdf8", "size": 10},
+                    }
+                )
+            elif lbl == "Spatial Shift (XY)" and t_val > g_val:
+                anova_annotations.append(
+                    {
+                        "x": max(g_val, t_val) + 6.5,
+                        "y": lbl,
+                        "text": "Task &gt; Grasp alone",
+                        "showarrow": False,
+                        "xanchor": "left",
+                        "font": {"color": "#c084fc", "size": 10},
+                    }
+                )
+
     anova_layout = {
         "barmode": "group",
         "paper_bgcolor": "#0f172a",
         "plot_bgcolor": "#090d16",
         "font": {"color": "#cbd5e1", "size": 11},
-        "margin": {"l": 145, "r": 18, "t": 18, "b": 38},
-        "xaxis": {"title": "Variance Explained η² (%)", "range": [0, 55], "gridcolor": "#1e293b"},
+        "margin": {"l": 185, "r": 24, "t": 18, "b": 38},
+        "xaxis": {"title": "Variance Explained η² (%)", "range": [0, 68], "gridcolor": "#1e293b"},
         "yaxis": {"gridcolor": "#1e293b"},
+        "annotations": anova_annotations,
         "legend": {"orientation": "h", "y": 1.15, "font": {"size": 10}},
     }
     psycho_shapes: list[dict[str, Any]] = []
@@ -363,12 +398,11 @@ def build_empirical_section_html_and_js(results_dir: Path | None = None) -> tupl
         "variance in finishing grasp + cross-table placement within tolerance.",
     )
     tip_anova_factors = tip_html(
-        "What Spatial Shift (XY) & (2-Way) Mean",
-        "Spatial Shift (XY): offsets the cube spawn on the table (0.0 m nominal vs +0.07 m "
-        "unseen XY shift) to test workspace reach. (2-Way) Interaction: measures how two factors "
-        "amplify or flip each other when varied together—Joint Damping (0.9x vs 1.5x) alone "
-        "averages 0.0% because its impact flips across XY workspace offsets, causing 44.4% of "
-        "grasp variance when combined.",
+        "Spatial Shift (XY) vs. (2-Way) η² Inversion",
+        "Spatial Shift (XY) (0.0 vs +0.07 m table spawn offset) alone impacts Chained Task more "
+        "than Grasp (14.1% > 11.1%). When coupled with Joint Damping (0.9x vs 1.5x) in the "
+        "(2-Way) interaction, Damping flips polarity across XY offsets—jumping Grasp η² 4× to "
+        "44.4% and inverting the dominance so Grasp (44.4%) > Chained Task (39.1%).",
     )
     tip_psycho = tip_html(
         "Psychometric Curve & σ₅₀ (Binomial MLE)",
@@ -443,10 +477,11 @@ def build_empirical_section_html_and_js(results_dir: Path | None = None) -> tupl
           <strong>Spatial Shift (XY)</strong> (<code>0.0 vs +0.07 m</code> unseen cube offset),
           and <strong>(2-Way)</strong> coupled pairs for Grasp vs. Chained Task
           {tip_anova_stages} {tip_anova_factors}.<br/>
-          <strong>Implication:</strong> Mass and Friction alone contribute ~<strong>0%</strong>;
-          <strong>Damping &times; Spatial Shift (2-Way) (44.4% Grasp / 39.1% Task)</strong> and
-          Spatial Shift (11.1%/14.1%) dominate because joint damping effects flip across table
-          offsets&mdash;guiding damping &amp; reach calibration.
+          <strong>Implication:</strong> On Spatial Shift alone, Task &eta;&sup2; exceeds Grasp
+          (<strong>14.1% &gt; 11.1%</strong>). Coupling it with Joint Damping in
+          <strong>(2-Way)</strong> jumps 4&times; and <strong>inverts</strong> dominance to Grasp
+          (<strong>44.4% &gt; 39.1%</strong>), exposing a damping-by-reach bottleneck invisible in
+          single-factor sweeps (0.0%).
         </div>
         <div class="stat-plot" id="plot-stat-anova"></div>
       </div>
