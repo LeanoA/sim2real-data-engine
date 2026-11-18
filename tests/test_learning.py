@@ -134,7 +134,29 @@ def test_train_policy_loss_descent(dataset_path: Path, tmp_path: Path) -> None:
     assert summary.final_val_loss < summary.initial_loss
     assert summary.loss_reduction_pct > 0.0
     assert summary.throughput_samples_per_s > 0.0
+    assert summary.split_strategy == "episode_grouped"
+    assert summary.train_episodes > 0
+    assert summary.val_episodes > 0
+    assert summary.train_samples + summary.val_samples == summary.total_samples
     assert ckpt_path.is_file()
+
+
+def test_episode_grouped_split_prevents_temporal_leakage(dataset_path: Path) -> None:
+    """Episode-grouped split assigns whole episodes exclusively to train or validation."""
+    ds = LeRobotParquetDataset(dataset_path, horizon=4, include_ee_pose=False)
+    assert ds.num_episodes >= 2
+
+    train_idx, val_idx, train_eps, val_eps = ds.get_episode_split_indices(val_ratio=0.2, seed=42)
+    assert len(train_idx) + len(val_idx) == len(ds)
+    assert train_eps + val_eps == ds.num_episodes
+    assert train_eps >= 1 and val_eps >= 1
+
+    ep_ids = ds.episode_ids
+    train_ep_set = {ep_ids[i] for i in train_idx}
+    val_ep_set = {ep_ids[i] for i in val_idx}
+    assert len(train_ep_set) == train_eps
+    assert len(val_ep_set) == val_eps
+    assert train_ep_set.isdisjoint(val_ep_set)
 
 
 def test_cli_train_and_eval_policy(

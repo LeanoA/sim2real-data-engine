@@ -11,7 +11,7 @@ from numpy.typing import NDArray
 from torch import nn
 
 from sim2real_engine.core.contracts import JointState, SE3Pose
-from sim2real_engine.learning.dataset import transform_to_tcp_frame
+from sim2real_engine.learning.dataset import assemble_policy_observation
 from sim2real_engine.server.bridge import PolicyFn
 
 
@@ -152,7 +152,10 @@ class BehaviorCloningMLP(nn.Module):
         dev = torch.device(device)
         self.to(dev)
 
+        include_ee_pose = bool(stats.get("include_ee_pose", True))
+        include_object_pose = bool(stats.get("include_object_pose", True))
         use_tcp_frame = bool(stats.get("use_tcp_frame", False))
+        ego_centric = bool(stats.get("ego_centric", False))
         q_mean = np.array(stats["q_mean"], dtype=np.float32)
         q_std = np.array(stats["q_std"], dtype=np.float32)
         v_mean = np.array(stats["v_mean"], dtype=np.float32)
@@ -173,29 +176,39 @@ class BehaviorCloningMLP(nn.Module):
             q_norm = (q_raw - q_mean) / np.where(q_std < 1e-6, 1.0, q_std)
             v_norm = (v_raw - v_mean) / np.where(v_std < 1e-6, 1.0, v_std)
 
-            parts: list[NDArray[Any]] = [q_norm, v_norm]
-            if ee_pose is not None:
-                p = np.asarray(ee_pose.position, dtype=np.float32)
-                q_rot = np.asarray(ee_pose.quaternion_wxyz, dtype=np.float32)
-                parts.extend([p, q_rot])
-
-            if object_pose is not None:
-                op = np.asarray(object_pose.position, dtype=np.float32)
-                oq = np.asarray(object_pose.quaternion_wxyz, dtype=np.float32)
-                if ee_pose is not None:
-                    p = np.asarray(ee_pose.position, dtype=np.float32)
-                    if use_tcp_frame:
-                        q_rot = np.asarray(ee_pose.quaternion_wxyz, dtype=np.float32)
-                        rel_pos = transform_to_tcp_frame(op, p, q_rot)
-                    else:
-                        rel_pos = op - p
-                    parts.extend([op, oq, rel_pos])
-                else:
-                    parts.extend([op, oq])
-                if gripper_state is not None:
-                    parts.append(np.array([float(gripper_state)], dtype=np.float32))
-
-            obs_np = np.concatenate(parts)
+            obs_np = assemble_policy_observation(
+                q_norm,
+                v_norm,
+                include_ee_pose=include_ee_pose,
+                include_object_pose=include_object_pose,
+                use_tcp_frame=use_tcp_frame,
+                ego_centric=ego_centric,
+                ee_pos=(
+                    np.asarray(ee_pose.position, dtype=np.float32)
+                    if ee_pose is not None
+                    else None
+                ),
+                ee_quat=(
+                    np.asarray(ee_pose.quaternion_wxyz, dtype=np.float32)
+                    if ee_pose is not None
+                    else None
+                ),
+                obj_pos=(
+                    np.asarray(object_pose.position, dtype=np.float32)
+                    if object_pose is not None
+                    else None
+                ),
+                obj_quat=(
+                    np.asarray(object_pose.quaternion_wxyz, dtype=np.float32)
+                    if object_pose is not None
+                    else None
+                ),
+                gripper_state=(
+                    np.array([float(gripper_state)], dtype=np.float32)
+                    if gripper_state is not None
+                    else None
+                ),
+            )
             if len(obs_np) < self.obs_dim:
                 pad_len = self.obs_dim - len(obs_np)
                 obs_np = np.concatenate([obs_np, np.zeros(pad_len, dtype=np.float32)])

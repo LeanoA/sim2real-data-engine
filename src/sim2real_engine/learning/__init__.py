@@ -2,6 +2,8 @@
 
 from sim2real_engine.learning.dataset import (
     LeRobotParquetDataset,
+    assemble_policy_observation,
+    compute_relative_quat_tcp,
     quat_to_rot_matrix,
     transform_to_tcp_frame,
 )
@@ -13,6 +15,8 @@ __all__ = [
     "LeRobotParquetDataset",
     "TrainerConfig",
     "TrainingSummary",
+    "assemble_policy_observation",
+    "compute_relative_quat_tcp",
     "quat_to_rot_matrix",
     "train_policy",
     "transform_to_tcp_frame",

@@ -10,7 +10,7 @@ import numpy as np
 import torch
 from pydantic import BaseModel, ConfigDict, Field
 from torch import nn
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader, Subset
 
 from sim2real_engine.learning.dataset import LeRobotParquetDataset
 from sim2real_engine.learning.policy import BehaviorCloningMLP
@@ -51,6 +51,14 @@ class TrainingSummary(BaseModel):
     training_time_s: float = Field(..., ge=0.0)
     throughput_samples_per_s: float = Field(..., ge=0.0)
     device_used: str
+    split_strategy: Literal["episode_grouped"] = Field(
+        default="episode_grouped",
+        description="Leakage-free split grouping adjacent trajectory transitions by episode.",
+    )
+    train_episodes: int = Field(default=0, ge=0)
+    val_episodes: int = Field(default=0, ge=0)
+    train_samples: int = Field(default=0, ge=0)
+    val_samples: int = Field(default=0, ge=0)
 
 
 def resolve_device(device_choice: str) -> torch.device:
@@ -75,13 +83,13 @@ def train_policy(
 
     device = resolve_device(config.device)
 
-    # Train / validation split
+    # Episode-grouped train / validation split (prevents temporal transition leakage)
     total_count = len(dataset)
-    val_count = int(total_count * config.val_ratio)
-    train_count = total_count - val_count
-
-    generator = torch.Generator().manual_seed(config.seed)
-    train_ds, val_ds = random_split(dataset, [train_count, val_count], generator=generator)
+    train_indices, val_indices, train_episodes, val_episodes = dataset.get_episode_split_indices(
+        val_ratio=config.val_ratio, seed=config.seed
+    )
+    train_ds = Subset(dataset, train_indices)
+    val_ds = Subset(dataset, val_indices)
 
     train_loader = DataLoader(
         train_ds,
@@ -185,6 +193,11 @@ def train_policy(
         training_time_s=round(elapsed, 4),
         throughput_samples_per_s=round(throughput, 1),
         device_used=str(device),
+        split_strategy="episode_grouped",
+        train_episodes=train_episodes,
+        val_episodes=val_episodes,
+        train_samples=len(train_indices),
+        val_samples=len(val_indices),
     )
 
     if checkpoint_path is not None:
