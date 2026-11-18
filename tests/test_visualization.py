@@ -258,6 +258,11 @@ def test_cli_visualize_multi_model_representations(
     assert "tcp_equivariant_45ep" in html_text
     assert "ego_se3_45ep" in html_text
     assert "450/50" in html_text
+    assert "plot-stat-ci" in html_text
+    assert "plot-stat-anova" in html_text
+    assert "plot-stat-psycho" in html_text
+    assert "plot-stat-control" in html_text
+    assert "tip-popover" in html_text
 
 
 

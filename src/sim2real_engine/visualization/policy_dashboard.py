@@ -9,6 +9,10 @@ from typing import Any
 import numpy as np
 
 from sim2real_engine.visualization.data import PolicyVsExpertComparisonData
+from sim2real_engine.visualization.empirical_section import (
+    build_empirical_section_html_and_js,
+    tip_html,
+)
 
 
 def _classify_rollout_phases(
@@ -589,6 +593,37 @@ def generate_policy_comparison_html(
   </div>
 """
 
+    empirical_html, empirical_js = build_empirical_section_html_and_js()
+    tip_err = tip_html(
+        "Mean Spatial Tracking Error",
+        "Average 3D Cartesian distance between the closed-loop policy end-effector and the "
+        "privileged IK expert on seed=42 (path accuracy on one rollout, not aggregate success).",
+    )
+    tip_max_err = tip_html(
+        "Max Spatial Error",
+        "Peak transient tracking deviation during the episode, usually occurring at contact, "
+        "grasp transition, or dropoff.",
+    )
+    tip_transport = tip_html(
+        "Cross-Table Payload Transport",
+        "Net XY cube displacement on seed=42, paired with aggregate success rates across N=20 "
+        "episodes in Nominal, In-Distribution DR (ID-DR), and True OOD extrapolation.",
+    )
+    tip_disp = tip_html(
+        "Policy EE Net Displacement",
+        "Net Cartesian span traveled by the robot end-effector across the table during rollout.",
+    )
+    tip_latency = tip_html(
+        "50 Hz Inference & Compute Throughput",
+        "Sub-millisecond CPU MLP forward pass inside an injected 8.0 ms synthetic IPC delay, "
+        "plus training samples/s across MPS vs. AWS EC2 NVIDIA A10G CUDA (orthogonal to accuracy).",
+    )
+    tip_gripper = tip_html(
+        "Gripper Constraint State",
+        "Articulated 1-DOF parallel-jaw Coulomb friction contact state detected via cube lift "
+        "(>1.5 mm above workstation surface).",
+    )
+
     html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -979,6 +1014,112 @@ def generate_policy_comparison_html(
       min-height: 270px;
     }}
     .plot-2d-container {{ flex: 1; width: 100%; min-height: 220px; }}
+
+    /* Accessible Educational Tooltips & Empirical Diagnostics Section */
+    .tip-wrap {{
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      margin-left: 0.3rem;
+      cursor: help;
+      vertical-align: middle;
+      outline: none;
+    }}
+    .tip-icon {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.14);
+      border: 1px solid rgba(56, 189, 248, 0.45);
+      line-height: 1;
+    }}
+    .tip-inline {{ margin: 0 0.15rem; }}
+    .tip-popover {{
+      visibility: hidden;
+      opacity: 0;
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 50%;
+      transform: translateX(-50%);
+      width: 265px;
+      padding: 0.6rem 0.72rem;
+      background: #020617;
+      color: #e2e8f0;
+      border: 1px solid #334155;
+      border-radius: 0.5rem;
+      font-size: 0.75rem;
+      font-weight: 400;
+      line-height: 1.42;
+      text-transform: none;
+      letter-spacing: 0;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
+      z-index: 999;
+      pointer-events: none;
+      transition: opacity 0.15s ease;
+    }}
+    .kpi-card:first-child .tip-popover {{ left: 0; transform: none; }}
+    .kpi-card:last-child .tip-popover {{ left: auto; right: 0; transform: none; }}
+    .tip-wrap:hover .tip-popover,
+    .tip-wrap:focus .tip-popover,
+    .tip-wrap:focus-within .tip-popover {{
+      visibility: visible;
+      opacity: 1;
+    }}
+
+    .empirical-section {{
+      margin-top: 1.25rem;
+      padding-top: 1.15rem;
+      border-top: 1px solid var(--border);
+    }}
+    .empirical-header {{
+      margin-bottom: 0.9rem;
+    }}
+    .empirical-header h2 {{
+      font-size: 1.12rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 0.25rem;
+    }}
+    .empirical-sub {{
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }}
+    .empirical-sub code {{
+      background: rgba(148, 163, 184, 0.12);
+      padding: 0.08rem 0.35rem;
+      border-radius: 0.25rem;
+      font-size: 0.78rem;
+      color: #e2e8f0;
+    }}
+    .empirical-grid {{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.9rem;
+    }}
+    @media (max-width: 980px) {{
+      .empirical-grid {{ grid-template-columns: 1fr; }}
+    }}
+    .stat-card {{
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 0.9rem;
+      display: flex;
+      flex-direction: column;
+      min-height: 310px;
+    }}
+    .stat-plot {{
+      flex: 1;
+      width: 100%;
+      min-height: 250px;
+    }}
   </style>
 </head>
 <body>
@@ -1018,14 +1159,14 @@ def generate_policy_comparison_html(
 
   <div class="grid-kpis">
     <div class="kpi-card">
-      <div class="kpi-title">Mean Spatial Tracking Error</div>
+      <div class="kpi-title">Mean Spatial Tracking Error {tip_err}</div>
       <div class="kpi-value" id="kpi-val-error" style="color: var(--accent-policy);">
         {primary_bundle['meanTrackingErrorMm']:.1f} mm
       </div>
       <div class="kpi-sub" id="kpi-sub-error">Closed-loop policy vs. privileged IK expert</div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-title">Max Spatial Error</div>
+      <div class="kpi-title">Max Spatial Error {tip_max_err}</div>
       <div class="kpi-value" id="kpi-val-max-error">
         {primary_bundle['maxTrackingErrorMm']:.1f} mm
       </div>
@@ -1034,7 +1175,7 @@ def generate_policy_comparison_html(
       </div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-title">Cross-Table Payload Transport</div>
+      <div class="kpi-title">Cross-Table Payload Transport {tip_transport}</div>
       <div class="kpi-value" id="kpi-val-transport" style="color: var(--accent-obj);">
         {primary_bundle['payloadTransportCm']:.1f} cm
       </div>
@@ -1043,14 +1184,14 @@ def generate_policy_comparison_html(
       </div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-title">Policy EE Net Displacement</div>
+      <div class="kpi-title">Policy EE Net Displacement {tip_disp}</div>
       <div class="kpi-value" id="kpi-val-disp" style="color: var(--accent-arm);">
         {primary_bundle['policyEeDisplacementMm']:.1f} mm
       </div>
       <div class="kpi-sub" id="kpi-sub-disp">End-effector spatial span across workstation</div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-title">Inference &amp; Compute Throughput</div>
+      <div class="kpi-title">Inference &amp; Compute Throughput {tip_latency}</div>
       <div class="kpi-value" id="kpi-val-latency">
         ~{primary_bundle['mlpForwardMs']:.2f} ms
         <span style="font-size: 0.85rem; font-weight: 500; color: var(--text-muted);">MLP</span>
@@ -1102,7 +1243,7 @@ def generate_policy_comparison_html(
           <span class="hud-value hud-badge phase-pill" id="hud-phase">1. Pre-Grasp Approach</span>
         </div>
         <div class="hud-row">
-          <span class="hud-label">Gripper Constraint:</span>
+          <span class="hud-label">Gripper Constraint {tip_gripper}:</span>
           <span class="hud-value hud-badge gripper-open" id="hud-gripper">OPEN</span>
         </div>
         <div class="hud-row">
@@ -1149,6 +1290,8 @@ def generate_policy_comparison_html(
     </div>
   </div>
 
+  {empirical_html}
+
   <script>
     const BUNDLES = {json.dumps(bundles)};
     const EXPERT = {json.dumps(expert_bundle)};
@@ -1161,6 +1304,7 @@ def generate_policy_comparison_html(
     Plotly.newPlot('plot-2d-telemetry', telemetry2dData, telemetry2dLayout, {{
       responsive: true, displayModeBar: false
     }});
+    {empirical_js}
 
     const modelKeys = Object.keys(BUNDLES);
     let activeModelId = modelKeys[0] || 'canonical_45ep';
