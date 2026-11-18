@@ -780,10 +780,16 @@ def _run_visualize(
 
         canonical_path = Path("checkpoints/bc_pick_place.pt")
         tcp_path = Path("checkpoints/bc_tcp_frame_45ep.pt")
-        cloud_path = Path("results/bc_cloud_policy.pt")
+        ego_path = (
+            Path("checkpoints/bc_ego_se3_45ep.pt")
+            if Path("checkpoints/bc_ego_se3_45ep.pt").is_file()
+            else Path("results/bc_cloud_ego_se3_45ep.pt")
+        )
 
         def _key_for_path(p: Path) -> str:
             name = str(p).lower()
+            if "ego" in name or "se3" in name:
+                return "ego_se3_45ep"
             if "tcp" in name or "equivariant" in name:
                 return "tcp_equivariant_45ep"
             if "cloud" in name or "cuda" in name:
@@ -802,12 +808,12 @@ def _run_visualize(
         elif multi_model:
             if tcp_path.is_file():
                 models_to_load["tcp_equivariant_45ep"] = tcp_path
-            if cloud_path.is_file():
-                models_to_load["cloud_45ep"] = cloud_path
+            if ego_path.is_file():
+                models_to_load["ego_se3_45ep"] = ego_path
         elif tcp_path.is_file():
             models_to_load["tcp_equivariant_45ep"] = tcp_path
-        elif cloud_path.is_file():
-            models_to_load["cloud_45ep"] = cloud_path
+        elif ego_path.is_file():
+            models_to_load["ego_se3_45ep"] = ego_path
 
         if len(models_to_load) > 1:
             comps = collect_multi_model_comparison(

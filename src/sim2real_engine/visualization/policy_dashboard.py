@@ -107,44 +107,59 @@ def _build_model_bundle(
     mlp_forward_ms = max(0.05, round(comp.inference_p50_latency_ms - 8.0, 2))
 
     default_meta: dict[str, Any] = {}
-    if "tcp" in model_id.lower() or "equivariant" in model_id.lower():
+    mid_lower = model_id.lower()
+    if "ego" in mid_lower or "se3" in mid_lower:
         default_meta = {
-            "name": "BC-MLP TCP-Frame Equivariant (45 épocas · MPS)",
-            "shortName": "TCP Equivariant (MPS)",
-            "tabLabel": "TCP Equivariant (45 ép &bull; MPS)",
-            "deviceTag": "Apple Silicon MPS (Metal)",
+            "name": "BC-MLP Ego-Centric SE(3) 20D (Pure Relative Ablation)",
+            "shortName": "Ego-SE(3) 20D",
+            "tabLabel": "Ego-SE(3) 20D (Ablation)",
+            "deviceTag": "20D SE(3) Rel &bull; 450/50 Ep Split",
+            "epochs": 45,
+            "throughput": "12,242/s (MPS) &bull; 22,489/s (A10G)",
+            "loss": "0.0044 (-99.87%)",
+            "taskStatus": "25% Nominal / 5% True OOD (Goal Blindness)",
+            "taskStatusClass": "badge-arm",
+            "colorArm": "#8b5cf6",
+            "colorTrail": "#d946ef",
+        }
+    elif "tcp" in mid_lower or "equivariant" in mid_lower:
+        default_meta = {
+            "name": "BC-MLP TCP-Hybrid 30D (Frame-Aligned Displacement)",
+            "shortName": "TCP-Hybrid 30D",
+            "tabLabel": "TCP-Hybrid 30D (Equivariant)",
+            "deviceTag": "30D TCP-Frame &bull; MPS (12.4k/s)",
             "epochs": 45,
             "throughput": "12,352 samples/s",
-            "loss": "0.0092 (-99.7%)",
-            "taskStatus": "100% Grasp & Place Exitoso (4.4 mm)",
+            "loss": "0.0092 (-99.74%)",
+            "taskStatus": "100% Nominal / 95% ID-DR / 45% True OOD",
             "taskStatusClass": "badge-success",
             "colorArm": "#06b6d4",
             "colorTrail": "#38bdf8",
         }
-    elif "cloud" in model_id.lower() or "cuda" in model_id.lower():
+    elif "cloud" in mid_lower or "cuda" in mid_lower:
         default_meta = {
-            "name": "BC-MLP Cloud GPU Baseline (45 épocas · AWS A10G CUDA)",
-            "shortName": "Cloud GPU (CUDA A10G)",
-            "tabLabel": "Cloud GPU (45 ép &bull; CUDA A10G)",
+            "name": "BC-MLP World-Frame 30D (AWS A10G CUDA Scale-Out)",
+            "shortName": "World 30D (A10G CUDA)",
+            "tabLabel": "World 30D (A10G CUDA)",
             "deviceTag": "NVIDIA A10G (24GB CUDA)",
             "epochs": 45,
-            "throughput": "22,688 samples/s (1.85x)",
-            "loss": "0.0093 (-99.73%)",
-            "taskStatus": "90% Grasp & Place (Articulated Jaw)",
+            "throughput": "22,720 samples/s (1.85x)",
+            "loss": "0.0043 (-99.88%)",
+            "taskStatus": "450/50 Episode-Grouped Split",
             "taskStatusClass": "badge-success",
             "colorArm": "#8b5cf6",
             "colorTrail": "#d946ef",
         }
     else:
         default_meta = {
-            "name": "BC-MLP World-Frame Baseline (45 épocas · Apple Silicon MPS)",
-            "shortName": "World Baseline (MPS)",
-            "tabLabel": "World Baseline (45 ép &bull; MPS)",
-            "deviceTag": "Apple Silicon MPS (Metal)",
+            "name": "BC-MLP World-Frame 30D (Global Coordinates Baseline)",
+            "shortName": "World-Frame 30D",
+            "tabLabel": "World-Frame 30D (Baseline)",
+            "deviceTag": "30D Global Obs &bull; MPS (12.2k/s)",
             "epochs": 45,
             "throughput": "12,245 samples/s",
-            "loss": "0.0091 (-99.7%)",
-            "taskStatus": "80% Grasp & Place (Articulated Jaw)",
+            "loss": "0.0091 (-99.74%)",
+            "taskStatus": "75% Nominal / 75% ID-DR / 35% True OOD",
             "taskStatusClass": "badge-success",
             "colorArm": "#10b981",
             "colorTrail": "#ec4899",
@@ -210,6 +225,7 @@ def generate_policy_comparison_html(
             bundles[mid] = _build_model_bundle(comp, mid, mid_meta)
 
     primary_bundle = bundles[primary_id]
+    secondary_bundle = list(bundles.values())[1] if len(bundles) > 1 else primary_bundle
     has_multi_models = len(bundles) > 1
 
     # Extract primary trajectories for initial plot rendering
@@ -225,7 +241,7 @@ def generate_policy_comparison_html(
     policy_arm_trace = {
         "type": "scatter3d",
         "mode": "lines+markers",
-        "name": "World Baseline 6-DOF Arm (Green)",
+        "name": f"{primary_bundle.get('shortName', 'Primary Policy')} Arm",
         "x": init_arm["xs"],
         "y": init_arm["ys"],
         "z": init_arm["zs"],
@@ -248,7 +264,7 @@ def generate_policy_comparison_html(
     policy_trail_trace = {
         "type": "scatter3d",
         "mode": "lines",
-        "name": "World Baseline Executed Trail (Pink)",
+        "name": f"{primary_bundle.get('shortName', 'Primary Policy')} Trail",
         "x": [pol_ee_0[0]],
         "y": [pol_ee_0[1]],
         "z": [pol_ee_0[2]],
@@ -305,14 +321,15 @@ def generate_policy_comparison_html(
     }
 
     # Trace 6: Secondary Model Trail (for comparative superposition mode)
+    sec_short = secondary_bundle.get("shortName", "Secondary Model")
     sec_trail_trace = {
         "type": "scatter3d",
         "mode": "lines",
-        "name": "Cloud GPU Trail (Purple)",
+        "name": f"{sec_short} Trail",
         "x": [pol_ee_0[0]],
         "y": [pol_ee_0[1]],
         "z": [pol_ee_0[2]],
-        "line": {"color": "#8b5cf6", "width": 5},
+        "line": {"color": secondary_bundle.get("colorTrail", "#8b5cf6"), "width": 5},
         "visible": False,
     }
 
@@ -426,7 +443,7 @@ def generate_policy_comparison_html(
         {
             "type": "scatter",
             "mode": "lines",
-            "name": "Cloud GPU Error (mm)",
+            "name": f"{sec_short} Error (mm)",
             "x": step_indices,
             "y": [0.0] * len(step_indices),
             "yaxis": "y1",
@@ -437,7 +454,7 @@ def generate_policy_comparison_html(
         {
             "type": "scatter",
             "mode": "lines",
-            "name": "Cloud GPU Payload Z (cm)",
+            "name": f"{sec_short} Payload Z (cm)",
             "x": step_indices,
             "y": [0.0] * len(step_indices),
             "yaxis": "y2",
@@ -448,7 +465,7 @@ def generate_policy_comparison_html(
         {
             "type": "scatter",
             "mode": "markers",
-            "name": "Cursor Cloud Error",
+            "name": f"Cursor {sec_short} Error",
             "x": [0],
             "y": [0.0],
             "yaxis": "y1",
@@ -464,7 +481,7 @@ def generate_policy_comparison_html(
         {
             "type": "scatter",
             "mode": "markers",
-            "name": "Cursor Cloud Z",
+            "name": f"Cursor {sec_short} Z",
             "x": [0],
             "y": [0.0],
             "yaxis": "y2",
@@ -540,6 +557,8 @@ def generate_policy_comparison_html(
                 tab_id = "tab-cloud"
             elif "tcp" in mid:
                 tab_id = "tab-tcp"
+            elif "ego" in mid or "se3" in mid:
+                tab_id = "tab-ego"
             tabs_list.append(
                 f'        <button type="button" role="tab" class="tab-btn" id="{tab_id}"\n'
                 f'                aria-selected="{sel}" data-model="{mid}">\n'
@@ -971,9 +990,9 @@ def generate_policy_comparison_html(
         <span class="badge badge-expert">Physics-Accurate</span>
       </h1>
       <p class="subtitle">
-        Closed-loop behavioral cloning rollouts vs. privileged IK expert across local
-        Apple Silicon (MPS) and cloud AWS EC2 A10G (CUDA) &bull; Synchronized kinematics,
-        articulated parallel-jaw gripper &amp; telemetry.
+        Closed-loop behavioral cloning spatial representations (World 30D vs. TCP-Hybrid 30D
+        vs. Ego-SE(3) 20D) against the privileged IK expert in MuJoCo 4.x &bull; Synchronized
+        kinematics, articulated parallel-jaw gripper &amp; telemetry.
       </p>
     </div>
     <div class="nav-links">

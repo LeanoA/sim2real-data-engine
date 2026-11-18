@@ -224,4 +224,39 @@ def test_multi_model_visualization_and_cli(
     assert "Client-Side Static Store" in html_text
 
 
+def test_cli_visualize_multi_model_representations(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    c1 = Path("checkpoints/bc_pick_place.pt")
+    c2 = Path("checkpoints/bc_tcp_frame_45ep.pt")
+    c3 = Path("checkpoints/bc_ego_se3_45ep.pt")
+    if not c1.is_file() or not c2.is_file() or not c3.is_file():
+        pytest.skip("Representation checkpoints are required for 3-model verification.")
+
+    out_file = tmp_path / "multi_rep_vis.html"
+    code = main([
+        "visualize",
+        "--multi-model",
+        "--backend",
+        "mujoco_native",
+        "--seed",
+        "42",
+        "--output",
+        str(out_file),
+        "--json",
+    ])
+    assert code == 0
+    assert out_file.is_file()
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "success"
+    html_text = out_file.read_text(encoding="utf-8")
+    assert "tab-canonical" in html_text
+    assert "tab-tcp" in html_text
+    assert "tab-ego" in html_text
+    assert "canonical_45ep" in html_text
+    assert "tcp_equivariant_45ep" in html_text
+    assert "ego_se3_45ep" in html_text
+
+
 
