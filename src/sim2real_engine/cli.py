@@ -808,24 +808,27 @@ def _run_visualize(
             return "canonical_45ep"
 
         models_to_load: dict[str, Path | str] = {}
-        primary_p = Path(model_path) if model_path else canonical_path
-        if primary_p.is_file():
-            primary_key = _key_for_path(primary_p) if model_path else "canonical_45ep"
-            models_to_load[primary_key] = primary_p
-
-        if compare_model_path:
-            sec_p = Path(compare_model_path)
-            if sec_p.is_file():
-                models_to_load[_key_for_path(sec_p)] = sec_p
-        elif multi_model:
+        if multi_model and not model_path and not compare_model_path:
             if tcp_path.is_file():
                 models_to_load["tcp_equivariant_45ep"] = tcp_path
+            if canonical_path.is_file():
+                models_to_load["canonical_45ep"] = canonical_path
             if ego_path.is_file():
                 models_to_load["ego_se3_45ep"] = ego_path
-        elif tcp_path.is_file():
-            models_to_load["tcp_equivariant_45ep"] = tcp_path
-        elif ego_path.is_file():
-            models_to_load["ego_se3_45ep"] = ego_path
+        else:
+            primary_p = Path(model_path) if model_path else canonical_path
+            if primary_p.is_file():
+                primary_key = _key_for_path(primary_p) if model_path else "canonical_45ep"
+                models_to_load[primary_key] = primary_p
+
+            if compare_model_path:
+                sec_p = Path(compare_model_path)
+                if sec_p.is_file():
+                    models_to_load[_key_for_path(sec_p)] = sec_p
+            elif tcp_path.is_file():
+                models_to_load["tcp_equivariant_45ep"] = tcp_path
+            elif ego_path.is_file():
+                models_to_load["ego_se3_45ep"] = ego_path
 
         if len(models_to_load) > 1:
             comps = collect_multi_model_comparison(
@@ -838,6 +841,7 @@ def _run_visualize(
                 comparison_data=prim_comp,
                 output_path=output_path,
                 additional_models=add_comps,
+                primary_model_id=first_key,
             )
         elif models_to_load:
             single_key = next(iter(models_to_load))
@@ -847,6 +851,7 @@ def _run_visualize(
             file_path = generate_policy_comparison_html(
                 comparison_data=single_comp,
                 output_path=output_path,
+                primary_model_id=single_key,
             )
         else:
             comp_data = collect_policy_vs_expert_comparison(

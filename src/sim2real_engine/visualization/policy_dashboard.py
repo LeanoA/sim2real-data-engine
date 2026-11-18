@@ -210,6 +210,7 @@ def generate_policy_comparison_html(
     output_path: Path | str = "sim2real_policy_comparison.html",
     additional_models: dict[str, PolicyVsExpertComparisonData] | None = None,
     model_metadata: dict[str, dict[str, Any]] | None = None,
+    primary_model_id: str = "canonical_45ep",
 ) -> Path:
     """Generate a responsive, standalone 3D WebGL dashboard comparing policy vs. expert."""
     target_file = Path(output_path).resolve()
@@ -219,7 +220,7 @@ def generate_policy_comparison_html(
 
     # Build bundles for all provided models
     bundles: dict[str, dict[str, Any]] = {}
-    primary_id = "canonical_45ep"
+    primary_id = primary_model_id
     primary_meta = (model_metadata or {}).get(primary_id, {})
     bundles[primary_id] = _build_model_bundle(comparison_data, primary_id, primary_meta)
 
@@ -249,7 +250,7 @@ def generate_policy_comparison_html(
         "x": init_arm["xs"],
         "y": init_arm["ys"],
         "z": init_arm["zs"],
-        "line": {"color": "#10b981", "width": 9},
+        "line": {"color": primary_bundle.get("colorArm", "#10b981"), "width": 9},
         "marker": {"size": 8, "color": "#ffffff"},
     }
 
@@ -272,7 +273,7 @@ def generate_policy_comparison_html(
         "x": [pol_ee_0[0]],
         "y": [pol_ee_0[1]],
         "z": [pol_ee_0[2]],
-        "line": {"color": "#ec4899", "width": 6},
+        "line": {"color": primary_bundle.get("colorTrail", "#ec4899"), "width": 6},
     }
 
     # Trace 3: Expert Ground Truth Trajectory (Ghost reference)
@@ -1679,7 +1680,7 @@ def generate_policy_comparison_html(
       }});
     }});
 
-    renderStep(0);
+    selectModel(activeModelId);
     setTimeout(() => play(), 400);
   </script>
 </body>
