@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 import webbrowser
 from collections.abc import Sequence
@@ -345,6 +346,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Transform relative object observations into local TCP frame (R_ee^T (p_obj - p_ee)).",
     )
     train_parser.add_argument(
+        "--ego-centric",
+        action="store_true",
+        default=False,
+        help="Use pure SE(3) ego-centric TCP observations (20D: prunes global world coordinates).",
+    )
+    train_parser.add_argument(
         "--output-model",
         type=str,
         default="./checkpoints/bc_policy.pt",
@@ -416,6 +423,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Injected Gaussian perception position noise std in mm (default: 0.0).",
     )
     eval_parser.add_argument(
+        "--perception-rot-noise-deg",
+        type=float,
+        default=0.0,
+        help="Injected SO(3) Gaussian orientation perception noise std in degrees (default: 0.0).",
+    )
+    eval_parser.add_argument(
         "--perception-noise-mode",
         type=str,
         choices=["per_episode", "per_step"],
@@ -484,6 +497,47 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Maximum simulation steps allowed per episode.",
     )
     sweep_parser.add_argument("--json", action="store_true", help="Emit JSON output.")
+
+    sens_parser = subparsers.add_parser(
+        "sensitivity-analysis",
+        help="Run 2^4 factorial ANOVA sensitivity across mass, friction, damping, and XY shift.",
+    )
+    sens_parser.add_argument(
+        "--model-path",
+        type=str,
+        default="./checkpoints/bc_pick_place.pt",
+        help="Path to saved policy checkpoint file (.pt).",
+    )
+    sens_parser.add_argument(
+        "--backend",
+        choices=list(DEFAULT_BACKENDS.keys()),
+        default="mujoco_native",
+        help="Simulator backend for evaluation rollouts.",
+    )
+    sens_parser.add_argument(
+        "--episodes-per-cell",
+        type=int,
+        default=3,
+        help="Replicate episodes per 2^4 design cell (total runs = 16 * N, default: 3).",
+    )
+    sens_parser.add_argument(
+        "--max-steps",
+        type=int,
+        default=120,
+        help="Maximum simulation steps allowed per episode.",
+    )
+    sens_parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Base deterministic evaluation RNG seed.",
+    )
+    sens_parser.add_argument(
+        "--include-oat",
+        action="store_true",
+        help="Also run One-Factor-at-a-Time (OAT) stress curves for each factor.",
+    )
+    sens_parser.add_argument("--json", action="store_true", help="Emit JSON output.")
 
     return parser
 
@@ -680,12 +734,30 @@ def _run_sim2sim_eval(
             f"Sim-to-Sim Evaluation ({metrics.reference_backend} vs {metrics.target_backend}, "
             f"{metrics.num_episodes} episodes):"
         )
-        print(f"- Mean Trajectory RMSE: {metrics.mean_trajectory_rmse:.6f} rad")
-        print(f"- Mean Final EE Divergence: {metrics.mean_ee_divergence_m:.6f} m")
+        rmse_str = f"{metrics.mean_trajectory_rmse:.6f} rad"
+        if metrics.trajectory_rmse_stats is not None:
+            rs = metrics.trajectory_rmse_stats
+            rmse_str += f" (SD={rs.std:.6f}, Median={rs.median:.6f}, IQR={rs.iqr:.6f})"
+        print(f"- Mean Trajectory RMSE: {rmse_str}")
+
+        ee_str = f"{metrics.mean_ee_divergence_m:.6f} m"
+        if metrics.ee_divergence_stats is not None:
+            es = metrics.ee_divergence_stats
+            ee_str += f" (SD={es.std:.6f}, Median={es.median:.6f}, IQR={es.iqr:.6f})"
+        print(f"- Mean Final EE Divergence: {ee_str}")
+
         pct_ref = metrics.success_rate_reference * 100
         pct_tgt = metrics.success_rate_target * 100
-        print(f"- Success Rate ({metrics.reference_backend}): {pct_ref:.1f}%")
-        print(f"- Success Rate ({metrics.target_backend}): {pct_tgt:.1f}%")
+        ref_ci_str = ""
+        if metrics.reference_success_ci is not None:
+            rc = metrics.reference_success_ci
+            ref_ci_str = f" [95% CI: {rc.ci_low * 100:.1f}%–{rc.ci_high * 100:.1f}%]"
+        tgt_ci_str = ""
+        if metrics.target_success_ci is not None:
+            tc = metrics.target_success_ci
+            tgt_ci_str = f" [95% CI: {tc.ci_low * 100:.1f}%–{tc.ci_high * 100:.1f}%]"
+        print(f"- Success Rate ({metrics.reference_backend}): {pct_ref:.1f}%{ref_ci_str}")
+        print(f"- Success Rate ({metrics.target_backend}): {pct_tgt:.1f}%{tgt_ci_str}")
     return 0
 
 
@@ -838,6 +910,7 @@ def _run_train_policy(
     seed: int,
     emit_json: bool,
     use_tcp_frame: bool = False,
+    ego_centric: bool = False,
 ) -> int:
     from typing import Any
 
@@ -858,6 +931,7 @@ def _run_train_policy(
             horizon=horizon,
             include_ee_pose=include_ee_pose,
             use_tcp_frame=use_tcp_frame,
+            ego_centric=ego_centric,
         )
     except Exception as exc:
         print(f"Failed to load dataset: {exc}", file=sys.stderr)
@@ -883,7 +957,9 @@ def _run_train_policy(
     else:
         print(
             f"Policy training complete: {summary.total_epochs} epochs on "
-            f"{summary.total_samples} transitions."
+            f"{summary.total_samples} transitions "
+            f"({summary.train_episodes} train / {summary.val_episodes} val episodes, "
+            f"{summary.split_strategy})."
         )
         print(
             f"Initial Loss: {summary.initial_loss:.4f} -> Final Val Loss: "
@@ -908,6 +984,7 @@ def _run_eval_policy(
     compare_ensembling: bool = False,
     perception_noise_mm: float = 0.0,
     perception_noise_mode: str = "per_episode",
+    perception_rot_noise_deg: float = 0.0,
 ) -> int:
     from sim2real_engine.learning import BehaviorCloningMLP
 
@@ -916,15 +993,16 @@ def _run_eval_policy(
         print(f"Model checkpoint not found: {ckpt_path}", file=sys.stderr)
         return 1
 
-    if dr or perception_noise_mm > 0.0:
+    if dr or perception_noise_mm > 0.0 or perception_rot_noise_deg > 0.0:
         from sim2real_engine.benchmarks import PerceptionNoiseConfig, evaluate_ood_robustness
 
         p_noise = (
             PerceptionNoiseConfig(
                 pos_noise_std_m=perception_noise_mm / 1000.0,
+                rot_noise_std_rad=math.radians(perception_rot_noise_deg),
                 noise_mode=cast(Any, perception_noise_mode),
             )
-            if perception_noise_mm > 0.0
+            if (perception_noise_mm > 0.0 or perception_rot_noise_deg > 0.0)
             else None
         )
 
@@ -944,44 +1022,71 @@ def _run_eval_policy(
             print(f"Model: {report.model_path}")
             print(f"Episodes: {report.num_episodes}")
 
-            for name, r in [
-                ("Nominal", report.nominal),
-                ("OOD DR (Ensembled)", report.ood_dr_ensembled),
-            ]:
+            def _print_regime(label: str, r: Any) -> None:
                 s = r.surgical
                 st = s.stages
+                ci_str = ""
+                if st.chained_ci is not None:
+                    ci_str = (
+                        f" [95% CI: {st.chained_ci.ci_low * 100.0:.1f}%–"
+                        f"{st.chained_ci.ci_high * 100.0:.1f}%]"
+                    )
+                prox_str = f"{s.mean_min_reach_error_mm:.1f} mm"
+                if s.min_reach_error_stats is not None:
+                    rs = s.min_reach_error_stats
+                    prox_str += f" (Med={rs.median:.1f}, IQR={rs.iqr:.1f})"
+                place_str = f"{s.mean_placement_error_mm:.1f} mm"
+                if s.placement_error_stats is not None:
+                    ps = s.placement_error_stats
+                    place_str += f" (Med={ps.median:.1f}, IQR={ps.iqr:.1f})"
                 print(
-                    f"  {name}: Chained Task Success={st.chained_task_success_rate * 100.0:.1f}%\n"
+                    f"  {label}: Chained Task Success={st.chained_task_success_rate * 100.0:.1f}%"
+                    f"{ci_str}\n"
                     f"    Stages: Reach={st.reach_rate * 100.0:.0f}% | "
                     f"Grasp={st.grasp_rate * 100.0:.0f}% | "
                     f"Transport={st.transport_rate * 100.0:.0f}% | "
                     f"Place={st.place_rate * 100.0:.0f}%\n"
-                    f"    Surgical: Proximity={s.mean_min_reach_error_mm:.1f} mm | "
-                    f"Place Err={s.mean_placement_error_mm:.1f} mm | "
+                    f"    Surgical: Proximity={prox_str} | "
+                    f"Place Err={place_str} | "
                     f"Duration={s.mean_execution_time_s:.2f}s | "
                     f"Hunting={s.mean_hunting_oscillations:.1f} rev\n"
                     f"    Dynamics: Payload Disp={r.mean_payload_displacement_m * 1000.0:.1f} mm | "
-                    f"Jerk={r.mean_action_jerk:.4f}"
+                    f"Action Delta={r.mean_action_jerk:.4f}"
+                )
+                if r.control_diagnostics is not None:
+                    cd = r.control_diagnostics
+                    force_txt = (
+                        f"{cd.mean_grasp_contact_force_n:.2f}N "
+                        f"(peak {cd.mean_peak_contact_force_n:.2f}N)"
+                        if cd.mean_grasp_contact_force_n is not None
+                        and cd.mean_peak_contact_force_n is not None
+                        else "N/A"
+                    )
+                    slip_txt = (
+                        f"{cd.mean_in_hand_slip_mm_s:.1f} mm/s"
+                        if cd.mean_in_hand_slip_mm_s is not None
+                        else "N/A"
+                    )
+                    print(
+                        f"    Control/Spectral: PhysJerk={cd.mean_physical_joint_jerk_rad_s3:.1f} "
+                        f"rad/s^3 | HF(>=5Hz)={cd.mean_hf_power_ratio * 100.0:.1f}% "
+                        f"(f_c={cd.mean_spectral_centroid_hz:.2f}Hz) | "
+                        f"Work={cd.mean_mechanical_work_j:.2f}J | "
+                        f"Contact={force_txt} | Slip={slip_txt}"
+                    )
+
+            _print_regime("Nominal", report.nominal)
+            if report.id_dr_ensembled is not None:
+                _print_regime("ID DR (Training Bounds)", report.id_dr_ensembled)
+            _print_regime("True OOD DR (Ensembled)", report.ood_dr_ensembled)
+
+            if report.id_to_ood_gap_pp is not None:
+                print(
+                    f"  ID -> True OOD Generalization Gap: {report.id_to_ood_gap_pp:+.1f} pp"
                 )
 
             if report.ood_dr_no_ensemble is not None:
-                r_no = report.ood_dr_no_ensemble
-                s_no = r_no.surgical
-                st_no = s_no.stages
-                print(
-                    f"  OOD DR (No Ensemble): Chained Success="
-                    f"{st_no.chained_task_success_rate * 100.0:.1f}%\n"
-                    f"    Stages: Reach={st_no.reach_rate * 100.0:.0f}% | "
-                    f"Grasp={st_no.grasp_rate * 100.0:.0f}% | "
-                    f"Transport={st_no.transport_rate * 100.0:.0f}% | "
-                    f"Place={st_no.place_rate * 100.0:.0f}%\n"
-                    f"    Surgical: Proximity={s_no.mean_min_reach_error_mm:.1f} mm | "
-                    f"Place Err={s_no.mean_placement_error_mm:.1f} mm | "
-                    f"Hunting={s_no.mean_hunting_oscillations:.1f} rev\n"
-                    f"    Dynamics: Payload Disp="
-                    f"{r_no.mean_payload_displacement_m * 1000.0:.1f} mm | "
-                    f"Jerk={r_no.mean_action_jerk:.4f}"
-                )
+                _print_regime("True OOD DR (No Ensemble)", report.ood_dr_no_ensemble)
                 success_diff = (
                     report.ood_dr_ensembled.success_rate
                     - report.ood_dr_no_ensemble.success_rate
@@ -990,6 +1095,15 @@ def _run_eval_policy(
                     f"Ensembling Robustness Benefit: {success_diff:+.1f}% success rate retention "
                     f"under OOD physical variations"
                 )
+                if (
+                    report.hf_power_reduction_pct is not None
+                    or report.physical_jerk_reduction_pct is not None
+                ):
+                    print(
+                        f"Spectral Filtering Benefit: "
+                        f"HF Power (>=5Hz) {report.hf_power_reduction_pct or 0.0:+.1f}% | "
+                        f"Physical Jerk {report.physical_jerk_reduction_pct or 0.0:+.1f}%"
+                    )
         return 0
 
     try:
@@ -1114,18 +1228,33 @@ def _run_sweep_perception_noise(
             f"Episodes/point: {curve.num_episodes_per_point} | "
             f"Clearance: {curve.mechanical_clearance_mm:.1f} mm\n"
         )
-        print("  Sigma (mm) | Grasp (%) | Place (%) | Chained (%) | Reach Err (mm) | Hunting (rev)")
-        print("  -----------+-----------+-----------+-------------+----------------+--------------")
+        print(
+            "  Sigma (mm) | Grasp (%)  | 95% Wilson CI   | Place (%) | "
+            "Chained (%) | Reach Err (mm) | Hunting (rev)"
+        )
+        print(
+            "  -----------+------------+-----------------+-----------+-"
+            "------------+----------------+--------------"
+        )
         for pt in curve.noise_points:
+            ci_txt = (
+                f"[{pt.grasp_ci.ci_low * 100.0:4.0f}%, {pt.grasp_ci.ci_high * 100.0:4.0f}%]"
+                if pt.grasp_ci is not None
+                else "     N/A       "
+            )
             print(
                 f"  {pt.sigma_mm:10.1f} | "
-                f"{pt.grasp_success_rate * 100.0:9.1f} | "
+                f"{pt.grasp_success_rate * 100.0:10.1f} | "
+                f"{ci_txt:15s} | "
                 f"{pt.placement_success_rate * 100.0:9.1f} | "
                 f"{pt.chained_success_rate * 100.0:11.1f} | "
                 f"{pt.mean_min_reach_error_mm:14.1f} | "
                 f"{pt.mean_hunting_oscillations:14.1f}"
             )
-        print("  -----------+-----------+-----------+-------------+----------------+--------------")
+        print(
+            "  -----------+------------+-----------------+-----------+-"
+            "------------+----------------+--------------"
+        )
         if curve.breakdown_threshold_mm is not None:
             print(
                 f"\nEmpirical Breakdown Threshold: sigma* = {curve.breakdown_threshold_mm:.1f} mm "
@@ -1135,6 +1264,84 @@ def _run_sweep_perception_noise(
             print(
                 "\nEmpirical Breakdown Threshold: None detected up to "
                 f"sigma = {sigma_max_mm:.1f} mm"
+            )
+        if curve.psychometric_fit is not None and curve.psychometric_fit.converged:
+            pf = curve.psychometric_fit
+            print(
+                f"Psychometric Logistic Fit: sigma_50 = {pf.sigma_50_mm:.2f} mm | "
+                f"90%->10% width = {pf.transition_width_mm:.2f} mm | "
+                f"slope k = {pf.slope_per_mm:.3f}/mm | pseudo-R^2 = {pf.pseudo_r2:.3f}"
+            )
+    return 0
+
+
+def _run_sensitivity_analysis(
+    model_path: str,
+    backend_name: str,
+    episodes_per_cell: int,
+    max_steps: int,
+    seed: int,
+    include_oat: bool,
+    emit_json: bool,
+) -> int:
+    from sim2real_engine.benchmarks import run_multivariate_sensitivity
+
+    ckpt_path = Path(model_path)
+    if not ckpt_path.is_file():
+        print(f"Model checkpoint not found: {ckpt_path}", file=sys.stderr)
+        return 1
+
+    report = run_multivariate_sensitivity(
+        model_path=ckpt_path,
+        backend_name=cast(BackendName, backend_name),
+        episodes_per_cell=episodes_per_cell,
+        base_seed=seed,
+        max_steps=max_steps,
+        include_oat=include_oat,
+    )
+
+    if emit_json:
+        print(json.dumps(report.model_dump(), indent=2))
+    else:
+        og = report.overall_grasp_ci
+        oc = report.overall_chained_ci
+        print(
+            f"Multivariate Sensitivity Analysis ({report.design}, {report.backend}, "
+            f"{report.total_episodes} episodes):"
+        )
+        print(
+            f"  Overall Grasp={og.rate * 100:.1f}% "
+            f"[{og.ci_low * 100:.1f}%, {og.ci_high * 100:.1f}%]"
+            f" | Chained={oc.rate * 100:.1f}% "
+            f"[{oc.ci_low * 100:.1f}%, {oc.ci_high * 100:.1f}%]"
+        )
+        print(
+            f"  Dominant Bottlenecks -> Grasp: {report.dominant_grasp_bottleneck} | "
+            f"Task: {report.dominant_task_bottleneck}\n"
+        )
+        print(
+            "  Factor           | Levels         | Grasp Delta | Grasp eta^2 | "
+            "Task Delta | Task eta^2 | Reach d(mm)"
+        )
+        print(
+            "  -----------------+----------------+-------------+-------------+-"
+            "-----------+------------+------------"
+        )
+        for eff in report.main_effects:
+            lvl_txt = f"{eff.low_level:.2f} -> {eff.high_level:.2f}"
+            print(
+                f"  {eff.factor_name:16s} | {lvl_txt:14s} | "
+                f"{eff.grasp_delta_pp:+9.1f}pp | {eff.grasp_eta_sq * 100:9.1f}% | "
+                f"{eff.chained_delta_pp:+8.1f}pp | {eff.chained_eta_sq * 100:8.1f}% | "
+                f"{eff.reach_error_delta_mm:+10.2f}"
+            )
+        print("\n  Top 2-Way Interactions (by Task eta^2):")
+        for inter in report.interactions_2way[:3]:
+            print(
+                f"    {inter.factor_a} x {inter.factor_b}: "
+                f"Task eta^2={inter.chained_eta_sq * 100:.1f}% "
+                f"({inter.chained_interaction_pp:+.1f} pp), "
+                f"Grasp eta^2={inter.grasp_eta_sq * 100:.1f}%"
             )
     return 0
 
@@ -1272,6 +1479,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             seed=int(args.seed),
             emit_json=bool(args.json),
             use_tcp_frame=bool(args.tcp_frame),
+            ego_centric=bool(args.ego_centric),
         )
 
     if args.command == "eval-policy":
@@ -1286,6 +1494,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             compare_ensembling=bool(args.compare_ensembling),
             perception_noise_mm=float(getattr(args, "perception_noise_mm", 0.0)),
             perception_noise_mode=str(getattr(args, "perception_noise_mode", "per_episode")),
+            perception_rot_noise_deg=float(getattr(args, "perception_rot_noise_deg", 0.0)),
         )
 
     if args.command == "sweep-perception-noise":
@@ -1300,6 +1509,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             seed=int(args.seed),
             emit_json=bool(args.json),
             max_steps=int(args.max_steps),
+        )
+
+    if args.command == "sensitivity-analysis":
+        return _run_sensitivity_analysis(
+            model_path=str(args.model_path),
+            backend_name=str(args.backend),
+            episodes_per_cell=int(args.episodes_per_cell),
+            max_steps=int(args.max_steps),
+            seed=int(args.seed),
+            include_oat=bool(args.include_oat),
+            emit_json=bool(args.json),
         )
 
     return 1

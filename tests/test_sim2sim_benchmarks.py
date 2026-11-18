@@ -58,6 +58,11 @@ def test_evaluate_sim2sim_gap_identical_backend() -> None:
     assert metrics.mean_ee_divergence_m == 0.0
     assert metrics.success_rate_reference == 1.0
     assert metrics.success_rate_target == 1.0
+    assert metrics.trajectory_rmse_stats is not None
+    assert metrics.ee_divergence_stats is not None
+    assert metrics.reference_success_ci is not None
+    assert metrics.reference_success_ci.trials == 2
+    assert metrics.target_success_ci is not None
 
 
 def test_evaluate_sim2sim_gap_cross_engine_divergence() -> None:
@@ -74,6 +79,11 @@ def test_evaluate_sim2sim_gap_cross_engine_divergence() -> None:
     assert metrics.mean_ee_divergence_m >= 0.0
     assert metrics.success_rate_reference == 1.0
     assert metrics.success_rate_target == 1.0
+    assert metrics.trajectory_rmse_stats is not None
+    assert metrics.ee_divergence_stats is not None
+    assert metrics.reference_success_ci is not None
+    assert metrics.reference_success_ci.trials == 2
+    assert metrics.target_success_ci is not None
 
 
 def test_create_simulator_backend_unknown_raises() -> None:
@@ -146,7 +156,14 @@ def test_evaluate_ood_robustness_execution() -> None:
     assert isinstance(report, OODBenchmarkReport)
     assert report.num_episodes == 2
     assert report.nominal.num_episodes == 2
+    assert report.id_dr_ensembled is not None
+    assert report.id_dr_ensembled.num_episodes == 2
     assert report.ood_dr_ensembled.num_episodes == 2
+    assert report.id_to_ood_gap_pp is not None
+    assert report.ood_config is not None
+    assert report.ood_config.mass_scale_range[0] > 1.15
+    assert report.ood_config.friction_scale_range[1] < 0.70
+    assert report.ood_config.workspace_y_shift_range[0] > 0.0
     assert report.ood_dr_no_ensemble is not None
     assert report.ood_dr_no_ensemble.num_episodes == 2
     assert report.action_jerk_reduction_pct is not None
@@ -162,6 +179,11 @@ def test_evaluate_ood_robustness_execution() -> None:
     assert 0.0 <= surg.stages.transport_rate <= 1.0
     assert 0.0 <= surg.stages.place_rate <= 1.0
     assert 0.0 <= surg.stages.chained_task_success_rate <= 1.0
+    assert surg.stages.grasp_ci is not None
+    assert surg.stages.chained_ci is not None
+    assert surg.min_reach_error_stats is not None
+    assert surg.placement_error_stats is not None
+    assert report.nominal.steps_stats is not None
 
 
 def test_cli_eval_policy_dr_and_compare_ensembling(capsys: pytest.CaptureFixture[str]) -> None:
@@ -249,6 +271,9 @@ def test_run_perception_sensitivity_sweep_execution() -> None:
     assert curve.noise_points[0].sigma_mm == 0.0
     assert curve.noise_points[1].sigma_mm == 4.0
     assert 0.0 <= curve.noise_points[0].grasp_success_rate <= 1.0
+    assert curve.noise_points[0].grasp_ci is not None
+    assert curve.noise_points[0].min_reach_error_stats is not None
+    assert curve.psychometric_fit is not None
 
 
 def test_cli_eval_policy_with_perception_noise(capsys: pytest.CaptureFixture[str]) -> None:
