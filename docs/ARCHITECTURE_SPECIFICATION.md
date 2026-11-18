@@ -16,7 +16,7 @@ sim2real-data-engine/
 ├── docs/
 │   ├── index.html                                # Multi-model static 3D WebGL dashboard (GitHub Pages)
 │   ├── ARCHITECTURE_SPECIFICATION.md             # This authoritative contract specification
-│   ├── ARCHITECTURE_DECISIONS.md                 # ADR-01 through ADR-11
+│   ├── ARCHITECTURE_DECISIONS.md                 # ADR-01 through ADR-12
 │   └── EXPERIMENT_REPORT_PICK_PLACE.md           # Quantitative MuJoCo 4.0 pick-and-place convergence report
 ├── docker/
 │   ├── Dockerfile.genesis                        # [Phase 6] Headless GPU container for Genesis batch sweeps
@@ -35,11 +35,11 @@ sim2real-data-engine/
 │       │   ├── __init__.py                       # [Phase 2] Simulator adapter registry
 │       │   ├── base.py                           # [Phase 2] SimulatorBackend Protocol & 7-stage PrivilegedPickPlaceExpert
 │       │   ├── mujoco_adapter.py                 # [Phase 2] Deterministic 1,000 Hz kinematic adapter
-│       │   ├── mujoco_native.py                  # [Phase 2+] Native MuJoCo 4.0 500 Hz contact physics & weld latch
+│       │   ├── mujoco_native.py                  # [Phase 2+] Native MuJoCo 4.x 500 Hz contact physics & coupled jaw
 │       │   └── cloud_adapters.py                 # [Phase 6] GenesisAdapter & IsaacLabAdapter
 │       ├── models/
 │       │   ├── __init__.py                       # MJCF model exports
-│       │   └── manipulator_6dof.xml              # Declarative 6-DOF robot + table + payload_weld MJCF scene
+│       │   └── manipulator_6dof.xml              # Declarative 6-DOF robot + table + 1-DOF articulated parallel-jaw MJCF scene
 │       ├── randomization/
 │       │   ├── __init__.py                       # [Phase 3] Randomization exports
 │       │   └── samplers.py                       # [Phase 3] EpisodePerturbation, DomainRandomizer (PCG64)

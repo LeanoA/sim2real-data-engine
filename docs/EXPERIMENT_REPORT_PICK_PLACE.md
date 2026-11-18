@@ -7,31 +7,30 @@ This report documents the architectural diagnosis, implementation, and empirical
 ## 1. Executive Summary
 
 - **Problem (Baseline — Unactuated Gripper):** The payload object remained stationary on the workstation table (`z = 0.0698 m`) during native physics rollouts because `manipulator_6dof.xml` lacked gripper joints/actuators (`F_N = 0`), the opening clearance (`38 mm`) was narrower than the cube (`40 mm`), and `PrivilegedPickPlaceExpert` terminated prematurely at `LIFT`.
-- **Solution (Phase 1 — Native MuJoCo 4.0 Physical Pick-and-Place):**
-  1. Integrated a proximity-gated (`<= 40 mm`) site-based `equality/weld` constraint in MJCF, dynamically toggled via `data.eq_active` in `MuJoCoPhysicsAdapter.set_gripper(grasped: bool)` to isolate Phase 1 sensorimotor learning from contact slip chatter (with Phase 2 introducing dynamic `relpose` anchoring and articulated parallel-jaw fingers).
-  2. Increased finger clearance to `46 mm` (`pos = 0.02 ±0.029 0`) to prevent contact collisions during descent.
-  3. Extended `PrivilegedPickPlaceExpert` to a complete 7-stage lifecycle (`APPROACH → DESCEND → GRASP → LIFT → TRANSPORT → PLACE → COMPLETED`) followed by post-release gravity settling ticks.
-- **Results:**
-  - **Success Rate:** Jumped from **0.0%** to **100.0%**.
-  - **Net Payload Transport:** Increased from **0.0 cm** to **14.2 cm** across the workstation table.
-  - **Terminal Orientation:** Restored from an unstable `43.6°` tilt to perfectly flat alignment (`w = 0.999998`, `0.0°` tilt, `z = 0.0679 m`).
-  - **Local Runtime:** `27.8 ms` for a full 89-step physical episode (`> 3,200 Hz` physics stepping on Apple Silicon ARM64).
+- **Solution (Phase 1 → Phase 2 — Articulated Parallel-Jaw & Coulomb Friction):**
+  1. **Phase 1 (ADR-07):** Integrated a proximity-gated (`<= 40 mm`) site-based `equality/weld` constraint and extended `PrivilegedPickPlaceExpert` to a complete 7-stage lifecycle (`APPROACH → DESCEND → GRASP → LIFT → TRANSPORT → PLACE → COMPLETED`) followed by gravity settling ticks.
+  2. **Phase 2 (ADR-12 — Current Production):** Replaced `payload_weld` with two symmetrically coupled prismatic `slide` fingers (`finger_left_joint`, `finger_right_joint`, `54 mm` open clearance / `7.0 mm` bilateral margin), raised `gripper_palm` (`z=+0.027 m`), calibrated `DESCEND` (`<= 15 mm`) + `GRASP` compression dwell (`8 ticks = 160 ms`), and added declarative `<touch>` telemetry sensors (`touch_left`, `touch_right`) driving real Coulomb contact grasping (`~4.4 N` total normal force).
+- **Results (Phase 2 Articulated Jaw, Seed 42):**
+  - **Success Rate:** **100.0%** across nominal (`10/10` seeds) and heavy/slippery DR (`1.5x` mass, `0.6x` friction).
+  - **Net Payload Transport:** **14.2 cm** across the workstation table (`y = +0.0439 m → -0.0979 m`).
+  - **Terminal Orientation:** Flat alignment (`w = 1.0`, `0.0°` tilt, `z = 0.0694 m`).
+  - **Local Runtime:** `46.4 ms` for a full 102-step physical episode (`> 2,100 Hz` physics stepping on Apple Silicon ARM64).
 
 ---
 
 ## 2. Quantitative Benchmark Comparison
 
-| Metric | Baseline (Truncated / Unactuated) | Phase 1: Native MuJoCo 4.0 (Full Lifecycle) | Delta / Improvement |
+| Metric | Baseline (Truncated / Unactuated) | Phase 2: Native MuJoCo 4.x (Articulated Jaw) | Delta / Improvement |
 | :--- | :--- | :--- | :--- |
-| **Pick-and-Place Success Rate** | `0.0%` (0/5 episodes) | **`100.0%` (5/5 episodes)** | **+100.0%** |
-| **Initial Payload Position `(X, Y, Z)`** | `(0.4019, 0.0439, 0.0698) m` | `(0.4019, 0.0439, 0.0698) m` | Identical initial state |
-| **Peak Payload Flight Height (`Z_max`)** | `0.0699 m` (`0.1 mm` jitter) | **`0.1846 m`** | **`+11.47 cm` vertical lift** |
-| **Final Payload Height (`Z_final`)** | `0.0699 m` (never lifted) | **`0.0679 m`** (settled on table) | Natural table contact |
-| **Final Payload Y Position** | `0.0439 m` (stationary) | **`-0.0980 m`** (delivery zone) | **`+14.19 cm` transport** |
-| **Final Object Tilt Angle** | `0.0°` (unmoved) | **`0.0°`** (`w = 0.999998`) | Stable flat settling |
-| **Episode Length (Steps)** | 56 steps | 89 steps | Complete macro-trajectory |
-| **Wall-Clock Computation Time** | `36.2 ms` | **`27.8 ms`** | Real-time factor `> 64x` |
-| **Contract Alignment** | 6 DOF arm + 1D gripper latch | 6 DOF arm + 1D gripper latch (7D reactive) | Zero contract divergence |
+| **Pick-and-Place Success Rate** | `0.0%` (0/5 episodes) | **`100.0%` (10/10 seeds + DR hold)** | **+100.0%** |
+| **Initial Payload Position `(X, Y, Z)`** | `(0.4019, 0.0439, 0.0700) m` | `(0.4019, 0.0439, 0.0700) m` | Identical initial state |
+| **Peak Payload Flight Height (`Z_max`)** | `0.0699 m` (`0.1 mm` jitter) | **`0.1801 m`** | **`+11.01 cm` vertical lift** |
+| **Final Payload Height (`Z_final`)** | `0.0699 m` (never lifted) | **`0.0694 m`** (settled on table) | Natural table contact |
+| **Final Payload Y Position** | `0.0439 m` (stationary) | **`-0.0979 m`** (delivery zone) | **`+14.18 cm` transport** |
+| **Final Object Tilt Angle** | `0.0°` (unmoved) | **`0.0°`** (`w = 1.0`) | Stable flat settling |
+| **Episode Length (Steps)** | 56 steps | 102 steps | Complete macro-trajectory + compression |
+| **Wall-Clock Computation Time** | `36.2 ms` | **`46.4 ms`** | Real-time factor `> 43x` |
+| **Contract Alignment** | 6 DOF arm + static fingers | 6 DOF arm IK + 1 DOF coupled jaw (`7D`) | Normalized aperture `[0, 1]` (`obs_dim=30`) |
 
 ---
 
@@ -48,7 +47,7 @@ The spatial projection shows the complete transit from the initial pickup point 
 ![Spatial Transport Arc](img/pick_place_spatial_yz.png)
 
 ### Figure 3: Key Performance Indicators (KPIs) & OOD Chatter Summary
-Quantitative summary across task completion rate, net payload displacement, and closed-loop OOD policy control chatter reduction (`-79.6%` via exponential temporal ensembling).
+Quantitative summary across 20-episode OOD Domain Randomization benchmarks (`World BC`, `Cloud A10G`, and `TCP Equivariant` achieving `95.0%` OOD chained success vs. `0.0%` unensembled, with `-72.7%` to `-80.3%` control chatter reduction via exponential temporal ensembling).
 
 ![KPI Summary](img/benchmark_kpi_comparison.png)
 
@@ -56,6 +55,6 @@ Quantitative summary across task completion rate, net payload displacement, and 
 
 ## 4. Architectural Lineage & Governance
 
-- **Decision Record:** Formalized as **ADR-07** in `docs/ARCHITECTURE_DECISIONS.md`.
+- **Decision Record:** Formalized in **ADR-07** (Phase 1 baseline) and **ADR-12** (Phase 2 articulated parallel-jaw gripper) in `docs/ARCHITECTURE_DECISIONS.md`.
 - **Validation Suite:** Verified in `tests/test_mujoco_native.py` (`test_mujoco_native_pick_and_place_full_rollout`) and `tests/test_visualization.py`.
 - **Downstream Readiness:** The generated trajectories now produce complete, non-trivial demonstration records for chunked `LeRobotDataset` v2 export and Sim-to-Sim cross-engine benchmarks.
