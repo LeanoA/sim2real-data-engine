@@ -263,6 +263,7 @@ def test_cli_visualize_multi_model_representations(
     assert "plot-stat-psycho" in html_text
     assert "plot-stat-control" in html_text
     assert "tip-popover" in html_text
+    assert "stat-caption" in html_text
     assert '"canonical_45ep"' in html_text
     # TCP-Hybrid 30D should be the first/default active model tab
     assert html_text.index("tab-tcp") < html_text.index("tab-canonical")

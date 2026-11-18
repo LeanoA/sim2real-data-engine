@@ -1114,8 +1114,21 @@ def generate_policy_comparison_html(
       padding: 0.9rem;
       display: flex;
       flex-direction: column;
-      min-height: 310px;
+      min-height: 360px;
     }}
+    .stat-card:nth-child(odd) .tip-popover {{ left: 0; transform: none; }}
+    .stat-card:nth-child(even) .tip-popover {{ left: auto; right: 0; transform: none; }}
+    .stat-caption {{
+      font-size: 0.78rem;
+      line-height: 1.48;
+      color: var(--text-muted);
+      background: rgba(15, 23, 42, 0.7);
+      border-left: 2px solid #38bdf8;
+      padding: 0.45rem 0.65rem;
+      margin: 0.25rem 0 0.6rem;
+      border-radius: 0.25rem;
+    }}
+    .stat-caption strong {{ color: var(--text); font-weight: 600; }}
     .stat-plot {{
       flex: 1;
       width: 100%;

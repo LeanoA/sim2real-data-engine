@@ -340,25 +340,50 @@ def build_empirical_section_html_and_js(results_dir: Path | None = None) -> tupl
 
     tip_ci = tip_html(
         "95% Wilson Score CI",
-        "Statistical confidence bounds designed for binary outcomes on small samples (N=20). "
-        "Overlapping bars indicate statistical uncertainty; separated bars show real gains.",
+        "Statistical confidence bounds calibrated for binomial pass/fail counts on small samples "
+        "(N=20). Separated error bars confirm real architectural gains; heavy overlap signals "
+        "sample variance.",
+    )
+    tip_regimes = tip_html(
+        "Nominal vs. ID-DR vs. True OOD",
+        "Nominal: baseline table & cube physics. ID-DR: mass (0.85–1.15x), friction (0.70–1.30x) "
+        "& damping (0.90–1.10x) inside training bounds. True OOD: heavy mass (1.35–2.25x), slick "
+        "friction (0.30–0.55x), stiff damping (1.20–1.60x) & unseen XY workspace shifts outside "
+        "training bounds.",
     )
     tip_anova = tip_html(
         "2⁴ Factorial ANOVA & η²",
-        "48 balanced episodes varying 4 physical parameters at once. Eta-Squared (η²) measures "
-        "what % of OOD failure variance each factor drives—here Damping × Spatial Shift drives "
-        "44.4% of grasp failures while Mass & Friction contribute ~0%.",
+        "Tests high/low extremes of all 4 physical factors simultaneously across 48 balanced "
+        "episodes instead of varying one factor at a time. Eta-Squared (η²) measures what % of OOD "
+        "failure variance each factor or interaction drives.",
+    )
+    tip_anova_stages = tip_html(
+        "Grasp Clamping vs. Chained Task η²",
+        "Grasp Clamping η² explains variance in lifting the cube; Chained Task η² explains "
+        "variance in finishing grasp + cross-table placement within tolerance.",
     )
     tip_psycho = tip_html(
-        "Psychometric Curve & σ₅₀ (MLE)",
-        "Fits a Binomial logistic curve as Gaussian camera/pose noise (σ mm) increases. "
-        "σ₅₀ is the noise threshold where task success drops to 50%.",
+        "Psychometric Curve & σ₅₀ (Binomial MLE)",
+        "Fits a logistic probability curve via maximum likelihood estimation as Gaussian "
+        "camera/pose noise (σ in mm) increases. σ₅₀ is the exact noise ceiling where task success "
+        "drops to 50%.",
+    )
+    tip_breakdown = tip_html(
+        "Breakdown Threshold vs. σ₅₀",
+        "Breakdown (5.0 mm) is the first tested noise tier where success drops cleanly below "
+        "zero-noise baseline; σ₅₀ (7.45 mm) is the continuous MLE 50%-success cutoff.",
     )
     tip_control = tip_html(
         "FFT ≥ 5 Hz & Physical Joint Jerk",
-        "HF Power ≥ 5 Hz measures fast chatter; Jerk (rad/s³) measures acceleration spikes. "
-        "Without temporal ensembling w_k=exp(-0.05k), OOD success is 0%; ensembling cuts chatter "
-        "by ~78–88% and physical jerk by >95%.",
+        "HF Power ≥ 5 Hz measures high-frequency oscillation in commanded actions; Physical Jerk "
+        "(rad/s³) measures acceleration spikes in joint velocities. High values cause "
+        "closed-loop instability and actuator wear on real hardware.",
+    )
+    tip_ensembling = tip_html(
+        "Why Temporal Ensembling (w_k = exp(-0.05k))",
+        "Blending overlapping 8-step action chunks acts as a real-time low-pass filter: without it "
+        "(red bars), all 3 models hit 0% True OOD success; with it (green bars), chatter drops "
+        "78–88% and physical jerk drops >95%.",
     )
 
     html_block = f"""
@@ -372,7 +397,7 @@ def build_empirical_section_html_and_js(results_dir: Path | None = None) -> tupl
           Panels 1 &amp; 4 compare all three homogeneous <strong>450/50</strong> representations
           (<code>N=20</code> episodes per regime). Panels 2 &amp; 3 drill down into the winning
           <strong>TCP-Hybrid 30D</strong> (<code>bc_tcp_m1_45ep.pt</code>) policy. Hover or focus
-          any <span class="tip-icon tip-inline">?</span> badge to inspect terminology.
+          any <span class="tip-icon tip-inline">?</span> badge to inspect definitions and takeaways.
         </p>
       </div>
     </div>
@@ -385,6 +410,15 @@ def build_empirical_section_html_and_js(results_dir: Path | None = None) -> tupl
           </div>
           <span class="badge badge-arm">All 3 Models &bull; 450/50</span>
         </div>
+        <div class="stat-caption">
+          <strong>Compared:</strong> End-to-end pick-and-place rate across
+          <strong>Nominal</strong> (baseline physics), <strong>ID-DR</strong> (randomized inside
+          training bounds), and <strong>True OOD</strong> (unseen heavy/slick physics + XY shift)
+          {tip_regimes}.<br/>
+          <strong>Implication:</strong> Coordinate framing drives robustness&mdash;TCP-Hybrid 30D
+          retains <strong>70% ID-DR / 30% OOD</strong> (vs. 60%/20% World 30D), whereas stripping
+          global coords (Ego-SE(3) 20D) drops to 25%/5% due to dropoff-zone blindness.
+        </div>
         <div class="stat-plot" id="plot-stat-ci"></div>
       </div>
 
@@ -394,6 +428,15 @@ def build_empirical_section_html_and_js(results_dir: Path | None = None) -> tupl
             2. Orthogonal 2⁴ Factorial ANOVA (η² Attribution) {tip_anova}
           </div>
           <span class="badge badge-expert">TCP-Hybrid 30D &bull; 48 Ep</span>
+        </div>
+        <div class="stat-caption">
+          <strong>Compared:</strong> Share of OOD failure variance (&eta;&sup2; %) across
+          <strong>Mass</strong>, <strong>Friction</strong>, <strong>Damping</strong>,
+          <strong>XY Shift</strong> &amp; 2-way interactions for Grasp vs. Chained Task
+          {tip_anova_stages}.<br/>
+          <strong>Implication:</strong> Mass and Friction alone contribute ~<strong>0%</strong>;
+          <strong>Damping &times; Spatial Shift (44.4% Grasp / 39.1% Task)</strong> and Spatial
+          Shift (11.1%/14.1%) cause the bottleneck, guiding joint-damping &amp; reach calibration.
         </div>
         <div class="stat-plot" id="plot-stat-anova"></div>
       </div>
@@ -405,6 +448,15 @@ def build_empirical_section_html_and_js(results_dir: Path | None = None) -> tupl
           </div>
           <span class="badge badge-expert">TCP-Hybrid 30D &bull; N=20/σ</span>
         </div>
+        <div class="stat-caption">
+          <strong>Compared:</strong> Observed success (<code>N=20/&sigma;</code>, 95% Wilson CIs)
+          against the fitted Binomial MLE curve under injected Gaussian pose noise
+          <code>&sigma; &isin; [0, 20] mm</code> {tip_breakdown}.<br/>
+          <strong>Implication:</strong> Success drops from <strong>65%</strong>
+          (&sigma;=0 mm) past the <strong>5.0 mm</strong> breakdown point to
+          <strong>&sigma;₅₀ = 7.45 mm</strong>, setting a hard camera/pose accuracy budget before
+          real-world deployment.
+        </div>
         <div class="stat-plot" id="plot-stat-psycho"></div>
       </div>
 
@@ -414,6 +466,16 @@ def build_empirical_section_html_and_js(results_dir: Path | None = None) -> tupl
             4. Temporal Ensembling: FFT ≥ 5 Hz &amp; Physical Jerk {tip_control}
           </div>
           <span class="badge badge-arm">True OOD &bull; All 3 Models</span>
+        </div>
+        <div class="stat-caption">
+          <strong>Compared:</strong> True OOD high-frequency chatter (&ge;5 Hz) for unfiltered
+          single-step execution (<strong>Red</strong>) vs. <code>H=8</code> temporal ensembling
+          (<strong>Green</strong>) &amp; physical joint jerk cut (<strong>Amber</strong>)
+          {tip_ensembling}.<br/>
+          <strong>Implication:</strong> Ensembling cuts &ge;5 Hz chatter by
+          <strong>77.6%&ndash;87.9%</strong> and physical jerk by
+          <strong>95.6%&ndash;97.4%</strong>, turning <strong>0% raw True OOD</strong> into
+          20%&ndash;30% stable execution.
         </div>
         <div class="stat-plot" id="plot-stat-control"></div>
       </div>
