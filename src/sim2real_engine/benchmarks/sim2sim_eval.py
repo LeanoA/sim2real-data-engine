@@ -7,6 +7,12 @@ import math
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
+from sim2real_engine.benchmarks.statistics import (
+    BinomialCI,
+    DistributionStats,
+    summarize_distribution,
+    wilson_score_interval,
+)
 from sim2real_engine.core.contracts import BackendName
 from sim2real_engine.core.kinematics import DampedLeastSquaresIK
 from sim2real_engine.simulators.base import PrivilegedPickPlaceExpert, SimulatorBackend
@@ -44,6 +50,18 @@ class Sim2SimMetrics(BaseModel):
         ge=0.0,
         le=1.0,
         description="Task success rate in target engine.",
+    )
+    trajectory_rmse_stats: DistributionStats | None = Field(
+        None, description="Distribution summary for per-episode joint trajectory RMSE (rad)."
+    )
+    ee_divergence_stats: DistributionStats | None = Field(
+        None, description="Distribution summary for per-episode final EE divergence (m)."
+    )
+    reference_success_ci: BinomialCI | None = Field(
+        None, description="95% Wilson score CI for reference engine success rate."
+    )
+    target_success_ci: BinomialCI | None = Field(
+        None, description="95% Wilson score CI for target engine success rate."
     )
 
 
@@ -117,12 +135,19 @@ def evaluate_sim2sim_gap(
             episode_rmses.append(0.0)
             episode_ee_divs.append(0.0)
 
+    rmse_stats = summarize_distribution(episode_rmses, seed=seed, decimals=6)
+    ee_div_stats = summarize_distribution(episode_ee_divs, seed=seed, decimals=6)
+
     return Sim2SimMetrics(
         reference_backend=reference,
         target_backend=target,
         num_episodes=num_episodes,
-        mean_trajectory_rmse=round(float(np.mean(episode_rmses)), 6),
-        mean_ee_divergence_m=round(float(np.mean(episode_ee_divs)), 6),
+        mean_trajectory_rmse=rmse_stats.mean,
+        mean_ee_divergence_m=ee_div_stats.mean,
         success_rate_reference=round(ref_successes / num_episodes, 4),
         success_rate_target=round(tgt_successes / num_episodes, 4),
+        trajectory_rmse_stats=rmse_stats,
+        ee_divergence_stats=ee_div_stats,
+        reference_success_ci=wilson_score_interval(ref_successes, num_episodes),
+        target_success_ci=wilson_score_interval(tgt_successes, num_episodes),
     )
