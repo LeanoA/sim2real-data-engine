@@ -362,6 +362,14 @@ def build_empirical_section_html_and_js(results_dir: Path | None = None) -> tupl
         "Grasp Clamping η² explains variance in lifting the cube; Chained Task η² explains "
         "variance in finishing grasp + cross-table placement within tolerance.",
     )
+    tip_anova_factors = tip_html(
+        "What Spatial Shift (XY) & (2-Way) Mean",
+        "Spatial Shift (XY): offsets the cube spawn on the table (0.0 m nominal vs +0.07 m "
+        "unseen XY shift) to test workspace reach. (2-Way) Interaction: measures how two factors "
+        "amplify or flip each other when varied together—Joint Damping (0.9x vs 1.5x) alone "
+        "averages 0.0% because its impact flips across XY workspace offsets, causing 44.4% of "
+        "grasp variance when combined.",
+    )
     tip_psycho = tip_html(
         "Psychometric Curve & σ₅₀ (Binomial MLE)",
         "Fits a logistic probability curve via maximum likelihood estimation as Gaussian "
@@ -432,11 +440,13 @@ def build_empirical_section_html_and_js(results_dir: Path | None = None) -> tupl
         <div class="stat-caption">
           <strong>Compared:</strong> Share of OOD failure variance (&eta;&sup2; %) across
           <strong>Mass</strong>, <strong>Friction</strong>, <strong>Damping</strong>,
-          <strong>XY Shift</strong> &amp; 2-way interactions for Grasp vs. Chained Task
-          {tip_anova_stages}.<br/>
+          <strong>Spatial Shift (XY)</strong> (<code>0.0 vs +0.07 m</code> unseen cube offset),
+          and <strong>(2-Way)</strong> coupled pairs for Grasp vs. Chained Task
+          {tip_anova_stages} {tip_anova_factors}.<br/>
           <strong>Implication:</strong> Mass and Friction alone contribute ~<strong>0%</strong>;
-          <strong>Damping &times; Spatial Shift (44.4% Grasp / 39.1% Task)</strong> and Spatial
-          Shift (11.1%/14.1%) cause the bottleneck, guiding joint-damping &amp; reach calibration.
+          <strong>Damping &times; Spatial Shift (2-Way) (44.4% Grasp / 39.1% Task)</strong> and
+          Spatial Shift (11.1%/14.1%) dominate because joint damping effects flip across table
+          offsets&mdash;guiding damping &amp; reach calibration.
         </div>
         <div class="stat-plot" id="plot-stat-anova"></div>
       </div>
